@@ -1,0 +1,249 @@
+const POPUP_I18N = {
+  "zh-TW": {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "本機 Copilot 路由",
+    title: "Edge AI Chat",
+    endpoint: "端點",
+    settings: "設定",
+    models: "模型",
+    refresh: "重新整理",
+    loading: "載入中...",
+    notConfigured: "未設定",
+    selectFailed: "選擇模型失敗。",
+    fetchFailed: "取得模型失敗。",
+    selected: "已選取",
+    useInGitHub: "用於 GitHub",
+    foundModels: "找到 {count} 個模型。",
+  },
+  en: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "Local Copilot Route",
+    title: "Edge AI Chat",
+    endpoint: "Endpoint",
+    settings: "Settings",
+    models: "Models",
+    refresh: "Refresh",
+    loading: "Loading...",
+    notConfigured: "Not configured",
+    selectFailed: "Failed to select model.",
+    fetchFailed: "Failed to fetch models.",
+    selected: "Selected",
+    useInGitHub: "Use in GitHub",
+    foundModels: "Found {count} model(s).",
+  },
+  ja: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "ローカル Copilot ルート",
+    title: "Edge AI Chat",
+    endpoint: "エンドポイント",
+    settings: "設定",
+    models: "モデル",
+    refresh: "更新",
+    loading: "読み込み中...",
+    notConfigured: "未設定",
+    selectFailed: "モデルの選択に失敗しました。",
+    fetchFailed: "モデルの取得に失敗しました。",
+    selected: "選択済み",
+    useInGitHub: "GitHub で使用",
+    foundModels: "{count} 個のモデルが見つかりました。",
+  },
+  ko: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "로컬 Copilot 경로",
+    title: "Edge AI Chat",
+    endpoint: "엔드포인트",
+    settings: "설정",
+    models: "모델",
+    refresh: "새로고침",
+    loading: "불러오는 중...",
+    notConfigured: "설정되지 않음",
+    selectFailed: "모델 선택에 실패했습니다.",
+    fetchFailed: "모델을 가져오지 못했습니다.",
+    selected: "선택됨",
+    useInGitHub: "GitHub에서 사용",
+    foundModels: "{count}개 모델을 찾았습니다.",
+  },
+  "zh-CN": {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "本地 Copilot 路由",
+    title: "Edge AI Chat",
+    endpoint: "端点",
+    settings: "设置",
+    models: "模型",
+    refresh: "刷新",
+    loading: "加载中...",
+    notConfigured: "未设置",
+    selectFailed: "选择模型失败。",
+    fetchFailed: "获取模型失败。",
+    selected: "已选择",
+    useInGitHub: "用于 GitHub",
+    foundModels: "找到 {count} 个模型。",
+  },
+  es: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "Ruta Copilot local",
+    title: "Edge AI Chat",
+    endpoint: "Endpoint",
+    settings: "Configuración",
+    models: "Modelos",
+    refresh: "Actualizar",
+    loading: "Cargando...",
+    notConfigured: "Sin configurar",
+    selectFailed: "No se pudo seleccionar el modelo.",
+    fetchFailed: "No se pudieron obtener los modelos.",
+    selected: "Seleccionado",
+    useInGitHub: "Usar en GitHub",
+    foundModels: "Se encontraron {count} modelo(s).",
+  },
+  fr: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "Route Copilot locale",
+    title: "Edge AI Chat",
+    endpoint: "Point de terminaison",
+    settings: "Paramètres",
+    models: "Modèles",
+    refresh: "Actualiser",
+    loading: "Chargement...",
+    notConfigured: "Non configuré",
+    selectFailed: "Échec de la sélection du modèle.",
+    fetchFailed: "Échec de récupération des modèles.",
+    selected: "Sélectionné",
+    useInGitHub: "Utiliser dans GitHub",
+    foundModels: "{count} modèle(s) trouvé(s).",
+  },
+  de: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "Lokale Copilot-Route",
+    title: "Edge AI Chat",
+    endpoint: "Endpunkt",
+    settings: "Einstellungen",
+    models: "Modelle",
+    refresh: "Aktualisieren",
+    loading: "Wird geladen...",
+    notConfigured: "Nicht konfiguriert",
+    selectFailed: "Modell konnte nicht ausgewählt werden.",
+    fetchFailed: "Modelle konnten nicht geladen werden.",
+    selected: "Ausgewählt",
+    useInGitHub: "In GitHub verwenden",
+    foundModels: "{count} Modell(e) gefunden.",
+  },
+  "pt-BR": {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "Rota Copilot local",
+    title: "Edge AI Chat",
+    endpoint: "Endpoint",
+    settings: "Configurações",
+    models: "Modelos",
+    refresh: "Atualizar",
+    loading: "Carregando...",
+    notConfigured: "Não configurado",
+    selectFailed: "Falha ao selecionar o modelo.",
+    fetchFailed: "Falha ao buscar modelos.",
+    selected: "Selecionado",
+    useInGitHub: "Usar no GitHub",
+    foundModels: "{count} modelo(s) encontrado(s).",
+  },
+  hi: {
+    pageTitle: "Edge AI Chat",
+    eyebrow: "लोकल Copilot रूट",
+    title: "Edge AI Chat",
+    endpoint: "एंडपॉइंट",
+    settings: "सेटिंग्स",
+    models: "मॉडल",
+    refresh: "रीफ़्रेश",
+    loading: "लोड हो रहा है...",
+    notConfigured: "कॉन्फ़िगर नहीं",
+    selectFailed: "मॉडल चुनने में विफल।",
+    fetchFailed: "मॉडल प्राप्त नहीं हो सके।",
+    selected: "चयनित",
+    useInGitHub: "GitHub में उपयोग करें",
+    foundModels: "{count} मॉडल मिले।",
+  },
+};
+
+let popupLocale = POPUP_I18N["zh-TW"];
+
+function sendMessage(message) {
+  return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+}
+
+function tp(key, vars = {}) {
+  const template = popupLocale[key] || POPUP_I18N.en[key] || key;
+  return template.replace(/\{(\w+)\}/g, (_match, name) => String(vars[name] ?? ""));
+}
+
+function applyPopupTranslations() {
+  document.title = tp("pageTitle");
+  document.getElementById("popupEyebrow").textContent = tp("eyebrow");
+  document.getElementById("popupTitle").textContent = tp("title");
+  document.getElementById("popupEndpointLabel").textContent = tp("endpoint");
+  document.getElementById("openOptions").textContent = tp("settings");
+  document.getElementById("popupModelsTitle").textContent = tp("models");
+  document.getElementById("refreshModels").textContent = tp("refresh");
+}
+
+function setMessage(message, isError = false) {
+  const node = document.getElementById("popupMessage");
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+}
+
+async function loadConfig() {
+  const result = await sendMessage({ type: "ollama:get-config" });
+  if (result?.ok) {
+    popupLocale = POPUP_I18N[result.config.replyLanguage || "zh-TW"] || POPUP_I18N.en;
+    applyPopupTranslations();
+    document.getElementById("endpointValue").textContent = result.config.ollamaUrl || tp("notConfigured");
+  }
+  return result?.config || {};
+}
+
+async function selectModel(model) {
+  const result = await sendMessage({ type: "ollama:select-model", model });
+  if (!result?.ok) {
+    throw new Error(result?.error || tp("selectFailed"));
+  }
+  await refreshModels();
+}
+
+async function refreshModels() {
+  const config = await loadConfig();
+  const result = await sendMessage({ type: "ollama:list-models" });
+  const list = document.getElementById("popupModels");
+  list.innerHTML = "";
+
+  if (!result?.ok) {
+    setMessage(result?.error || tp("fetchFailed"), true);
+    return;
+  }
+
+  (result.models || []).forEach((model) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "model-card button-card";
+    if (config.selectedModel === model.name) {
+      button.classList.add("is-selected");
+    }
+    button.innerHTML = `
+      <div class="model-card-name">${model.name}</div>
+      <div class="model-card-meta">${config.selectedModel === model.name ? tp("selected") : tp("useInGitHub")}</div>
+    `;
+    button.addEventListener("click", async () => {
+      try {
+        await selectModel(model.name);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : String(error), true);
+      }
+    });
+    list.appendChild(button);
+  });
+
+  setMessage(tp("foundModels", { count: result.models.length }));
+}
+
+document.getElementById("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
+document.getElementById("refreshModels").addEventListener("click", refreshModels);
+
+applyPopupTranslations();
+setMessage(tp("loading"));
+refreshModels();
