@@ -3,7 +3,15 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat 設定",
     eyebrow: "Edge AI Chat",
     title: "設定",
-    description: "調校 Ollama 與 LM Studio 的本機推論路由，並設定瀏覽器聊天的預設體驗。",
+    description: "調校 Ollama、LM Studio、Gemini 與 Azure OpenAI 的設定，並設定瀏覽器聊天的預設體驗。",
+    connectionKicker: "連線",
+    ollamaKicker: "本機",
+    bridgeKicker: "橋接",
+    geminiKicker: "雲端",
+    azureKicker: "企業",
+    behaviorKicker: "行為",
+    providerSectionTitle: "AI Providers",
+    providerSectionTag: "分頁設定",
     ollamaUrlLabel: "Ollama 網址",
     ollamaSectionTitle: "Ollama 控制台",
     ollamaSectionTag: "即時模型掃描",
@@ -13,10 +21,27 @@ const OPTION_I18N = {
     lmStudioModelLabel: "預設模型 ID",
     lmStudioApiKeyLabel: "API Key",
     lmStudioHint: "可先儲存 LM Studio 本機伺服器資訊，之後要接 OpenAI 相容呼叫或多路由時就能直接使用。",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "模型",
+    geminiApiKeyLabel: "API Key",
+    geminiHint: "先把 Gemini 的模型與 API Key 存起來，之後接雲端路由時就不用再重新輸入。",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "Azure 上的 OpenAI",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "API Version",
+    azureApiKeyLabel: "API Key",
+    azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
     generalSectionTitle: "互動體驗",
-    authorSectionTitle: "作者",
-    authorInfo: "作者：wilsondenq879",
+    generalSectionTag: "Prompt 路由",
+    defaultProviderLabel: "預設 Provider",
+    defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
+    systemPromptLabel: "System Prompt",
+    multiPerspectiveProfilesLabel: "多視角角色",
+    systemPromptHint: "這段內容會先於使用者訊息與頁面 context 一起送給模型，適合放角色設定、格式要求與回覆限制。",
+    multiPerspectiveProfilesHint: "每行一個視角，格式為 `標題|指令`。留白時會使用內建的頁型預設。",
     saveSettings: "儲存設定",
     testConnection: "測試連線",
     installedModels: "已安裝模型",
@@ -33,7 +58,15 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat Settings",
     eyebrow: "Edge AI Chat",
     title: "Settings",
-    description: "Tune local inference routing for Ollama and LM Studio, then define the default browser chat experience.",
+    description: "Configure Ollama, LM Studio, Gemini, and Azure OpenAI, then define the default browser chat experience.",
+    connectionKicker: "Connection",
+    ollamaKicker: "Local",
+    bridgeKicker: "Bridge",
+    geminiKicker: "Cloud",
+    azureKicker: "Enterprise",
+    behaviorKicker: "Behavior",
+    providerSectionTitle: "AI Providers",
+    providerSectionTag: "Tabbed Setup",
     ollamaUrlLabel: "Ollama URL",
     ollamaSectionTitle: "Ollama Control",
     ollamaSectionTag: "Live Model Scan",
@@ -43,10 +76,27 @@ const OPTION_I18N = {
     lmStudioModelLabel: "Default Model ID",
     lmStudioApiKeyLabel: "API Key",
     lmStudioHint: "Store LM Studio server details here so future OpenAI-compatible routing can use them directly.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "Model",
+    geminiApiKeyLabel: "API Key",
+    geminiHint: "Store your Gemini model and API key here so future cloud routing can use them directly.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "OpenAI on Azure",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "API Version",
+    azureApiKeyLabel: "API Key",
+    azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
     generalSectionTitle: "Experience",
-    authorSectionTitle: "Author",
-    authorInfo: "Author: wilsondenq879",
+    generalSectionTag: "Prompt Routing",
+    defaultProviderLabel: "Default Provider",
+    defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
+    systemPromptLabel: "System Prompt",
+    multiPerspectiveProfilesLabel: "Multi-View Profiles",
+    systemPromptHint: "This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.",
+    multiPerspectiveProfilesHint: "One perspective per line using `Title|Instruction`. Leave it empty to use the built-in defaults for each page type.",
     saveSettings: "Save Settings",
     testConnection: "Test Connection",
     installedModels: "Installed Models",
@@ -63,9 +113,43 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat 設定",
     eyebrow: "Edge AI Chat",
     title: "設定",
-    description: "Ollama のエンドポイント、インストール済みモデル、ブラウザー上のチャットで使う既定の応答言語を設定します。",
+    description: "Ollama、LM Studio、Gemini、Azure OpenAI の設定を行い、ブラウザー上のチャット体験を調整します。",
+    connectionKicker: "接続",
+    ollamaKicker: "ローカル",
+    bridgeKicker: "ブリッジ",
+    geminiKicker: "クラウド",
+    azureKicker: "エンタープライズ",
+    behaviorKicker: "動作",
+    providerSectionTitle: "AI プロバイダー",
+    providerSectionTag: "タブ設定",
     ollamaUrlLabel: "Ollama URL",
+    ollamaSectionTitle: "Ollama コントロール",
+    ollamaSectionTag: "モデルをライブ検出",
+    lmStudioSectionTitle: "LM Studio ブリッジ",
+    lmStudioSectionTag: "OpenAI 互換",
+    lmStudioUrlLabel: "LM Studio URL",
+    lmStudioModelLabel: "既定のモデル ID",
+    lmStudioApiKeyLabel: "API キー",
+    lmStudioHint: "今後 OpenAI 互換呼び出しやルーティングで使えるように、LM Studio の接続情報を保存します。",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "モデル",
+    geminiApiKeyLabel: "API キー",
+    geminiHint: "今後のクラウドルーティングで使えるように、Gemini のモデルと API キーを保存します。",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "Azure 上の OpenAI",
+    azureEndpointLabel: "エンドポイント",
+    azureDeploymentLabel: "デプロイ名",
+    azureApiVersionLabel: "API バージョン",
+    azureApiKeyLabel: "API キー",
+    azureHint: "今後のホスト型ルーティングで使えるように、Azure OpenAI の接続情報を保存します。",
+    generalSectionTitle: "体験",
+    generalSectionTag: "プロンプトルーティング",
+    defaultProviderLabel: "既定のプロバイダー",
+    defaultProviderHint: "今後ルーティングを有効にしたときに、既定で使う AI プロバイダーを選択します。",
     replyLanguageLabel: "応答言語",
+    systemPromptLabel: "システムプロンプト",
+    systemPromptHint: "この内容はユーザー入力とページコンテキストの前に送信されます。口調、制約、出力ルールの指定に使えます。",
     saveSettings: "設定を保存",
     testConnection: "接続をテスト",
     installedModels: "インストール済みモデル",
@@ -82,9 +166,43 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat 설정",
     eyebrow: "Edge AI Chat",
     title: "설정",
-    description: "브라우저 채팅용 Ollama 엔드포인트, 설치된 모델, 기본 응답 언어를 설정합니다.",
+    description: "Ollama, LM Studio, Gemini, Azure OpenAI 설정을 관리하고 브라우저 채팅 기본 동작을 조정합니다.",
+    connectionKicker: "연결",
+    ollamaKicker: "로컬",
+    bridgeKicker: "브리지",
+    geminiKicker: "클라우드",
+    azureKicker: "엔터프라이즈",
+    behaviorKicker: "동작",
+    providerSectionTitle: "AI 제공자",
+    providerSectionTag: "탭 설정",
     ollamaUrlLabel: "Ollama URL",
+    ollamaSectionTitle: "Ollama 제어",
+    ollamaSectionTag: "실시간 모델 스캔",
+    lmStudioSectionTitle: "LM Studio 브리지",
+    lmStudioSectionTag: "OpenAI 호환",
+    lmStudioUrlLabel: "LM Studio URL",
+    lmStudioModelLabel: "기본 모델 ID",
+    lmStudioApiKeyLabel: "API 키",
+    lmStudioHint: "나중에 OpenAI 호환 호출이나 라우팅에 사용할 수 있도록 LM Studio 서버 정보를 저장합니다.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "모델",
+    geminiApiKeyLabel: "API 키",
+    geminiHint: "나중에 클라우드 라우팅에 사용할 수 있도록 Gemini 모델과 API 키를 저장합니다.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "Azure의 OpenAI",
+    azureEndpointLabel: "엔드포인트",
+    azureDeploymentLabel: "배포 이름",
+    azureApiVersionLabel: "API 버전",
+    azureApiKeyLabel: "API 키",
+    azureHint: "나중에 호스팅 라우팅에 사용할 수 있도록 Azure OpenAI 연결 정보를 저장합니다.",
+    generalSectionTitle: "사용 경험",
+    generalSectionTag: "프롬프트 라우팅",
+    defaultProviderLabel: "기본 제공자",
+    defaultProviderHint: "향후 라우팅을 활성화할 때 기본으로 사용할 AI 제공자를 선택합니다.",
     replyLanguageLabel: "응답 언어",
+    systemPromptLabel: "시스템 프롬프트",
+    systemPromptHint: "이 프롬프트는 사용자 메시지와 페이지 컨텍스트보다 먼저 전송됩니다. 말투, 제약, 출력 규칙을 정의하는 데 사용하세요.",
     saveSettings: "설정 저장",
     testConnection: "연결 테스트",
     installedModels: "설치된 모델",
@@ -101,9 +219,43 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat 设置",
     eyebrow: "Edge AI Chat",
     title: "设置",
-    description: "配置 Ollama 端点、已安装模型，以及浏览器聊天的默认回复语言。",
+    description: "配置 Ollama、LM Studio、Gemini 与 Azure OpenAI，并调整浏览器聊天的默认体验。",
+    connectionKicker: "连接",
+    ollamaKicker: "本地",
+    bridgeKicker: "桥接",
+    geminiKicker: "云端",
+    azureKicker: "企业",
+    behaviorKicker: "行为",
+    providerSectionTitle: "AI Providers",
+    providerSectionTag: "分页设置",
     ollamaUrlLabel: "Ollama 地址",
+    ollamaSectionTitle: "Ollama 控制台",
+    ollamaSectionTag: "实时模型扫描",
+    lmStudioSectionTitle: "LM Studio 桥接",
+    lmStudioSectionTag: "OpenAI 兼容",
+    lmStudioUrlLabel: "LM Studio 地址",
+    lmStudioModelLabel: "默认模型 ID",
+    lmStudioApiKeyLabel: "API Key",
+    lmStudioHint: "可先保存 LM Studio 本地服务信息，之后接 OpenAI 兼容调用或多路由时可直接使用。",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "模型",
+    geminiApiKeyLabel: "API Key",
+    geminiHint: "先把 Gemini 的模型与 API Key 保存起来，之后接云端路由时就不用重新输入。",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "Azure 上的 OpenAI",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "API Version",
+    azureApiKeyLabel: "API Key",
+    azureHint: "保存 Azure OpenAI 的资源端点、deployment 名称、API version 与密钥，之后接 hosted routing 时可直接使用。",
+    generalSectionTitle: "体验",
+    generalSectionTag: "Prompt 路由",
+    defaultProviderLabel: "默认 Provider",
+    defaultProviderHint: "选择未来启用多路由时默认使用的 AI provider。",
     replyLanguageLabel: "回复语言",
+    systemPromptLabel: "System Prompt",
+    systemPromptHint: "这段内容会先于用户消息与页面 context 一起发送给模型，适合放角色设定、格式要求与回复限制。",
     saveSettings: "保存设置",
     testConnection: "测试连接",
     installedModels: "已安装模型",
@@ -120,9 +272,43 @@ const OPTION_I18N = {
     pageTitle: "Configuración de Edge AI Chat",
     eyebrow: "Edge AI Chat",
     title: "Configuración",
-    description: "Configura el endpoint de Ollama, los modelos instalados y el idioma de respuesta predeterminado para el chat en el navegador.",
+    description: "Configura Ollama, LM Studio, Gemini y Azure OpenAI, y define la experiencia predeterminada del chat en el navegador.",
+    connectionKicker: "Conexión",
+    ollamaKicker: "Local",
+    bridgeKicker: "Puente",
+    geminiKicker: "Nube",
+    azureKicker: "Empresarial",
+    behaviorKicker: "Comportamiento",
+    providerSectionTitle: "Proveedores de IA",
+    providerSectionTag: "Configuración por pestañas",
     ollamaUrlLabel: "URL de Ollama",
+    ollamaSectionTitle: "Control de Ollama",
+    ollamaSectionTag: "Escaneo de modelos en vivo",
+    lmStudioSectionTitle: "Puente de LM Studio",
+    lmStudioSectionTag: "Compatible con OpenAI",
+    lmStudioUrlLabel: "URL de LM Studio",
+    lmStudioModelLabel: "ID de modelo predeterminado",
+    lmStudioApiKeyLabel: "Clave API",
+    lmStudioHint: "Guarda aquí los datos del servidor de LM Studio para futuras llamadas compatibles con OpenAI o enrutamiento.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "Modelo",
+    geminiApiKeyLabel: "Clave API",
+    geminiHint: "Guarda aquí el modelo y la clave API de Gemini para futuras rutas en la nube.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "OpenAI en Azure",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "Versión de API",
+    azureApiKeyLabel: "Clave API",
+    azureHint: "Guarda el endpoint, deployment, versión de API y clave de Azure OpenAI para futuras rutas alojadas.",
+    generalSectionTitle: "Experiencia",
+    generalSectionTag: "Enrutamiento de prompts",
+    defaultProviderLabel: "Proveedor predeterminado",
+    defaultProviderHint: "Elige qué proveedor de IA se usará por defecto cuando el enrutamiento esté habilitado.",
     replyLanguageLabel: "Idioma de respuesta",
+    systemPromptLabel: "Prompt del sistema",
+    systemPromptHint: "Este prompt se envía antes del mensaje del usuario y del contexto de la página. Úsalo para definir tono, límites y reglas de salida.",
     saveSettings: "Guardar configuración",
     testConnection: "Probar conexión",
     installedModels: "Modelos instalados",
@@ -139,9 +325,43 @@ const OPTION_I18N = {
     pageTitle: "Paramètres Edge AI Chat",
     eyebrow: "Edge AI Chat",
     title: "Paramètres",
-    description: "Configurez le point de terminaison Ollama, les modèles installés et la langue de réponse par défaut pour le chat dans le navigateur.",
+    description: "Configurez Ollama, LM Studio, Gemini et Azure OpenAI, puis définissez l’expérience de chat par défaut dans le navigateur.",
+    connectionKicker: "Connexion",
+    ollamaKicker: "Local",
+    bridgeKicker: "Passerelle",
+    geminiKicker: "Cloud",
+    azureKicker: "Entreprise",
+    behaviorKicker: "Comportement",
+    providerSectionTitle: "Fournisseurs IA",
+    providerSectionTag: "Configuration par onglets",
     ollamaUrlLabel: "URL Ollama",
+    ollamaSectionTitle: "Contrôle Ollama",
+    ollamaSectionTag: "Détection des modèles en direct",
+    lmStudioSectionTitle: "Passerelle LM Studio",
+    lmStudioSectionTag: "Compatible OpenAI",
+    lmStudioUrlLabel: "URL LM Studio",
+    lmStudioModelLabel: "ID du modèle par défaut",
+    lmStudioApiKeyLabel: "Clé API",
+    lmStudioHint: "Enregistrez ici les informations du serveur LM Studio pour les futurs appels compatibles OpenAI ou le routage.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "Modèle",
+    geminiApiKeyLabel: "Clé API",
+    geminiHint: "Enregistrez ici le modèle Gemini et sa clé API pour un futur routage cloud.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "OpenAI sur Azure",
+    azureEndpointLabel: "Point de terminaison",
+    azureDeploymentLabel: "Déploiement",
+    azureApiVersionLabel: "Version d’API",
+    azureApiKeyLabel: "Clé API",
+    azureHint: "Enregistrez l’endpoint, le déploiement, la version d’API et la clé d’Azure OpenAI pour un futur routage hébergé.",
+    generalSectionTitle: "Expérience",
+    generalSectionTag: "Routage des prompts",
+    defaultProviderLabel: "Fournisseur par défaut",
+    defaultProviderHint: "Choisissez quel fournisseur IA sera utilisé par défaut lorsque le routage sera activé.",
     replyLanguageLabel: "Langue de réponse",
+    systemPromptLabel: "Prompt système",
+    systemPromptHint: "Ce prompt est envoyé avant le message utilisateur et le contexte de la page. Utilisez-le pour définir le ton, les contraintes et les règles de sortie.",
     saveSettings: "Enregistrer",
     testConnection: "Tester la connexion",
     installedModels: "Modèles installés",
@@ -158,9 +378,43 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat Einstellungen",
     eyebrow: "Edge AI Chat",
     title: "Einstellungen",
-    description: "Konfiguriere den Ollama-Endpunkt, installierte Modelle und die Standard-Antwortsprache für den Browser-Chat.",
+    description: "Konfiguriere Ollama, LM Studio, Gemini und Azure OpenAI und lege das Standardverhalten des Browser-Chats fest.",
+    connectionKicker: "Verbindung",
+    ollamaKicker: "Lokal",
+    bridgeKicker: "Bridge",
+    geminiKicker: "Cloud",
+    azureKicker: "Enterprise",
+    behaviorKicker: "Verhalten",
+    providerSectionTitle: "KI-Anbieter",
+    providerSectionTag: "Tabs",
     ollamaUrlLabel: "Ollama-URL",
+    ollamaSectionTitle: "Ollama-Steuerung",
+    ollamaSectionTag: "Live-Modellscan",
+    lmStudioSectionTitle: "LM Studio Bridge",
+    lmStudioSectionTag: "OpenAI-kompatibel",
+    lmStudioUrlLabel: "LM Studio-URL",
+    lmStudioModelLabel: "Standard-Modell-ID",
+    lmStudioApiKeyLabel: "API-Schlüssel",
+    lmStudioHint: "Speichere hier die LM-Studio-Serverdaten für spätere OpenAI-kompatible Aufrufe oder Routing.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "Modell",
+    geminiApiKeyLabel: "API-Schlüssel",
+    geminiHint: "Speichere hier Gemini-Modell und API-Schlüssel für zukünftiges Cloud-Routing.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "OpenAI auf Azure",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "API-Version",
+    azureApiKeyLabel: "API-Schlüssel",
+    azureHint: "Speichere Endpoint, Deployment, API-Version und Schlüssel von Azure OpenAI für zukünftiges gehostetes Routing.",
+    generalSectionTitle: "Erlebnis",
+    generalSectionTag: "Prompt-Routing",
+    defaultProviderLabel: "Standardanbieter",
+    defaultProviderHint: "Wähle, welcher KI-Anbieter standardmäßig verwendet werden soll, wenn Routing aktiviert ist.",
     replyLanguageLabel: "Antwortsprache",
+    systemPromptLabel: "System-Prompt",
+    systemPromptHint: "Dieser Prompt wird vor der Nutzernachricht und dem Seitenkontext gesendet. Nutze ihn für Ton, Einschränkungen und Ausgaberegeln.",
     saveSettings: "Einstellungen speichern",
     testConnection: "Verbindung testen",
     installedModels: "Installierte Modelle",
@@ -177,9 +431,43 @@ const OPTION_I18N = {
     pageTitle: "Configurações do Edge AI Chat",
     eyebrow: "Edge AI Chat",
     title: "Configurações",
-    description: "Configure o endpoint do Ollama, os modelos instalados e o idioma padrão de resposta para o chat no navegador.",
+    description: "Configure Ollama, LM Studio, Gemini e Azure OpenAI e defina a experiência padrão do chat no navegador.",
+    connectionKicker: "Conexão",
+    ollamaKicker: "Local",
+    bridgeKicker: "Ponte",
+    geminiKicker: "Nuvem",
+    azureKicker: "Corporativo",
+    behaviorKicker: "Comportamento",
+    providerSectionTitle: "Provedores de IA",
+    providerSectionTag: "Configuração por abas",
     ollamaUrlLabel: "URL do Ollama",
+    ollamaSectionTitle: "Controle do Ollama",
+    ollamaSectionTag: "Varredura de modelos em tempo real",
+    lmStudioSectionTitle: "Ponte LM Studio",
+    lmStudioSectionTag: "Compatível com OpenAI",
+    lmStudioUrlLabel: "URL do LM Studio",
+    lmStudioModelLabel: "ID do modelo padrão",
+    lmStudioApiKeyLabel: "Chave da API",
+    lmStudioHint: "Salve aqui os dados do servidor LM Studio para futuras chamadas compatíveis com OpenAI ou roteamento.",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "Modelo",
+    geminiApiKeyLabel: "Chave da API",
+    geminiHint: "Salve aqui o modelo Gemini e a chave da API para uso futuro em roteamento na nuvem.",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "OpenAI no Azure",
+    azureEndpointLabel: "Endpoint",
+    azureDeploymentLabel: "Deployment",
+    azureApiVersionLabel: "Versão da API",
+    azureApiKeyLabel: "Chave da API",
+    azureHint: "Salve endpoint, deployment, versão da API e chave do Azure OpenAI para roteamento hospedado no futuro.",
+    generalSectionTitle: "Experiência",
+    generalSectionTag: "Roteamento de prompt",
+    defaultProviderLabel: "Provedor padrão",
+    defaultProviderHint: "Escolha qual provedor de IA deve ser usado por padrão quando o roteamento estiver habilitado.",
     replyLanguageLabel: "Idioma da resposta",
+    systemPromptLabel: "Prompt do sistema",
+    systemPromptHint: "Este prompt é enviado antes da mensagem do usuário e do contexto da página. Use-o para definir tom, restrições e regras de saída.",
     saveSettings: "Salvar configurações",
     testConnection: "Testar conexão",
     installedModels: "Modelos instalados",
@@ -196,9 +484,43 @@ const OPTION_I18N = {
     pageTitle: "Edge AI Chat सेटिंग्स",
     eyebrow: "Edge AI Chat",
     title: "सेटिंग्स",
-    description: "ब्राउज़र चैट के लिए Ollama endpoint, इंस्टॉल किए गए मॉडल और डिफ़ॉल्ट उत्तर भाषा सेट करें।",
+    description: "Ollama, LM Studio, Gemini और Azure OpenAI कॉन्फ़िगर करें और ब्राउज़र चैट का डिफ़ॉल्ट अनुभव तय करें।",
+    connectionKicker: "कनेक्शन",
+    ollamaKicker: "लोकल",
+    bridgeKicker: "ब्रिज",
+    geminiKicker: "क्लाउड",
+    azureKicker: "एंटरप्राइज़",
+    behaviorKicker: "व्यवहार",
+    providerSectionTitle: "AI प्रदाता",
+    providerSectionTag: "टैब सेटअप",
     ollamaUrlLabel: "Ollama URL",
+    ollamaSectionTitle: "Ollama नियंत्रण",
+    ollamaSectionTag: "लाइव मॉडल स्कैन",
+    lmStudioSectionTitle: "LM Studio ब्रिज",
+    lmStudioSectionTag: "OpenAI संगत",
+    lmStudioUrlLabel: "LM Studio URL",
+    lmStudioModelLabel: "डिफ़ॉल्ट मॉडल ID",
+    lmStudioApiKeyLabel: "API कुंजी",
+    lmStudioHint: "भविष्य में OpenAI-संगत कॉल या रूटिंग के लिए LM Studio सर्वर विवरण यहां सहेजें।",
+    geminiSectionTitle: "Gemini",
+    geminiSectionTag: "Google AI",
+    geminiModelLabel: "मॉडल",
+    geminiApiKeyLabel: "API कुंजी",
+    geminiHint: "भविष्य की क्लाउड रूटिंग के लिए Gemini मॉडल और API कुंजी यहां सहेजें।",
+    azureSectionTitle: "Azure OpenAI",
+    azureSectionTag: "Azure पर OpenAI",
+    azureEndpointLabel: "एंडपॉइंट",
+    azureDeploymentLabel: "डिप्लॉयमेंट",
+    azureApiVersionLabel: "API संस्करण",
+    azureApiKeyLabel: "API कुंजी",
+    azureHint: "भविष्य की होस्टेड रूटिंग के लिए Azure OpenAI endpoint, deployment, API version और कुंजी सहेजें।",
+    generalSectionTitle: "अनुभव",
+    generalSectionTag: "प्रॉम्प्ट रूटिंग",
+    defaultProviderLabel: "डिफ़ॉल्ट प्रदाता",
+    defaultProviderHint: "रूटिंग सक्षम होने पर डिफ़ॉल्ट रूप से कौन सा AI प्रदाता उपयोग होगा, यह चुनें।",
     replyLanguageLabel: "उत्तर भाषा",
+    systemPromptLabel: "सिस्टम प्रॉम्प्ट",
+    systemPromptHint: "यह प्रॉम्प्ट उपयोगकर्ता संदेश और पेज कॉन्टेक्स्ट से पहले भेजा जाता है। इसका उपयोग टोन, सीमाएँ और आउटपुट नियम तय करने के लिए करें।",
     saveSettings: "सेटिंग्स सहेजें",
     testConnection: "कनेक्शन जाँचें",
     installedModels: "इंस्टॉल किए गए मॉडल",
@@ -213,7 +535,8 @@ const OPTION_I18N = {
   },
 };
 
-let currentLocale = OPTION_I18N.en;
+let currentLocale = OPTION_I18N["zh-TW"];
+let activeProviderTab = "ollama";
 
 function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -229,6 +552,14 @@ function applyTranslations() {
   document.getElementById("settingsEyebrow").textContent = t("eyebrow");
   document.getElementById("settingsTitle").textContent = t("title");
   document.getElementById("settingsDescription").textContent = t("description");
+  document.getElementById("connectionKicker").textContent = t("connectionKicker");
+  document.getElementById("ollamaKicker").textContent = t("ollamaKicker");
+  document.getElementById("bridgeKicker").textContent = t("bridgeKicker");
+  document.getElementById("geminiKicker").textContent = t("geminiKicker");
+  document.getElementById("azureKicker").textContent = t("azureKicker");
+  document.getElementById("behaviorKicker").textContent = t("behaviorKicker");
+  document.getElementById("providerSectionTitle").textContent = t("providerSectionTitle");
+  document.getElementById("providerSectionTag").textContent = t("providerSectionTag");
   document.getElementById("ollamaSectionTitle").textContent = t("ollamaSectionTitle");
   document.getElementById("ollamaSectionTag").textContent = t("ollamaSectionTag");
   document.getElementById("ollamaUrlLabel").textContent = t("ollamaUrlLabel");
@@ -238,14 +569,46 @@ function applyTranslations() {
   document.getElementById("lmStudioModelLabel").textContent = t("lmStudioModelLabel");
   document.getElementById("lmStudioApiKeyLabel").textContent = t("lmStudioApiKeyLabel");
   document.getElementById("lmStudioHint").textContent = t("lmStudioHint");
+  document.getElementById("geminiSectionTitle").textContent = t("geminiSectionTitle");
+  document.getElementById("geminiSectionTag").textContent = t("geminiSectionTag");
+  document.getElementById("geminiModelLabel").textContent = t("geminiModelLabel");
+  document.getElementById("geminiApiKeyLabel").textContent = t("geminiApiKeyLabel");
+  document.getElementById("geminiHint").textContent = t("geminiHint");
+  document.getElementById("azureSectionTitle").textContent = t("azureSectionTitle");
+  document.getElementById("azureSectionTag").textContent = t("azureSectionTag");
+  document.getElementById("azureEndpointLabel").textContent = t("azureEndpointLabel");
+  document.getElementById("azureDeploymentLabel").textContent = t("azureDeploymentLabel");
+  document.getElementById("azureApiVersionLabel").textContent = t("azureApiVersionLabel");
+  document.getElementById("azureApiKeyLabel").textContent = t("azureApiKeyLabel");
+  document.getElementById("azureHint").textContent = t("azureHint");
   document.getElementById("generalSectionTitle").textContent = t("generalSectionTitle");
-  document.getElementById("authorSectionTitle").textContent = t("authorSectionTitle");
-  document.getElementById("authorInfo").textContent = t("authorInfo");
+  document.getElementById("generalSectionTag").textContent = t("generalSectionTag");
+  document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
+  document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
+  document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
+  document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
+  document.getElementById("systemPromptHint").textContent = t("systemPromptHint");
+  document.getElementById("multiPerspectiveProfilesHint").textContent = t("multiPerspectiveProfilesHint");
   document.getElementById("saveButton").textContent = t("saveSettings");
   document.getElementById("testButton").textContent = t("testConnection");
   document.getElementById("installedModelsTitle").textContent = t("installedModels");
   document.getElementById("refreshButton").textContent = t("refresh");
+}
+
+function setActiveProviderTab(provider) {
+  activeProviderTab = provider;
+  document.querySelectorAll("[data-provider-tab]").forEach((button) => {
+    const isActive = button.dataset.providerTab === provider;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  document.querySelectorAll(".provider-panel").forEach((panel) => {
+    const isActive = panel.id === `panel-${provider}`;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
 }
 
 function formatSize(size) {
@@ -292,14 +655,24 @@ function setStatus(message, isError = false) {
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
-    const replyLanguage = result.config.replyLanguage || "en";
+    const replyLanguage = result.config.replyLanguage || "zh-TW";
     currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
     applyTranslations();
     document.getElementById("ollamaUrl").value = result.config.ollamaUrl || "";
     document.getElementById("lmStudioUrl").value = result.config.lmStudioUrl || "";
     document.getElementById("lmStudioModel").value = result.config.lmStudioModel || "";
     document.getElementById("lmStudioApiKey").value = result.config.lmStudioApiKey || "";
+    document.getElementById("geminiModel").value = result.config.geminiModel || "";
+    document.getElementById("geminiApiKey").value = result.config.geminiApiKey || "";
+    document.getElementById("azureOpenAiEndpoint").value = result.config.azureOpenAiEndpoint || "";
+    document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
+    document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
+    document.getElementById("azureOpenAiApiKey").value = result.config.azureOpenAiApiKey || "";
+    document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
+    document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
+    document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
+    setActiveProviderTab(result.config.defaultProvider || "ollama");
     setStatus(t("waiting"));
   }
 }
@@ -309,16 +682,40 @@ async function saveConfig() {
   const lmStudioUrl = document.getElementById("lmStudioUrl").value.trim();
   const lmStudioModel = document.getElementById("lmStudioModel").value.trim();
   const lmStudioApiKey = document.getElementById("lmStudioApiKey").value.trim();
+  const geminiModel = document.getElementById("geminiModel").value.trim();
+  const geminiApiKey = document.getElementById("geminiApiKey").value.trim();
+  const azureOpenAiEndpoint = document.getElementById("azureOpenAiEndpoint").value.trim();
+  const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
+  const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
+  const azureOpenAiApiKey = document.getElementById("azureOpenAiApiKey").value.trim();
+  const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
+  const systemPrompt = document.getElementById("systemPrompt").value.trim();
+  const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
   applyTranslations();
-  const result = await sendMessage({
+  const saved = await sendMessage({
     type: "ollama:set-config",
-    config: { ollamaUrl, lmStudioUrl, lmStudioModel, lmStudioApiKey, replyLanguage },
+    config: {
+      ollamaUrl,
+      lmStudioUrl,
+      lmStudioModel,
+      lmStudioApiKey,
+      geminiModel,
+      geminiApiKey,
+      azureOpenAiEndpoint,
+      azureOpenAiDeployment,
+      azureOpenAiApiVersion,
+      azureOpenAiApiKey,
+      defaultProvider,
+      replyLanguage,
+      systemPrompt,
+      multiPerspectiveProfiles,
+    },
   });
 
-  if (!result?.ok) {
-    throw new Error(result?.error || t("saveFailed"));
+  if (!saved?.ok) {
+    throw new Error(saved?.error || t("saveFailed"));
   }
 
   setStatus(t("saveSuccess"));
@@ -358,6 +755,19 @@ document.getElementById("refreshButton").addEventListener("click", async () => {
     await refreshModels();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.querySelectorAll("[data-provider-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveProviderTab(button.dataset.providerTab || "ollama");
+  });
+});
+
+document.getElementById("defaultProvider").addEventListener("change", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLSelectElement) {
+    setActiveProviderTab(target.value || "ollama");
   }
 });
 

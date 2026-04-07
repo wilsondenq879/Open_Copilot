@@ -1,14 +1,32 @@
+const DEFAULT_MULTI_PERSPECTIVE_PROFILES = [
+  "Summarizer|Extract the key facts, context, and conclusion.",
+  "Skeptic|Challenge assumptions, missing evidence, and weak points.",
+  "Action Advisor|Recommend practical next steps and decisions.",
+].join("\n");
+
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
   lmStudioUrl: "http://127.0.0.1:1234",
   lmStudioModel: "",
   lmStudioApiKey: "lm-studio",
+  geminiApiKey: "",
+  geminiModel: "gemini-2.5-flash",
+  azureOpenAiEndpoint: "",
+  azureOpenAiApiKey: "",
+  azureOpenAiDeployment: "",
+  azureOpenAiApiVersion: "2024-10-21",
+  defaultProvider: "ollama",
   selectedModel: "",
-  replyLanguage: "en",
+  replyLanguage: "zh-TW",
+  multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
+  systemPrompt: [
+    "You are an Ollama quick assistant inside the user's browser.",
+    "Answer using the current page as context when it is relevant.",
+    "If the page context is insufficient, say what is missing.",
+    "When you mention a URL or file path, format it as a Markdown link.",
+    "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
+  ].join("\n"),
 };
-const MERMAID_RENDER_ENDPOINT = "https://mermaid.ink/svg/";
-const MERMAID_RENDER_BG_COLOR = "1b1f24";
-const MERMAID_RENDER_THEME = "dark";
 
 async function getConfig() {
   const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
@@ -22,46 +40,28 @@ async function setConfig(nextConfig) {
   return merged;
 }
 
+async function reconcileSelectedModel(config, models) {
+  const availableNames = new Set(models.map((model) => model.name).filter(Boolean));
+  const hasSelectedModel = Boolean(config.selectedModel);
+  const selectedModelStillExists = hasSelectedModel && availableNames.has(config.selectedModel);
+
+  if (selectedModelStillExists) {
+    return config;
+  }
+
+  if (models.length === 1 && models[0]?.name) {
+    return setConfig({ selectedModel: models[0].name });
+  }
+
+  if (hasSelectedModel && !selectedModelStillExists) {
+    return setConfig({ selectedModel: "" });
+  }
+
+  return config;
+}
+
 function normalizeBaseUrl(url) {
   return (url || "").trim().replace(/\/+$/, "");
-}
-
-function toBase64Url(bytes) {
-  let binary = "";
-  const chunkSize = 0x8000;
-
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function buildMermaidRenderUrl(code) {
-  const payload = JSON.stringify({
-    code,
-    mermaid: { theme: MERMAID_RENDER_THEME },
-  });
-  const encoded = toBase64Url(new TextEncoder().encode(payload));
-  return `${MERMAID_RENDER_ENDPOINT}${encoded}?theme=${encodeURIComponent(MERMAID_RENDER_THEME)}&bgColor=${encodeURIComponent(MERMAID_RENDER_BG_COLOR)}`;
-}
-
-async function fetchMermaidSvg(code) {
-  const url = buildMermaidRenderUrl(code);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
-    }
-
-    return await response.text();
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 async function fetchJson(url, init) {
@@ -91,9 +91,11 @@ async function listModels() {
         digest: model.digest,
       }))
     : [];
+  const nextConfig = await reconcileSelectedModel(config, models);
 
   return {
     baseUrl,
+    config: nextConfig,
     models,
   };
 }
@@ -334,10 +336,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "ollama:open-options": {
         await chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
-        return;
-      }
-      case "mermaid:render-svg": {
-        sendResponse({ ok: true, svg: await fetchMermaidSvg(message.code || "") });
         return;
       }
       default: {

@@ -191,37 +191,137 @@
 .ollama-quick-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
   padding: 12px 16px 0;
   flex-wrap: wrap;
 }
 
+.ollama-quick-controls {
+  flex-direction: column;
+}
+
 .ollama-quick-select {
-  flex: 1 1 220px;
-  min-width: 180px;
-  padding: 10px 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 12px;
   border: 1px solid rgba(154, 176, 255, 0.18);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
   color: #f5f9ff;
+}
+
+.ollama-quick-starters-panel {
+  padding: 10px 16px 0;
+  transition: opacity 160ms ease, transform 160ms ease, max-height 160ms ease;
+  max-height: 120px;
+  overflow: hidden;
+}
+
+.ollama-quick-starters-panel.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+  padding-top: 0;
+}
+
+.ollama-quick-starters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ollama-quick-starters-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ollama-quick-starters-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(169, 227, 255, 0.76);
+}
+
+.ollama-quick-page-copilot-summary {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ollama-quick-page-copilot-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid rgba(126, 233, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef6ff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ollama-quick-page-copilot-pill span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ollama-quick-page-copilot-icon {
+  color: #8fddff;
+  font-size: 10px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.ollama-quick-starters-toggle {
+  border: 1px solid rgba(154, 176, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d9e9ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 7px 10px;
+  white-space: nowrap;
 }
 
 .ollama-quick-starters {
   display: flex;
   gap: 6px;
-  align-items: flex-start;
-  padding: 10px 16px 0;
-  flex-wrap: wrap;
-  transition: opacity 160ms ease, transform 160ms ease, max-height 160ms ease;
-  max-height: 140px;
-  overflow: hidden;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(90deg, transparent 0, black 14px, black calc(100% - 14px), transparent 100%);
 }
 
-.ollama-quick-starters.is-hidden {
-  opacity: 0;
-  transform: translateY(-6px);
-  max-height: 0;
-  padding-top: 0;
+.ollama-quick-starters::-webkit-scrollbar {
+  display: none;
+}
+
+.ollama-quick-starters-panel.is-expanded {
+  max-height: 220px;
+}
+
+.ollama-quick-starters-panel.is-expanded .ollama-quick-starters {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  mask-image: none;
 }
 
 .ollama-quick-starter {
@@ -234,7 +334,9 @@
   font-weight: 600;
   line-height: 1.2;
   padding: 6px 9px;
+  flex: 0 0 auto;
   max-width: 100%;
+  white-space: nowrap;
 }
 
 .ollama-quick-toggle {
@@ -243,6 +345,13 @@
   gap: 8px;
   font-size: 13px;
   color: #c6d3f5;
+}
+
+.ollama-quick-toggle-below {
+  width: 100%;
+  padding: 2px 2px 0;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .ollama-quick-secondary {
@@ -371,6 +480,96 @@
   font-size: 12px;
 }
 
+.ollama-quick-perspective-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(126, 233, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ollama-quick-perspective-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ollama-quick-perspective-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(169, 227, 255, 0.82);
+}
+
+.ollama-quick-perspective-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ollama-quick-perspective-card,
+.ollama-quick-perspective-final {
+  padding: 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(154, 176, 255, 0.12);
+  background: rgba(8, 13, 24, 0.38);
+  min-height: 110px;
+}
+
+.ollama-quick-perspective-card.is-running,
+.ollama-quick-perspective-final.is-running {
+  border-color: rgba(126, 233, 255, 0.18);
+}
+
+.ollama-quick-perspective-card.is-done,
+.ollama-quick-perspective-final.is-done {
+  border-color: rgba(154, 176, 255, 0.14);
+}
+
+.ollama-quick-perspective-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ollama-quick-perspective-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.ollama-quick-perspective-card-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f4f9ff;
+}
+
+.ollama-quick-perspective-card-body {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #eef6ff;
+}
+
+.ollama-quick-perspective-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: #dbe8fd;
+}
+
+.ollama-quick-perspective-card.is-expanded,
+.ollama-quick-perspective-final.is-expanded {
+  min-height: 0;
+}
+
 .ollama-quick-message {
   padding: 10px 12px;
   border-radius: 14px;
@@ -435,6 +634,11 @@
   color: #f5f9ff;
 }
 
+.ollama-quick-message-body,
+.ollama-quick-message-body * {
+  color: inherit;
+}
+
 .ollama-quick-message-body p {
   min-height: 0;
   line-height: inherit;
@@ -468,6 +672,8 @@
 .rendered-markdown h3 {
   margin: 0 0 10px;
   line-height: 1.25;
+  color: #ffffff !important;
+  font-weight: 800;
 }
 
 .rendered-markdown h1 {
@@ -485,8 +691,12 @@
 .rendered-markdown p,
 .rendered-markdown ul,
 .rendered-markdown ol,
-.rendered-markdown pre {
+.rendered-markdown li,
+.rendered-markdown blockquote,
+.rendered-markdown pre,
+.rendered-markdown table {
   margin: 0 0 10px;
+  color: #f5f9ff !important;
 }
 
 .rendered-markdown ul,
@@ -494,11 +704,15 @@
   padding-left: 18px;
 }
 
+.rendered-markdown li::marker {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
 .rendered-markdown code {
   padding: 2px 6px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
-  color: #eef7ff;
+  color: #f8fbff !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
@@ -514,55 +728,27 @@
 .rendered-markdown pre code {
   padding: 0;
   background: transparent;
-  color: #eef7ff;
-}
-
-.rendered-markdown .mermaid-diagram {
-  margin: 0 0 14px;
-  border: 1px solid rgba(126, 233, 255, 0.14);
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-}
-
-.rendered-markdown .mermaid-diagram-status {
-  padding: 10px 12px 0;
-  color: rgba(224, 244, 255, 0.75);
-  font-size: 12px;
-}
-
-.rendered-markdown .mermaid-diagram[data-mermaid-state="ready"] .mermaid-diagram-status,
-.rendered-markdown .mermaid-diagram[data-mermaid-state="ready"] pre {
-  display: none;
-}
-
-.rendered-markdown .mermaid-diagram-view {
-  padding: 12px;
-  overflow-x: auto;
-}
-
-.rendered-markdown .mermaid-diagram-view svg {
-  display: block;
-  min-width: min-content;
-  max-width: 100%;
-  height: auto;
-}
-
-.rendered-markdown .mermaid-diagram[data-mermaid-state="error"] .mermaid-diagram-status {
-  color: #ffb4b4;
-}
-
-.rendered-markdown .mermaid-diagram[data-mermaid-state="error"] .mermaid-diagram-status::after {
-  content: " Falling back to source code.";
 }
 
 .rendered-markdown a {
-  color: #8fddff;
+  color: #8fddff !important;
   text-decoration: none;
 }
 
-.rendered-markdown strong {
-  color: #ffffff;
+.rendered-markdown strong,
+.rendered-markdown b {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+.rendered-markdown em,
+.rendered-markdown i,
+.rendered-markdown span {
+  color: #f5f9ff !important;
+}
+
+.rendered-markdown br {
+  color: inherit !important;
 }
 
 .ollama-quick-compose {
@@ -718,5 +904,10 @@
 
   .ollama-quick-starters {
     gap: 6px;
+    mask-image: none;
+  }
+
+  .ollama-quick-perspective-grid {
+    grid-template-columns: 1fr;
   }
 }
