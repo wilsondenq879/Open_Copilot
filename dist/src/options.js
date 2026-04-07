@@ -14,6 +14,8 @@ const OPTION_I18N = {
     lmStudioApiKeyLabel: "API Key",
     lmStudioHint: "可先儲存 LM Studio 本機伺服器資訊，之後要接 OpenAI 相容呼叫或多路由時就能直接使用。",
     generalSectionTitle: "互動體驗",
+    authorSectionTitle: "作者",
+    authorInfo: "作者：wilsondenq879",
     replyLanguageLabel: "回覆語言",
     saveSettings: "儲存設定",
     testConnection: "測試連線",
@@ -42,6 +44,8 @@ const OPTION_I18N = {
     lmStudioApiKeyLabel: "API Key",
     lmStudioHint: "Store LM Studio server details here so future OpenAI-compatible routing can use them directly.",
     generalSectionTitle: "Experience",
+    authorSectionTitle: "Author",
+    authorInfo: "Author: wilsondenq879",
     replyLanguageLabel: "Reply Language",
     saveSettings: "Save Settings",
     testConnection: "Test Connection",
@@ -235,6 +239,8 @@ function applyTranslations() {
   document.getElementById("lmStudioApiKeyLabel").textContent = t("lmStudioApiKeyLabel");
   document.getElementById("lmStudioHint").textContent = t("lmStudioHint");
   document.getElementById("generalSectionTitle").textContent = t("generalSectionTitle");
+  document.getElementById("authorSectionTitle").textContent = t("authorSectionTitle");
+  document.getElementById("authorInfo").textContent = t("authorInfo");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
   document.getElementById("saveButton").textContent = t("saveSettings");
   document.getElementById("testButton").textContent = t("testConnection");

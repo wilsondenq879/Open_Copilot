@@ -232,3 +232,5 @@ Text file content is read into the prompt for analysis.
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+Author: `wilsondenq879`
