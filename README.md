@@ -4,11 +4,21 @@ This project is a Microsoft Edge Manifest V3 extension. It injects a collapsible
 
 It is not an official GitHub Copilot provider integration. Instead, it is a browser-side local AI chat bridge designed to let you summarize pages, translate content, explain code, and analyze images/text files directly with local models on any website.
 
-## Tutorial Video
+## Screenshots
 
-<video controls width="960" src="./tutorial/Composed_Tutorial_Video.webm">
-	Your browser does not support the video tag.
-</video>
+![Code assistant example](./tutorial_code_assistant/screenshot_4.jpg)
+
+![Web summarizer example](./tutorial_web_summarizer/screenshot_5.jpg)
+
+![Extension screenshot 1](./images/1.png)
+
+![Extension screenshot 2](./images/2.png)
+
+## Real-World Usage
+
+I personally use this on an `M4 Mac mini` with `16GB RAM`, paired with `gemma4:e2b`, and it runs smoothly for everyday browsing, page summarization, code explanation, and general chat workflows.
+
+If you want a practical baseline before trying larger models, `M4 Mac mini + 16GB RAM + gemma4:e2b` is a configuration that already feels usable and responsive in daily use.
 
 ## Feature Overview
 
@@ -27,9 +37,9 @@ It is not an official GitHub Copilot provider integration. Instead, it is a brow
 
 - Ollama URL: `http://127.0.0.1:11434`
 - LM Studio URL: `http://127.0.0.1:1234`
-- Default reply language: `zh-TW`
+- Reply language: user-configurable in `Settings`
 
-You can update the Ollama URL in the extension Settings page.
+You can update the Ollama URL and reply language in the extension Settings page.
 
 ## Prerequisites
 
@@ -55,10 +65,18 @@ For image analysis, use a vision-capable model (for example models containing `v
 
 ## Install in Edge
 
-1. Open `edge://extensions`
-2. Enable `Developer mode`
-3. Click `Load unpacked`
-4. Select this project folder
+1. Clone this repository:
+
+```bash
+git clone https://github.com/<your-account>/Edge_Ai_Chat.git
+cd Edge_Ai_Chat
+node scripts/build-dist.mjs
+```
+
+2. Open `edge://extensions`
+3. Enable `Developer mode`
+4. Click `Load unpacked`
+5. Select the generated `dist/` folder to complete installation
 
 After loading, it is recommended to:
 
@@ -210,3 +228,7 @@ Text file content is read into the prompt for analysis.
 - [src/content-script.js](src/content-script.js)
 - [src/popup.js](src/popup.js)
 - [src/options.js](src/options.js)
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
