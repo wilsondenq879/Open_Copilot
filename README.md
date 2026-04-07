@@ -1,6 +1,6 @@
 # Edge AI Chat
 
-This project is a Microsoft Edge Manifest V3 extension. It injects a collapsible chat panel into webpages, collects the current page content, selected text, and attachments, then sends everything to your local Ollama instance.
+This project is a Microsoft Edge Manifest V3 extension. It injects a collapsible chat panel into webpages, collects the current page content, selected text, and attachments, then sends everything to your local Ollama or LM Studio instance.
 
 It is not an official GitHub Copilot provider integration. Instead, it is a browser-side local AI chat bridge designed to let you summarize pages, translate content, explain code, and analyze images/text files directly with local models on any website.
 
@@ -22,8 +22,8 @@ If you want a practical baseline before trying larger models, `M4 Mac mini + 16G
 
 ## Feature Overview
 
-- Connects to local Ollama by default: `http://127.0.0.1:11434`
-- Reads installed models from Ollama `/api/tags`
+- Connects to local Ollama or LM Studio
+- Reads installed models from Ollama `/api/tags` or LM Studio `/v1/models`
 - Quickly switches the active model from the extension popup
 - Injects an Edge AI Chat floating panel at the bottom-right of webpages
 - Sends current page content as prompt context
@@ -39,11 +39,13 @@ If you want a practical baseline before trying larger models, `M4 Mac mini + 16G
 - LM Studio URL: `http://127.0.0.1:1234`
 - Reply language: user-configurable in `Settings`
 
-You can update the Ollama URL and reply language in the extension Settings page.
+You can update the Ollama URL, LM Studio URL, and reply language in the extension Settings page.
 
 ## Prerequisites
 
-Make sure Ollama is running locally and at least one model is installed.
+Make sure either Ollama or LM Studio is running locally, and at least one model is available.
+
+### Option 1: Ollama
 
 ```bash
 ollama serve
@@ -61,7 +63,19 @@ If needed, pull a model first:
 ollama pull llama3.2
 ```
 
-For image analysis, use a vision-capable model (for example models containing `vision`, `vl`, `llava`, or `qwen-vl`).
+### Option 2: LM Studio
+
+1. Start the local server in LM Studio.
+2. Make sure the OpenAI-compatible endpoint is enabled.
+3. Confirm the default URL is:
+
+```text
+http://127.0.0.1:1234
+```
+
+4. Load at least one chat model. For image analysis, load a vision-capable model.
+
+For image analysis on either backend, use a vision-capable model (for example models containing `vision`, `vl`, `llava`, or `qwen-vl`).
 
 ## Install in Edge
 
@@ -80,8 +94,8 @@ node scripts/build-dist.mjs
 
 After loading, it is recommended to:
 
-1. Click the extension icon and verify it can fetch Ollama models
-2. Open `Settings` and confirm the Ollama URL is `http://127.0.0.1:11434`
+1. Click the extension icon and verify it can fetch models
+2. Open `Settings` and confirm either the Ollama URL is `http://127.0.0.1:11434` or the LM Studio URL is `http://127.0.0.1:1234`
 
 ## UI Guide
 
@@ -89,9 +103,9 @@ After loading, it is recommended to:
 
 Click the extension icon in the browser toolbar. You will see:
 
-- Endpoint: current Ollama endpoint
+- Endpoint: current Ollama or LM Studio endpoint
 - Settings: open settings page
-- Models: detected Ollama models
+- Models: detected models from the active backend
 - Refresh: reload model list
 
 Click any model card to set it as the active model.
@@ -108,13 +122,13 @@ Current settings include:
 - Test connection
 - Installed models / Refresh
 
-Although LM Studio fields are available in the UI, the primary chat path currently uses Ollama.
+You can use either Ollama or LM Studio from the current UI settings.
 
 ### 3. Bottom-Right Chat Panel
 
 When visiting regular webpages, a floating chat button appears at the bottom-right. Open it to use:
 
-- Model dropdown: switch current Ollama model
+- Model dropdown: switch current model from the active backend
 - `Context` toggle: include/exclude page context in prompts
 - Starter buttons
 - `✦`: insert currently highlighted text into input
@@ -183,7 +197,7 @@ Text file content is read into the prompt for analysis.
 
 ## Recommended Workflow
 
-1. Confirm Ollama connection from popup or settings
+1. Confirm Ollama or LM Studio connection from popup or settings
 2. Choose a model
 3. Open the bottom-right panel on any webpage
 4. Enable or disable `Context` as needed
@@ -217,7 +231,7 @@ Text file content is read into the prompt for analysis.
 
 - This is not an official GitHub model provider integration
 - It focuses on in-browser embedded chat rather than replacing GitHub backend AI infrastructure
-- Image analysis depends on whether the selected Ollama model supports vision
+- Image analysis depends on whether the selected Ollama or LM Studio model supports vision
 - Text attachments currently support only `.txt`, `.md`, `.json`, `.csv`
 - Page content is partially captured, not full-site indexing
 
