@@ -6,6 +6,9 @@ const DEFAULT_CONFIG = {
   selectedModel: "",
   replyLanguage: "en",
 };
+const MERMAID_RENDER_ENDPOINT = "https://mermaid.ink/svg/";
+const MERMAID_RENDER_BG_COLOR = "1b1f24";
+const MERMAID_RENDER_THEME = "dark";
 
 async function getConfig() {
   const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
@@ -21,6 +24,44 @@ async function setConfig(nextConfig) {
 
 function normalizeBaseUrl(url) {
   return (url || "").trim().replace(/\/+$/, "");
+}
+
+function toBase64Url(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function buildMermaidRenderUrl(code) {
+  const payload = JSON.stringify({
+    code,
+    mermaid: { theme: MERMAID_RENDER_THEME },
+  });
+  const encoded = toBase64Url(new TextEncoder().encode(payload));
+  return `${MERMAID_RENDER_ENDPOINT}${encoded}?theme=${encodeURIComponent(MERMAID_RENDER_THEME)}&bgColor=${encodeURIComponent(MERMAID_RENDER_BG_COLOR)}`;
+}
+
+async function fetchMermaidSvg(code) {
+  const url = buildMermaidRenderUrl(code);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    }
+
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchJson(url, init) {
@@ -293,6 +334,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "ollama:open-options": {
         await chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
+        return;
+      }
+      case "mermaid:render-svg": {
+        sendResponse({ ok: true, svg: await fetchMermaidSvg(message.code || "") });
         return;
       }
       default: {

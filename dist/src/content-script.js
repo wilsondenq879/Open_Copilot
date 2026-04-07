@@ -13,6 +13,7 @@ let attachedImages = [];
 let attachedDocuments = [];
 let isDragActive = false;
 let pendingMessageRenderFrame = 0;
+const mermaidSvgCache = new Map();
 
 const STARTER_KEYS = ["pageSummary", "translatePage", "codeExplain", "imageAnalysis", "imageAnalysisMarkdown"];
 const CONTENT_I18N = {
@@ -278,20 +279,149 @@ function renderInlineMarkdown(text) {
     });
 }
 
+async function fetchMermaidSvg(code) {
+  if (!mermaidSvgCache.has(code)) {
+    mermaidSvgCache.set(
+      code,
+      (async () => {
+        const response = await chrome.runtime.sendMessage({
+          type: "mermaid:render-svg",
+          code,
+        });
+        if (!response?.ok || !response.svg) {
+          throw new Error(response?.error || "Mermaid renderer returned an empty response.");
+        }
+
+        const svgText = response.svg;
+        const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+        const svg = doc.documentElement;
+        if (!svg || svg.nodeName.toLowerCase() !== "svg") {
+          throw new Error("Mermaid renderer returned invalid SVG.");
+        }
+
+        doc.querySelectorAll("script").forEach((node) => node.remove());
+        return svg.outerHTML;
+      })()
+    );
+  }
+
+  return mermaidSvgCache.get(code);
+}
+
+async function renderPendingMermaid(root) {
+  const blocks = root.querySelectorAll("[data-mermaid-source]:not([data-mermaid-state])");
+
+  await Promise.all(
+    [...blocks].map(async (block) => {
+      block.dataset.mermaidState = "loading";
+
+      const encodedSource = block.getAttribute("data-mermaid-source") || "";
+      let code = "";
+      try {
+        code = decodeURIComponent(encodedSource);
+      } catch (_error) {
+        block.dataset.mermaidState = "error";
+        return;
+      }
+
+      try {
+        const svgMarkup = await fetchMermaidSvg(code);
+        block.dataset.mermaidState = "ready";
+        block.innerHTML = `<div class="mermaid-diagram-view">${svgMarkup}</div>`;
+      } catch (error) {
+        block.dataset.mermaidState = "error";
+        const statusNode = block.querySelector(".mermaid-diagram-status");
+        if (statusNode) {
+          const message = error instanceof Error ? error.message : String(error);
+          statusNode.textContent = `Mermaid render failed: ${message}`;
+        }
+      }
+    })
+  );
+}
+
+function isLikelyMermaidBlock(block) {
+  const normalized = (block || "").trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return false;
+  }
+
+  const firstLine = lines[0].toLowerCase();
+  const mermaidStarters = [
+    "graph ",
+    "flowchart ",
+    "sequenceDiagram",
+    "classDiagram",
+    "stateDiagram",
+    "erDiagram",
+    "journey",
+    "gantt",
+    "pie",
+    "mindmap",
+    "timeline",
+    "gitGraph",
+    "quadrantChart",
+    "requirementDiagram",
+    "c4context",
+    "c4container",
+    "c4component",
+    "c4dynamic",
+    "c4deployment",
+  ];
+
+  if (!mermaidStarters.some((starter) => firstLine.startsWith(starter.toLowerCase()))) {
+    return false;
+  }
+
+  return lines.slice(1).some((line) => /-->|---|==>|:::|{\s*.*\s*}|[[\]()]/.test(line));
+}
+
+function renderMermaidBlock(code) {
+  const encodedSource = escapeHtml(encodeURIComponent(code.trim()));
+  return `
+    <div class="mermaid-diagram" data-mermaid-source="${encodedSource}">
+      <div class="mermaid-diagram-status">Rendering Mermaid diagram...</div>
+      <pre><code>${escapeHtml(code.trim())}</code></pre>
+    </div>
+  `;
+}
+
 function renderMarkdown(markdown) {
-  const escaped = escapeHtml(markdown || "");
+  const source = markdown || "";
   const codeBlocks = [];
-  let working = escaped.replace(/```([\s\S]*?)```/g, (_match, code) => {
+  let working = source.replace(/```([^\n`]*)\n?([\s\S]*?)```/g, (_match, language, code) => {
     const token = `__CODE_BLOCK_${codeBlocks.length}__`;
-    codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+    const normalizedLanguage = (language || "").trim().toLowerCase();
+    const trimmedCode = code.trim();
+
+    if (normalizedLanguage === "mermaid") {
+      codeBlocks.push(renderMermaidBlock(trimmedCode));
+      return token;
+    }
+
+    codeBlocks.push(`<pre><code>${escapeHtml(trimmedCode)}</code></pre>`);
     return token;
   });
+  working = escapeHtml(working);
 
   const blocks = working
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => {
+      if (isLikelyMermaidBlock(block)) {
+        return renderMermaidBlock(block);
+      }
+
       if (/^###\s+/.test(block)) {
         return `<h3>${renderInlineMarkdown(block.replace(/^###\s+/, ""))}</h3>`;
       }
@@ -378,6 +508,8 @@ function buildPrompt(userMessage) {
     "Answer using the current page as context when it is relevant.",
     "If the page context is insufficient, say what is missing.",
     "When you mention a URL or file path, format it as a Markdown link.",
+    "If your answer includes Mermaid diagram syntax, you must wrap every Mermaid diagram in a fenced code block that starts with ```mermaid and ends with ```.",
+    "Do not output raw Mermaid lines outside a ```mermaid fenced code block.",
     "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
     contextBlock,
@@ -614,6 +746,7 @@ function renderMessages() {
     })
     .join("");
 
+  renderPendingMermaid(list);
   list.scrollTop = list.scrollHeight;
 }
 

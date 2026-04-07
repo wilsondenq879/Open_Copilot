@@ -14,6 +14,8 @@ It is not an official GitHub Copilot provider integration. Instead, it is a brow
 
 ![Extension screenshot 2](./images/2.png)
 
+![Extension screenshot 3](./images/3.png)
+
 ## Real-World Usage
 
 I personally use this on an `M4 Mac mini` with `16GB RAM`, paired with `gemma4:e2b`, and it runs smoothly for everyday browsing, page summarization, code explanation, and general chat workflows.
@@ -30,6 +32,7 @@ If you want a practical baseline before trying larger models, `M4 Mac mini + 16G
 - Includes current user-selected text
 - Supports streaming responses
 - Supports image and text-file attachments
+- Renders assistant Mermaid code fences as diagrams
 - Built-in starter prompts
 - Configurable reply language
 
@@ -232,6 +235,7 @@ Text file content is read into the prompt for analysis.
 - This is not an official GitHub model provider integration
 - It focuses on in-browser embedded chat rather than replacing GitHub backend AI infrastructure
 - Image analysis depends on whether the selected Ollama or LM Studio model supports vision
+- Mermaid rendering uses `https://mermaid.ink` to convert Mermaid code blocks into SVG, so it requires internet access and sends Mermaid diagram text to that service
 - Text attachments currently support only `.txt`, `.md`, `.json`, `.csv`
 - Page content is partially captured, not full-site indexing
 

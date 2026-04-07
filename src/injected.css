@@ -498,6 +498,7 @@
   padding: 2px 6px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
+  color: #eef7ff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
@@ -513,6 +514,46 @@
 .rendered-markdown pre code {
   padding: 0;
   background: transparent;
+  color: #eef7ff;
+}
+
+.rendered-markdown .mermaid-diagram {
+  margin: 0 0 14px;
+  border: 1px solid rgba(126, 233, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.rendered-markdown .mermaid-diagram-status {
+  padding: 10px 12px 0;
+  color: rgba(224, 244, 255, 0.75);
+  font-size: 12px;
+}
+
+.rendered-markdown .mermaid-diagram[data-mermaid-state="ready"] .mermaid-diagram-status,
+.rendered-markdown .mermaid-diagram[data-mermaid-state="ready"] pre {
+  display: none;
+}
+
+.rendered-markdown .mermaid-diagram-view {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.rendered-markdown .mermaid-diagram-view svg {
+  display: block;
+  min-width: min-content;
+  max-width: 100%;
+  height: auto;
+}
+
+.rendered-markdown .mermaid-diagram[data-mermaid-state="error"] .mermaid-diagram-status {
+  color: #ffb4b4;
+}
+
+.rendered-markdown .mermaid-diagram[data-mermaid-state="error"] .mermaid-diagram-status::after {
+  content: " Falling back to source code.";
 }
 
 .rendered-markdown a {
