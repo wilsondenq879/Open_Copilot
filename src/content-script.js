@@ -5,6 +5,7 @@ const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
 const MAX_RECENT_GITHUB_FILES = 10;
+const MAX_ATTACHED_DOCUMENTS = 5;
 const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 350;
 const FRAME_CONTEXT_MESSAGE_SOURCE = "edge-ai-chat-frame-context";
 const CONTEXT_TEXT_SELECTORS = [
@@ -102,6 +103,14 @@ let includeFileItems = [];
 let includeFileLoading = false;
 let includeBrowsePath = "";
 let includeDraftSelection = null;
+let includeDraftSelections = [];
+let recentGithubFilesExpanded = false;
+let localDocumentPickerOpen = false;
+let localDocumentBrowsePath = "";
+let localDocumentItems = [];
+let localDocumentLoading = false;
+let localDocumentSearch = "";
+let localDocumentSelections = [];
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const IS_TOP_FRAME = (() => {
   try {
@@ -171,7 +180,30 @@ const CONTENT_I18N = {
     clearChat: "清除對話",
     confirmClearChat: "確定要清除目前對話嗎？",
     openSettings: "開啟設定",
+    downloadMarkdown: "下載 MD",
     loadLatestChat: "載入最近",
+    exportMarkdownSuccess: "已下載 Markdown：{file}",
+    exportMarkdownFailed: "下載 Markdown 失敗。",
+    noConversationToExport: "目前沒有可匯出的對話內容。",
+    saveMarkdownToFolderSuccess: "已儲存對話 Markdown：{file}",
+    workFolderNotConfigured: "尚未設定本機資料夾。",
+    workFolderPermissionMissing: "本機資料夾權限失效，請到設定重新選擇一次。",
+    addLocalDocument: "加入文件",
+    changeLocalDocument: "更換文件",
+    noLocalDocument: "尚未加入文件。",
+    localDocumentLimitReached: "最多只能加入 5 份文件。",
+    localDocumentSelectionEmpty: "請先選擇至少 1 份文件。",
+    localDocumentAlreadyAdded: "這份文件已經加入了。",
+    localDocumentAdded: "已加入 {count} 份文件。",
+    clearLocalDocuments: "清除文件",
+    confirmClearLocalDocuments: "確定要清除目前加入的文件嗎？",
+    selectLocalDocuments: "選擇本機文件",
+    searchLocalFilesAndFolders: "搜尋檔案或資料夾",
+    loadingLocalFiles: "正在載入本機檔案清單...",
+    noLocalFiles: "這個資料夾沒有可加入的文字檔。",
+    localDocumentSelectionSaved: "已更新加入文件。",
+    localFolderBadge: "文件",
+    selectedCount: "已選 {count} 份",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
     selectionPrompt: "請幫我處理這段選取文字：\n\n{selection}",
     noSelectedText: "這個頁面沒有選取文字。",
@@ -232,6 +264,7 @@ const CONTENT_I18N = {
     noRepositories: "沒有可選的 repository。",
     noFiles: "這個目錄沒有可顯示的項目。",
     includeSelectionSaved: "已更新附加來源。",
+    includedSourcesAdded: "已加入 {count} 筆 GitHub 來源。",
     includeSourceAlreadyAdded: "這個 GitHub 來源已經加入了。",
     includeSourceLimitReached: "最多只能加入 5 筆 GitHub 來源。",
     recentGithubFiles: "最近使用檔案",
@@ -426,7 +459,30 @@ const CONTENT_I18N = {
     clearChat: "Clear chat",
     confirmClearChat: "Clear the current conversation?",
     openSettings: "Open settings",
+    downloadMarkdown: "Download MD",
     loadLatestChat: "Load latest",
+    exportMarkdownSuccess: "Downloaded Markdown: {file}",
+    exportMarkdownFailed: "Failed to download Markdown.",
+    noConversationToExport: "There is no conversation to export yet.",
+    saveMarkdownToFolderSuccess: "Saved chat Markdown: {file}",
+    workFolderNotConfigured: "No local work folder is configured yet.",
+    workFolderPermissionMissing: "Local work folder permission is unavailable. Please reselect the folder in Settings.",
+    addLocalDocument: "Add Document",
+    changeLocalDocument: "Change Document",
+    noLocalDocument: "No local documents added yet.",
+    localDocumentLimitReached: "You can add up to 5 documents.",
+    localDocumentSelectionEmpty: "Select at least one document first.",
+    localDocumentAlreadyAdded: "This document is already added.",
+    localDocumentAdded: "Added {count} document(s).",
+    clearLocalDocuments: "Clear Documents",
+    confirmClearLocalDocuments: "Clear the currently added documents?",
+    selectLocalDocuments: "Select Local Documents",
+    searchLocalFilesAndFolders: "Search files or folders",
+    loadingLocalFiles: "Loading local files...",
+    noLocalFiles: "This folder does not contain any supported text files.",
+    localDocumentSelectionSaved: "Updated local documents.",
+    localFolderBadge: "DOC",
+    selectedCount: "{count} selected",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
     selectionPrompt: "Please help me with this selected text:\n\n{selection}",
     noSelectedText: "No selected text found on this page.",
@@ -487,6 +543,7 @@ const CONTENT_I18N = {
     noRepositories: "No repositories available.",
     noFiles: "This directory is empty.",
     includeSelectionSaved: "Included source updated.",
+    includedSourcesAdded: "Added {count} GitHub source(s).",
     includeSourceAlreadyAdded: "This GitHub source is already included.",
     includeSourceLimitReached: "You can include up to 5 GitHub sources.",
     recentGithubFiles: "Recent Files",
@@ -904,6 +961,10 @@ function getPrimaryIncludedGithubSource() {
   return includedGithubSources[includedGithubSources.length - 1] || null;
 }
 
+function getRemainingGithubIncludeSlots() {
+  return Math.max(MAX_INCLUDED_GITHUB_SOURCES - includedGithubSources.length, 0);
+}
+
 function normalizeIncludedGithubSource(source) {
   if (!source || typeof source !== "object") {
     return null;
@@ -1008,35 +1069,51 @@ function getGithubReviewSubjectPath() {
   return blobDescriptor?.path || "";
 }
 
-async function addIncludedGithubSource(source) {
-  const nextSource = normalizeIncludedGithubSource(source);
-  if (!nextSource) {
+async function addIncludedGithubSources(sources, options = {}) {
+  const closePicker = options.closePicker !== false;
+  const normalizedSources = (Array.isArray(sources) ? sources : [sources])
+    .map((source) => normalizeIncludedGithubSource(source))
+    .filter(Boolean);
+
+  if (!normalizedSources.length) {
     setStatus(tl("includeSelectRepoFirst"));
     return false;
   }
 
-  const sourceKey = getIncludedGithubSourceKey(nextSource);
-  if (includedGithubSources.some((item) => getIncludedGithubSourceKey(item) === sourceKey)) {
+  const existingKeys = new Set(includedGithubSources.map((item) => getIncludedGithubSourceKey(item)).filter(Boolean));
+  const batchKeys = new Set();
+  const nextSources = normalizedSources.filter((source) => {
+    const sourceKey = getIncludedGithubSourceKey(source);
+    if (!sourceKey || existingKeys.has(sourceKey) || batchKeys.has(sourceKey)) {
+      return false;
+    }
+    batchKeys.add(sourceKey);
+    return true;
+  });
+
+  if (!nextSources.length) {
     setStatus(tl("includeSourceAlreadyAdded"));
     return false;
   }
 
-  if (includedGithubSources.length >= MAX_INCLUDED_GITHUB_SOURCES) {
+  if (includedGithubSources.length + nextSources.length > MAX_INCLUDED_GITHUB_SOURCES) {
     setStatus(tl("includeSourceLimitReached"));
     return false;
   }
 
-  includedGithubSources = [...includedGithubSources, nextSource];
-  includePickerOpen = false;
+  includedGithubSources = [...includedGithubSources, ...nextSources];
+  includePickerOpen = !closePicker;
   renderShell();
 
-  try {
-    await persistRecentGithubFile(nextSource);
-  } catch (error) {
-    console.warn("[Edge AI Chat] Failed to persist recent GitHub file", error);
+  for (const source of nextSources) {
+    try {
+      await persistRecentGithubFile(source);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to persist recent GitHub file", error);
+    }
   }
 
-  setStatus(tl("includeSelectionSaved"));
+  setStatus(nextSources.length === 1 ? tl("includeSelectionSaved") : tl("includedSourcesAdded", { count: nextSources.length }));
   return true;
 }
 
@@ -1884,6 +1961,8 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
       nextKeys = [...nextKeys, ...GITHUB_INCLUDED_STARTERS];
     }
     nextKeys = [...nextKeys, ...getGithubTypeSpecificStarterKeys()];
+  } else if (!nextKeys.includes("translatePage")) {
+    nextKeys = [...nextKeys, "translatePage"];
   }
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
@@ -2803,7 +2882,8 @@ function renderPerspectivePanel(run) {
         <div class="ollama-quick-perspective-card-top">
           <div class="ollama-quick-perspective-card-title">${escapeHtml(tl("perspectiveFinalTitle"))}</div>
           <div class="ollama-quick-perspective-card-actions">
-            ${run.finalContent ? `<button class="ollama-quick-copy" type="button" data-action="copy-perspective" data-perspective-key="${finalKey}">${escapeHtml(tl("copyPerspective"))}</button>` : ""}
+            ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-perspective" data-perspective-key="${finalKey}" title="${escapeHtml(tl("copyPerspective"))}" aria-label="${escapeHtml(tl("copyPerspective"))}">⧉</button>` : ""}
+            ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="download-chat-markdown" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>` : ""}
             <button class="ollama-quick-copy" type="button" data-action="toggle-perspective" data-perspective-key="${finalKey}">${escapeHtml(isFinalExpanded ? tl("collapsePerspective") : tl("expandPerspective"))}</button>
           </div>
         </div>
@@ -3359,19 +3439,152 @@ function buildConversationSnapshot() {
   };
 }
 
-async function persistConversationNow() {
-  if (!chatMessages.length && !latestPerspectiveRun) {
-    return;
+function sanitizeFileSegment(value, fallback = "chat") {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || fallback;
+}
+
+function timestampForFile(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return `${year}${month}${day}-${hour}${minute}${second}`;
+}
+
+function normalizeMarkdownText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim();
+}
+
+function buildConversationMarkdown(session = {}) {
+  const savedAt = session?.savedAt || new Date().toISOString();
+  const pageTitle = String(session?.pageTitle || "Untitled conversation").trim();
+  const pageUrl = String(session?.pageUrl || "").trim();
+  const selectedModel = String(session?.selectedModel || "").trim();
+  const replyLanguage = String(session?.replyLanguage || "").trim();
+  const includePageContextValue = session?.includePageContext !== false ? "Enabled" : "Disabled";
+  const messages = Array.isArray(session?.messages) ? session.messages : [];
+  const stages = Array.isArray(session?.latestPerspectiveRun?.stages) ? session.latestPerspectiveRun.stages : [];
+  const finalPerspective = normalizeMarkdownText(session?.latestPerspectiveRun?.finalContent);
+
+  const lines = [
+    `# ${pageTitle || "Untitled conversation"}`,
+    "",
+    `- Saved at: ${savedAt}`,
+    `- Page URL: ${pageUrl || "N/A"}`,
+    `- Model: ${selectedModel || "N/A"}`,
+    `- Reply language: ${replyLanguage || "N/A"}`,
+    `- Page context: ${includePageContextValue}`,
+  ];
+
+  if (stages.length || finalPerspective) {
+    lines.push("", "## Multi-View Answer");
+
+    stages.forEach((stage, index) => {
+      const content = normalizeMarkdownText(stage?.content);
+      if (!content) {
+        return;
+      }
+      const label = String(stage?.label || `Stage ${index + 1}`).trim();
+      lines.push("", `### ${label}`, "", content);
+    });
+
+    if (finalPerspective) {
+      lines.push("", "### Final Synthesis", "", finalPerspective);
+    }
   }
 
+  lines.push("", "## Conversation");
+
+  if (!messages.length) {
+    lines.push("", "_No chat messages saved._");
+    return lines.join("\n");
+  }
+
+  messages.forEach((message, index) => {
+    const role = String(message?.role || "").trim().toLowerCase() === "assistant" ? "Assistant" : "User";
+    const content = normalizeMarkdownText(message?.content) || "_Empty message_";
+    lines.push("", `### ${index + 1}. ${role}`, "", content);
+  });
+
+  return lines.join("\n");
+}
+
+function buildConversationExportFilename(session = {}, extension = "md") {
+  const pageTitle = sanitizeFileSegment(session?.pageTitle, "chat");
+  const savedAt = session?.savedAt ? new Date(session.savedAt) : new Date();
+  return `${timestampForFile(savedAt)}-${pageTitle}.${extension}`;
+}
+
+async function persistConversationSnapshot(snapshot) {
   const result = await runtimeMessage({
     type: "ollama:save-chat-session",
-    session: buildConversationSnapshot(),
+    session: {
+      ...snapshot,
+      saveToFolder: snapshot?.saveToFolder === true,
+      formats: Array.isArray(snapshot?.formats) ? snapshot.formats : [],
+    },
   });
 
   if (!result?.ok) {
     throw new Error(result?.error || "Failed to save chat session.");
   }
+
+  return result.result || null;
+}
+
+async function persistConversationNow() {
+  if (!chatMessages.length && !latestPerspectiveRun) {
+    return;
+  }
+
+  await persistConversationSnapshot({
+    ...buildConversationSnapshot(),
+    saveToFolder: false,
+  });
+}
+
+async function downloadConversationMarkdown() {
+  if (!chatMessages.length && !latestPerspectiveRun) {
+    setStatus(tl("noConversationToExport"));
+    return;
+  }
+
+  const snapshot = buildConversationSnapshot();
+  const result = await persistConversationSnapshot({
+    ...snapshot,
+    saveToFolder: true,
+    formats: ["md"],
+  });
+
+  if (result?.savedToFolder) {
+    setStatus(tl("saveMarkdownToFolderSuccess", { file: result.markdownFileName || buildConversationExportFilename(snapshot, "md") }));
+    return;
+  }
+
+  if (result?.reason === "not-configured") {
+    setStatus(tl("workFolderNotConfigured"));
+    return;
+  }
+
+  if (result?.reason === "permission-denied") {
+    setStatus(tl("workFolderPermissionMissing"));
+    return;
+  }
+
+  if (result?.reason === "invalid-handle") {
+    setStatus(tl("workFolderPermissionMissing"));
+    return;
+  }
+
+  throw new Error(result?.error || tl("exportMarkdownFailed"));
 }
 
 function scheduleConversationSave() {
@@ -3382,25 +3595,6 @@ function scheduleConversationSave() {
   pendingSessionSaveTimer = window.setTimeout(() => {
     persistConversationNow().catch(() => {});
   }, 800);
-}
-
-async function loadLatestConversation() {
-  const result = await runtimeMessage({ type: "ollama:get-latest-chat-session" });
-  if (!result?.ok) {
-    throw new Error(result?.error || tl("loadChatFailed"));
-  }
-
-  if (!result.session) {
-    setStatus(tl("noSavedChat"));
-    return;
-  }
-
-  chatMessages = Array.isArray(result.session.messages) ? result.session.messages : [];
-  latestPerspectiveRun = result.session.latestPerspectiveRun || null;
-  includePageContext = result.session.includePageContext !== false;
-  composeMode = "chat";
-  renderShell();
-  setStatus(tl("latestChatLoaded"));
 }
 
 function fileToBase64(file) {
@@ -3517,17 +3711,117 @@ async function attachTextDocumentFiles(files) {
     return 0;
   }
 
+  if (attachedDocuments.length + textDocumentFiles.length > MAX_ATTACHED_DOCUMENTS) {
+    throw new Error(tl("localDocumentLimitReached"));
+  }
+
   const nextDocuments = await Promise.all(
     textDocumentFiles.map(async (file) => ({
       id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
       name: file.name,
       text: await fileToText(file),
+      source: "upload",
     }))
   );
 
   attachedDocuments = [...attachedDocuments, ...nextDocuments];
   renderAttachments();
   return nextDocuments.length;
+}
+
+function getLocalWorkFolderAttachedDocuments() {
+  return attachedDocuments.filter((item) => item.source === "local-work-folder");
+}
+
+function getLocalDocumentSlotsRemaining() {
+  return Math.max(MAX_ATTACHED_DOCUMENTS - (attachedDocuments.length - getLocalWorkFolderAttachedDocuments().length), 0);
+}
+
+function getFilteredLocalDocumentItems() {
+  const query = localDocumentSearch.trim().toLowerCase();
+  if (!query) {
+    return localDocumentItems;
+  }
+  return localDocumentItems.filter((item) => item.path.toLowerCase().includes(query) || item.name.toLowerCase().includes(query));
+}
+
+function getLocalDocumentSummary() {
+  const docs = getLocalWorkFolderAttachedDocuments();
+  if (!docs.length) {
+    return `<span class="ollama-quick-include-text">${escapeHtml(tl("noLocalDocument"))}</span>`;
+  }
+
+  return docs
+    .map((item) => `
+      <span class="ollama-quick-include-badge is-file">${escapeHtml(tl("localFolderBadge"))}</span>
+      <span class="ollama-quick-include-text">${escapeHtml(item.name)}</span>
+    `)
+    .join("");
+}
+
+async function loadLocalDocumentFiles(pathOverride = localDocumentBrowsePath) {
+  localDocumentLoading = true;
+  localDocumentPickerOpen = true;
+  renderShell();
+  const result = await runtimeMessage({
+    type: "ollama:list-local-work-folder-directory",
+    path: pathOverride,
+  });
+  localDocumentLoading = false;
+
+  if (!result?.ok) {
+    localDocumentItems = [];
+    renderShell();
+    throw new Error(result?.error || tl("workFolderNotConfigured"));
+  }
+
+  localDocumentBrowsePath = result.directory?.path || "";
+  localDocumentItems = result.directory?.entries || [];
+  renderShell();
+  restorePickerInputFocus("local-document-search");
+}
+
+async function applyLocalDocumentSelections() {
+  if (!localDocumentSelections.length) {
+    setStatus(tl("localDocumentSelectionEmpty"));
+    return;
+  }
+
+  const availableSlots = getLocalDocumentSlotsRemaining();
+  if (localDocumentSelections.length > availableSlots) {
+    setStatus(tl("localDocumentLimitReached"));
+    return;
+  }
+
+  const results = await Promise.all(
+    localDocumentSelections.map(async (path) => {
+      const result = await runtimeMessage({
+        type: "ollama:read-local-work-folder-file",
+        path,
+      });
+      if (!result?.ok) {
+        throw new Error(result?.error || tl("workFolderNotConfigured"));
+      }
+      return result.file;
+    })
+  );
+
+  const nextLocalDocuments = results.map((item) => ({
+    id: `local-${item.path}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: item.name,
+    text: item.text,
+    path: item.path,
+    source: "local-work-folder",
+  }));
+
+  attachedDocuments = [
+    ...attachedDocuments.filter((item) => item.source !== "local-work-folder"),
+    ...nextLocalDocuments,
+  ];
+  localDocumentPickerOpen = false;
+  renderShell();
+  renderAttachments();
+  setStatus(tl("localDocumentSelectionSaved"));
 }
 
 async function attachFiles(files) {
@@ -3603,6 +3897,8 @@ function renderMessages() {
       try {
         const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
         const isTypingAssistant = message.role === "assistant" && !message.content.trim() && isGenerating;
+        const messageIndex = getMessageIndexById(message.id);
+        const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const body =
           isTypingAssistant
             ? `
@@ -3616,7 +3912,6 @@ function renderMessages() {
             ? renderMarkdown(message.content)
             : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>`;
         const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
-        const messageIndex = getMessageIndexById(message.id);
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
         const showSaveStarterButton = parsedStarterDrafts.length || (
           message.role === "assistant" &&
@@ -3630,9 +3925,16 @@ function renderMessages() {
         if (showSaveStarterButton) {
           actionButtons.push(`<button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${message.id}">${escapeHtml(tl("saveStarter"))}</button>`);
         }
-        const topActions = message.role === "assistant" && !isTypingAssistant
-          ? `<div class="ollama-quick-message-top-actions"><button class="ollama-quick-copy" type="button" data-action="copy-message" data-index="${message.id}">${escapeHtml(tl("copy"))}</button></div>`
-          : "";
+        if (message.role === "assistant" && !isTypingAssistant) {
+          actionButtons.unshift(
+            `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
+          );
+          if (isLatestAssistantMessage) {
+            actionButtons.unshift(
+              `<button class="ollama-quick-message-action-icon" type="button" data-action="download-chat-markdown" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>`
+            );
+          }
+        }
         const starterDrafts = parsedStarterDrafts.length ? renderStarterDrafts(message) : "";
         const roleLabel = isTypingAssistant
           ? tl("assistantThinking")
@@ -3643,7 +3945,6 @@ function renderMessages() {
           <article class="ollama-quick-message ${roleClass}">
             <div class="ollama-quick-message-top">
               <div class="ollama-quick-message-role">${escapeHtml(roleLabel)}</div>
-              ${topActions}
             </div>
             <div class="ollama-quick-message-body rendered-markdown">${body}</div>
             ${starterDrafts}
@@ -3660,7 +3961,6 @@ function renderMessages() {
           <article class="ollama-quick-message ${message.role === "assistant" ? "is-assistant" : "is-user"}">
             <div class="ollama-quick-message-top">
               <div class="ollama-quick-message-role">${escapeHtml(fallbackRoleLabel)}</div>
-              ${message.role === "assistant" ? `<div class="ollama-quick-message-top-actions"><button class="ollama-quick-copy" type="button" data-action="copy-message" data-index="${message.id}">${escapeHtml(tl("copy"))}</button></div>` : ""}
             </div>
             <div class="ollama-quick-message-body rendered-markdown">${fallbackBody}</div>
           </article>
@@ -3711,6 +4011,7 @@ function renderShell() {
   syncHostState(host);
   currentPageCopilot = detectPageCopilot();
   const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
+  const localDocuments = getLocalWorkFolderAttachedDocuments();
   if (!showGithubIncludePanel) {
     includePickerOpen = false;
   }
@@ -3780,6 +4081,11 @@ function renderShell() {
               <span>${escapeHtml(tl("context"))}</span>
             </label>
           </div>
+          <div class="ollama-quick-include-panel">
+            <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
+            <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
+            ${localDocuments.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-local-documents" aria-label="${escapeHtml(tl("clearLocalDocuments"))}" title="${escapeHtml(tl("clearLocalDocuments"))}">×</button>` : ""}
+          </div>
           ${showGithubIncludePanel ? `
             <div class="ollama-quick-include-panel">
               <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-include-picker">${escapeHtml(includedGithubSources.length ? tl("changeIncludedSource") : tl("includeRepoOrFile"))}</button>
@@ -3811,6 +4117,7 @@ function renderShell() {
         </aside>
       </div>
       ${showGithubIncludePanel ? renderIncludePicker() : ""}
+      ${renderLocalDocumentPicker()}
     </section>
   `;
 
@@ -3932,14 +4239,21 @@ function renderIncludePicker() {
             </div>
             <button class="ollama-quick-icon-button" type="button" data-action="close-include-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
           </div>
-          <div class="ollama-quick-picker-section-title">${escapeHtml(tl("recentGithubFiles"))}</div>
-          <div class="ollama-quick-picker-list ollama-quick-picker-list-recent">
-            ${recentFileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRecentGithubFiles"))}</div>`}
-          </div>
           <input class="ollama-quick-picker-search" type="text" data-role="include-repo-search" value="${escapeHtml(includeRepoSearch)}" placeholder="${escapeHtml(tl("searchRepositories"))}" />
           <div class="ollama-quick-picker-section-title">${escapeHtml(tl("selectRepository"))}</div>
           <div class="ollama-quick-picker-list">
             ${includeRepoLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingRepositories"))}</div>` : repoItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRepositories"))}</div>`}
+          </div>
+          <div class="ollama-quick-picker-collapsible">
+            <button class="ollama-quick-picker-collapse-toggle" type="button" data-action="toggle-recent-github-files" aria-expanded="${recentGithubFilesExpanded ? "true" : "false"}">
+              <span>${escapeHtml(tl("recentGithubFiles"))}</span>
+              <span>${recentGithubFilesExpanded ? "−" : "+"}</span>
+            </button>
+            ${recentGithubFilesExpanded ? `
+              <div class="ollama-quick-picker-list ollama-quick-picker-list-recent">
+                ${recentFileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRecentGithubFiles"))}</div>`}
+              </div>
+            ` : ""}
           </div>
           <div class="ollama-quick-picker-footer">
             <button class="ollama-quick-secondary" type="button" data-action="close-include-picker">${escapeHtml(tl("cancelSelection"))}</button>
@@ -3952,7 +4266,7 @@ function renderIncludePicker() {
   const fileItems = getFilteredIncludeFileItems()
     .map((item) => {
       const isDir = item.type === "dir";
-      const isSelected = includeDraftSelection?.type === "file" && includeDraftSelection?.path === item.path;
+      const isSelected = includeDraftSelections.includes(item.path);
       return `
         <button class="ollama-quick-picker-row ${isSelected ? "is-selected" : ""}" type="button" data-action="${isDir ? "picker-open-folder" : "picker-select-file"}" data-picker-path="${escapeHtml(item.path)}">
           <span class="ollama-quick-picker-icon">${isDir ? "▸" : "•"}</span>
@@ -3977,9 +4291,55 @@ function renderIncludePicker() {
           ${includeFileLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingFiles"))}</div>` : fileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noFiles"))}</div>`}
         </div>
         <div class="ollama-quick-picker-footer">
+          <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: includeDraftSelections.length }))}</div>
           <button class="ollama-quick-secondary" type="button" data-action="close-include-picker">${escapeHtml(tl("cancelSelection"))}</button>
           <button class="ollama-quick-secondary" type="button" data-action="picker-use-repo">${escapeHtml(tl("useRepository"))}</button>
           <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="picker-apply-selection">${escapeHtml(tl("addSelection"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderLocalDocumentPicker() {
+  if (!localDocumentPickerOpen) {
+    return "";
+  }
+
+  const fileItems = getFilteredLocalDocumentItems()
+    .map((item) => {
+      const isDir = item.type === "dir";
+      const isSelected = localDocumentSelections.includes(item.path);
+      return `
+        <button class="ollama-quick-picker-row ${isSelected ? "is-selected" : ""}" type="button" data-action="${isDir ? "local-picker-open-folder" : "local-picker-toggle-file"}" data-picker-path="${escapeHtml(item.path)}">
+          <span class="ollama-quick-picker-icon">${isDir ? "▸" : "•"}</span>
+          <span class="ollama-quick-picker-check ${isSelected ? "is-active" : ""}">${isSelected ? "✓" : ""}</span>
+          <span class="ollama-quick-picker-name">${escapeHtml(item.name)}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal">
+        <div class="ollama-quick-picker-headline">
+          <button class="ollama-quick-icon-button" type="button" data-action="local-picker-up-folder" aria-label="${escapeHtml(tl("backSelection"))}">←</button>
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("addLocalDocument"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("selectLocalDocuments"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-local-document-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <input class="ollama-quick-picker-search" type="text" data-role="local-document-search" value="${escapeHtml(localDocumentSearch)}" placeholder="${escapeHtml(tl("searchLocalFilesAndFolders"))}" />
+        <div class="ollama-quick-picker-list">
+          ${localDocumentBrowsePath ? `<button class="ollama-quick-picker-row" type="button" data-action="local-picker-up-folder"><span class="ollama-quick-picker-icon">←</span><span class="ollama-quick-picker-name">${escapeHtml(tl("backSelection"))}</span></button>` : ""}
+          ${localDocumentLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingLocalFiles"))}</div>` : fileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noLocalFiles"))}</div>`}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: localDocumentSelections.length }))}</div>
+          <button class="ollama-quick-secondary" type="button" data-action="close-local-document-picker">${escapeHtml(tl("cancelSelection"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="local-picker-apply-selection">${escapeHtml(tl("addSelection"))}</button>
         </div>
       </section>
     </div>
@@ -4030,6 +4390,7 @@ async function openIncludeRepository(fullName, defaultBranch = "") {
   includeBrowsePath = "";
   includeFileSearch = "";
   includeDraftSelection = { type: "repo", path: "", repoFullName: githubTargetRepo };
+  includeDraftSelections = [];
   includePickerStep = "files";
   await loadIncludeFiles("");
 }
@@ -4167,11 +4528,44 @@ async function handleClick(event) {
     return;
   }
 
-  if (action === "load-latest-chat") {
+  if (action === "open-local-document-picker") {
+    localDocumentPickerOpen = true;
+    localDocumentSearch = "";
+    localDocumentSelections = getLocalWorkFolderAttachedDocuments().map((item) => item.path).filter(Boolean);
+    includePickerOpen = false;
     try {
-      await loadLatestConversation();
+      await loadLocalDocumentFiles("");
     } catch (error) {
+      localDocumentPickerOpen = false;
+      renderShell();
       setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "close-local-document-picker") {
+    localDocumentPickerOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "clear-local-documents") {
+    if (!window.confirm(tl("confirmClearLocalDocuments"))) {
+      return;
+    }
+    attachedDocuments = attachedDocuments.filter((item) => item.source !== "local-work-folder");
+    localDocumentSelections = [];
+    renderShell();
+    renderAttachments();
+    setStatus(tl("localDocumentSelectionSaved"));
+    return;
+  }
+
+  if (action === "download-chat-markdown") {
+    try {
+      await downloadConversationMarkdown();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : tl("exportMarkdownFailed"));
     }
     return;
   }
@@ -4186,10 +4580,13 @@ async function handleClick(event) {
     if (!isGithubAdapterActive()) {
       return;
     }
+    localDocumentPickerOpen = false;
     includePickerOpen = true;
     includePickerStep = "repos";
     includeRepoSearch = "";
     includeDraftSelection = null;
+    includeDraftSelections = [];
+    recentGithubFilesExpanded = false;
     loadIncludeRepositories().catch((error) => {
       setStatus(error instanceof Error ? error.message : String(error));
     });
@@ -4203,6 +4600,12 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "toggle-recent-github-files") {
+    recentGithubFilesExpanded = !recentGithubFilesExpanded;
+    renderShell();
+    return;
+  }
+
   if (action === "clear-include-source") {
     if (!window.confirm(tl("confirmClearIncludedSource"))) {
       return;
@@ -4210,6 +4613,7 @@ async function handleClick(event) {
     includedGithubSources = [];
     includeCurrentRepo = null;
     includeDraftSelection = null;
+    includeDraftSelections = [];
     includePickerOpen = false;
     renderShell();
     setStatus(tl("includeSelectionSaved"));
@@ -4228,6 +4632,7 @@ async function handleClick(event) {
   if (action === "picker-back-repos") {
     includePickerStep = "repos";
     includeDraftSelection = null;
+    includeDraftSelections = [];
     renderShell();
     return;
   }
@@ -4252,16 +4657,27 @@ async function handleClick(event) {
   }
 
   if (action === "picker-select-file") {
-    includeDraftSelection = {
-      type: "file",
-      path: actionNode.dataset.pickerPath || "",
-      repoFullName: githubTargetRepo,
-    };
+    const path = actionNode.dataset.pickerPath || "";
+    if (!path) {
+      return;
+    }
+    if (includeDraftSelections.includes(path)) {
+      includeDraftSelections = includeDraftSelections.filter((item) => item !== path);
+      renderShell();
+      return;
+    }
+    if (includeDraftSelections.length >= getRemainingGithubIncludeSlots()) {
+      setStatus(tl("includeSourceLimitReached"));
+      return;
+    }
+    includeDraftSelection = null;
+    includeDraftSelections = [...includeDraftSelections, path];
     renderShell();
     return;
   }
 
   if (action === "picker-use-repo") {
+    includeDraftSelections = [];
     includeDraftSelection = {
       type: "repo",
       path: "",
@@ -4273,12 +4689,12 @@ async function handleClick(event) {
 
   if (action === "picker-add-recent-file") {
     try {
-      await addIncludedGithubSource({
+      await addIncludedGithubSources({
         type: "file",
         repoFullName: actionNode.dataset.repoFullName || "",
         ref: actionNode.dataset.ref || "",
         path: actionNode.dataset.pickerPath || "",
-      });
+      }, { closePicker: false });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     }
@@ -4286,17 +4702,80 @@ async function handleClick(event) {
   }
 
   if (action === "picker-apply-selection") {
+    if (includeDraftSelections.length) {
+      await addIncludedGithubSources(
+        includeDraftSelections.map((path) => ({
+          type: "file",
+          repoFullName: githubTargetRepo,
+          ref: githubTargetRef,
+          path,
+        }))
+      );
+      includeDraftSelections = [];
+      return;
+    }
+
     if (!includeDraftSelection?.repoFullName) {
       setStatus(tl("includeSelectRepoFirst"));
       return;
     }
 
-    await addIncludedGithubSource({
+    await addIncludedGithubSources({
       type: includeDraftSelection.type,
       repoFullName: includeDraftSelection.repoFullName,
       ref: githubTargetRef,
       path: includeDraftSelection.type === "file" ? includeDraftSelection.path || "" : "",
     });
+    return;
+  }
+
+  if (action === "local-picker-open-folder") {
+    try {
+      await loadLocalDocumentFiles(actionNode.dataset.pickerPath || "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "local-picker-up-folder") {
+    if (!localDocumentBrowsePath) {
+      return;
+    }
+    try {
+      const parentPath = localDocumentBrowsePath.split("/").slice(0, -1).join("/");
+      await loadLocalDocumentFiles(parentPath);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "local-picker-toggle-file") {
+    const path = actionNode.dataset.pickerPath || "";
+    if (!path) {
+      return;
+    }
+    if (localDocumentSelections.includes(path)) {
+      localDocumentSelections = localDocumentSelections.filter((item) => item !== path);
+      renderShell();
+      return;
+    }
+    if (localDocumentSelections.length >= getLocalDocumentSlotsRemaining()) {
+      setStatus(tl("localDocumentLimitReached"));
+      return;
+    }
+    localDocumentSelections = [...localDocumentSelections, path];
+    renderShell();
+    return;
+  }
+
+  if (action === "local-picker-apply-selection") {
+    try {
+      await applyLocalDocumentSelections();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
     return;
   }
 
@@ -4498,6 +4977,13 @@ async function handleChange(event) {
 
 function handleInput(event) {
   const target = event.target;
+  if (target instanceof HTMLInputElement && target.dataset.role === "local-document-search") {
+    localDocumentSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("local-document-search");
+    return;
+  }
+
   if (target instanceof HTMLInputElement && target.dataset.role === "include-repo-search") {
     includeRepoSearch = target.value;
     renderShell();

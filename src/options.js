@@ -38,12 +38,14 @@ const OPTION_I18N = {
     generalSectionTitle: "互動體驗",
     generalSectionTag: "Prompt 路由",
     localWorkFolderLabel: "Local Work Folder",
-    localWorkFolderHint: "選擇一個本機資料夾，自動把聊天記錄存成 JSON。之後可以再把最近一次對談載回聊天面板。",
+    localWorkFolderHint: "選擇一個本機資料夾，作為「下載 MD」的儲存位置，也可用來加入本機文件。",
     pickFolder: "選擇資料夾",
     clearFolder: "清除資料夾",
     folderNotSelected: "尚未選擇資料夾。",
     folderReady: "已連結本機資料夾：{name}",
     folderPermissionMissing: "資料夾已記錄，但寫入權限失效。請重新選擇一次。",
+    folderPathLabel: "目前設定資料夾",
+    folderPathUnavailable: "瀏覽器目前只能提供資料夾名稱，無法讀取完整系統路徑。",
     folderChooseUnsupported: "這個瀏覽器頁面目前不支援選擇本機資料夾。",
     folderSaveSuccess: "已儲存本機資料夾設定。",
     folderSaveFailed: "儲存本機資料夾失敗。",
@@ -124,12 +126,14 @@ const OPTION_I18N = {
     generalSectionTitle: "Experience",
     generalSectionTag: "Prompt Routing",
     localWorkFolderLabel: "Local Work Folder",
-    localWorkFolderHint: "Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest conversation back into the chat panel.",
+    localWorkFolderHint: "Pick a local folder to use as the save location for Download MD, and as the source for adding local documents.",
     pickFolder: "Choose Folder",
     clearFolder: "Clear Folder",
     folderNotSelected: "No folder selected.",
     folderReady: "Local folder connected: {name}",
     folderPermissionMissing: "Folder remembered, but write permission is no longer available. Please pick it again.",
+    folderPathLabel: "Configured Folder",
+    folderPathUnavailable: "The browser only exposes the folder name here, not the full system path.",
     folderChooseUnsupported: "This browser page does not support choosing a local folder here.",
     folderSaveSuccess: "Local work folder saved.",
     folderSaveFailed: "Failed to save local work folder.",
@@ -597,9 +601,71 @@ const OPTION_I18N = {
   },
 };
 
+const LOCAL_DB_NAME = "edge-ai-chat-local-db";
+const LOCAL_DB_VERSION = 1;
+const LOCAL_DB_STORE = "kv";
+const WORK_FOLDER_HANDLE_KEY = "work-folder-handle";
+const LOCAL_META_KEY = "localWorkFolderMeta";
+
 let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
 let currentCustomStarters = [];
+
+function openLocalDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(LOCAL_DB_NAME, LOCAL_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(LOCAL_DB_STORE)) {
+        db.createObjectStore(LOCAL_DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to open IndexedDB."));
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openLocalDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_DB_STORE, "readwrite");
+    const store = tx.objectStore(LOCAL_DB_STORE);
+    const request = store.put(value, key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Failed to write IndexedDB."));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed."));
+  });
+}
+
+async function idbDelete(key) {
+  const db = await openLocalDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_DB_STORE, "readwrite");
+    const store = tx.objectStore(LOCAL_DB_STORE);
+    const request = store.delete(key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Failed to delete IndexedDB key."));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed."));
+  });
+}
+
+async function persistWorkFolderHandle(handle) {
+  await idbSet(WORK_FOLDER_HANDLE_KEY, handle);
+  await chrome.storage.local.set({
+    [LOCAL_META_KEY]: {
+      name: handle?.name || "",
+      displayPath: handle?.name ? `/${handle.name}` : "",
+      configuredAt: new Date().toISOString(),
+    },
+  });
+}
+
+async function clearPersistedWorkFolderHandle() {
+  await idbDelete(WORK_FOLDER_HANDLE_KEY);
+  await chrome.storage.local.remove(LOCAL_META_KEY);
+}
 const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "github", "collaboration", "document", "market", "entertainment"];
 const STARTER_SCOPE_ALIASES = {
   "*": "all",
@@ -677,6 +743,7 @@ function applyTranslations() {
   document.getElementById("localWorkFolderHint").textContent = t("localWorkFolderHint");
   document.getElementById("pickFolderButton").textContent = t("pickFolder");
   document.getElementById("clearFolderButton").textContent = t("clearFolder");
+  document.getElementById("localWorkFolderPathLabel").textContent = t("folderPathLabel");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
@@ -887,17 +954,21 @@ function setStatus(message, isError = false) {
 
 function renderWorkFolderStatus(status) {
   const node = document.getElementById("localWorkFolderStatus");
+  const pathNode = document.getElementById("localWorkFolderPath");
   if (!status?.configured) {
     node.textContent = t("folderNotSelected");
+    pathNode.textContent = t("folderPathUnavailable");
     return;
   }
 
   if (status.permission !== "granted") {
     node.textContent = t("folderPermissionMissing");
-    return;
+  } else {
+    node.textContent = t("folderReady", { name: status.folderName || "Unnamed folder" });
   }
 
-  node.textContent = t("folderReady", { name: status.folderName || "Unnamed folder" });
+  const fallbackPath = status.folderName ? `/${status.folderName}` : "";
+  pathNode.textContent = status.folderPath || fallbackPath || t("folderPathUnavailable");
 }
 
 async function loadWorkFolderStatus() {
@@ -1096,12 +1167,8 @@ document.getElementById("pickFolderButton").addEventListener("click", async () =
         throw new Error(t("folderPermissionMissing"));
       }
     }
-    const saved = await sendMessage({ type: "ollama:set-work-folder", handle });
-    if (!saved?.ok) {
-      throw new Error(saved?.error || t("folderSaveFailed"));
-    }
-
-    renderWorkFolderStatus(saved.status);
+    await persistWorkFolderHandle(handle);
+    await loadWorkFolderStatus();
     setStatus(t("folderSaveSuccess"));
   } catch (error) {
     if (error?.name === "AbortError") {
@@ -1116,12 +1183,8 @@ document.getElementById("clearFolderButton").addEventListener("click", async () 
     if (!window.confirm(t("confirmClearFolder"))) {
       return;
     }
-    const result = await sendMessage({ type: "ollama:clear-work-folder" });
-    if (!result?.ok) {
-      throw new Error(result?.error || t("folderSaveFailed"));
-    }
-
-    renderWorkFolderStatus(result.status);
+    await clearPersistedWorkFolderHandle();
+    renderWorkFolderStatus(null);
     setStatus(t("folderClearSuccess"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);

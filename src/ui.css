@@ -476,6 +476,12 @@ textarea:focus {
   margin-top: 10px;
 }
 
+.local-work-folder-path {
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  word-break: break-all;
+  color: rgba(204, 236, 255, 0.9);
+}
+
 .provider-panel-head {
   margin-bottom: 14px;
 }

@@ -9,6 +9,8 @@ const LOCAL_DB_STORE = "kv";
 const WORK_FOLDER_HANDLE_KEY = "work-folder-handle";
 const LOCAL_META_KEY = "localWorkFolderMeta";
 const LATEST_CHAT_SESSION_KEY = "latestChatSession";
+const EXPORT_SEQUENCE_KEY = "chatExportSequence";
+const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
 
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
@@ -110,8 +112,188 @@ function timestampForFile(date = new Date()) {
   return `${year}${month}${day}-${hour}${minute}${second}`;
 }
 
+function normalizeMarkdownText(value) {
+  return String(value || "").replace(/\r\n/g, "\n").trim();
+}
+
+function stripMarkdownForFilename(value) {
+  return String(value || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[*_~>-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function shortenFileTitle(value, maxLength = 48) {
+  const normalized = stripMarkdownForFilename(value)
+    .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return normalized.slice(0, maxLength).replace(/[\s.,;:!?-]+$/g, "").trim();
+}
+
+function deriveConversationFileTitle(session = {}) {
+  const messages = Array.isArray(session?.messages) ? session.messages : [];
+  const firstUserMessage = messages.find((message) => String(message?.role || "").toLowerCase() === "user" && normalizeMarkdownText(message?.content));
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => String(message?.role || "").toLowerCase() === "assistant" && normalizeMarkdownText(message?.content));
+  const finalPerspective = normalizeMarkdownText(session?.latestPerspectiveRun?.finalContent);
+  const candidates = [
+    firstUserMessage?.content,
+    finalPerspective,
+    latestAssistantMessage?.content,
+    session?.pageTitle,
+  ];
+
+  for (const candidate of candidates) {
+    const title = shortenFileTitle(candidate);
+    if (title) {
+      return title;
+    }
+  }
+
+  return "chat";
+}
+
+async function getNextExportSequence() {
+  const { [EXPORT_SEQUENCE_KEY]: current } = await chrome.storage.local.get(EXPORT_SEQUENCE_KEY);
+  const nextValue = Number.isFinite(Number(current)) ? Number(current) + 1 : 1;
+  await chrome.storage.local.set({ [EXPORT_SEQUENCE_KEY]: nextValue });
+  return String(nextValue).padStart(4, "0");
+}
+
+function buildChatMarkdown(session = {}) {
+  const savedAt = session?.savedAt || new Date().toISOString();
+  const pageTitle = String(session?.pageTitle || "Untitled conversation").trim();
+  const pageUrl = String(session?.pageUrl || "").trim();
+  const selectedModel = String(session?.selectedModel || "").trim();
+  const replyLanguage = String(session?.replyLanguage || "").trim();
+  const includePageContext = session?.includePageContext !== false ? "Enabled" : "Disabled";
+  const messages = Array.isArray(session?.messages) ? session.messages : [];
+  const stages = Array.isArray(session?.latestPerspectiveRun?.stages) ? session.latestPerspectiveRun.stages : [];
+  const finalPerspective = normalizeMarkdownText(session?.latestPerspectiveRun?.finalContent);
+
+  const lines = [
+    `# ${pageTitle}`,
+    "",
+    `- Saved at: ${savedAt}`,
+    `- Page URL: ${pageUrl || "N/A"}`,
+    `- Model: ${selectedModel || "N/A"}`,
+    `- Reply language: ${replyLanguage || "N/A"}`,
+    `- Page context: ${includePageContext}`,
+  ];
+
+  if (stages.length || finalPerspective) {
+    lines.push("", "## Multi-View Answer");
+
+    stages.forEach((stage, index) => {
+      const content = normalizeMarkdownText(stage?.content);
+      if (!content) {
+        return;
+      }
+      const label = String(stage?.label || `Stage ${index + 1}`).trim();
+      lines.push("", `### ${label}`, "", content);
+    });
+
+    if (finalPerspective) {
+      lines.push("", "### Final Synthesis", "", finalPerspective);
+    }
+  }
+
+  lines.push("", "## Conversation");
+
+  if (!messages.length) {
+    lines.push("", "_No chat messages saved._");
+    return lines.join("\n");
+  }
+
+  messages.forEach((message, index) => {
+    const role = String(message?.role || "").trim().toLowerCase() === "assistant" ? "Assistant" : "User";
+    const content = normalizeMarkdownText(message?.content) || "_Empty message_";
+    lines.push("", `### ${index + 1}. ${role}`, "", content);
+  });
+
+  return lines.join("\n");
+}
+
+async function writeTextFile(handle, filename, contents) {
+  const fileHandle = await handle.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(contents);
+  await writable.close();
+}
+
 async function getWorkFolderHandle() {
   return idbGet(WORK_FOLDER_HANDLE_KEY);
+}
+
+function isDirectoryHandleLike(handle) {
+  return Boolean(
+    handle &&
+    (handle.kind === "directory" || typeof handle.kind === "undefined") &&
+    typeof handle.getFileHandle === "function" &&
+    typeof handle.getDirectoryHandle === "function"
+  );
+}
+
+function splitRelativePath(path) {
+  return String(path || "")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => {
+      if (segment === "." || segment === "..") {
+        throw new Error("Invalid local work folder path.");
+      }
+      return segment;
+    });
+}
+
+async function resolveDirectoryHandle(rootHandle, path = "") {
+  const parts = splitRelativePath(path);
+  let currentHandle = rootHandle;
+  for (const part of parts) {
+    currentHandle = await currentHandle.getDirectoryHandle(part);
+  }
+  return currentHandle;
+}
+
+function getPathExtension(path) {
+  const fileName = String(path || "").split("/").filter(Boolean).pop() || "";
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
+    return "";
+  }
+  return fileName.slice(dotIndex + 1).toLowerCase();
+}
+
+function isSupportedLocalDocumentPath(path) {
+  return SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS.has(getPathExtension(path));
+}
+
+async function ensureWorkFolderReadableHandle() {
+  const handle = await getWorkFolderHandle();
+  if (!handle) {
+    throw new Error("Local work folder is not configured.");
+  }
+  if (!isDirectoryHandleLike(handle)) {
+    throw new Error("Local work folder handle is invalid.");
+  }
+  return handle;
 }
 
 async function setWorkFolderHandle(handle) {
@@ -119,6 +301,7 @@ async function setWorkFolderHandle(handle) {
   await chrome.storage.local.set({
     [LOCAL_META_KEY]: {
       name: handle?.name || "",
+      displayPath: handle?.name ? `/${handle.name}` : "",
       configuredAt: new Date().toISOString(),
     },
   });
@@ -134,13 +317,20 @@ async function getWorkFolderStatus() {
   const handle = await getWorkFolderHandle();
   let permission = "missing";
 
-  if (handle?.queryPermission) {
-    permission = await handle.queryPermission({ mode: "readwrite" });
+  if (isDirectoryHandleLike(handle) && handle?.queryPermission) {
+    try {
+      permission = await handle.queryPermission({ mode: "readwrite" });
+    } catch (_error) {
+      permission = "prompt";
+    }
+  } else if (isDirectoryHandleLike(handle)) {
+    permission = "granted";
   }
 
   return {
     configured: Boolean(handle),
     folderName: meta?.name || handle?.name || "",
+    folderPath: meta?.displayPath || (meta?.name ? `/${meta.name}` : handle?.name ? `/${handle.name}` : ""),
     configuredAt: meta?.configuredAt || "",
     permission,
   };
@@ -151,43 +341,144 @@ async function saveChatSession(session) {
     ...session,
     savedAt: session?.savedAt || new Date().toISOString(),
   };
+  const saveToFolder = session?.saveToFolder === true;
+  const requestedFormats = Array.isArray(session?.formats) && session.formats.length ? session.formats : ["md"];
 
   await chrome.storage.local.set({
     [LATEST_CHAT_SESSION_KEY]: payload,
   });
 
+  if (!saveToFolder) {
+    return { savedToFolder: false, reason: "not-requested" };
+  }
+
   const handle = await getWorkFolderHandle();
   if (!handle) {
     return { savedToFolder: false, reason: "not-configured" };
   }
-
-  let permission = "prompt";
-  if (handle?.queryPermission) {
-    permission = await handle.queryPermission({ mode: "readwrite" });
-  }
-  if (permission !== "granted") {
-    return { savedToFolder: false, reason: "permission-denied" };
+  if (!isDirectoryHandleLike(handle)) {
+    return { savedToFolder: false, reason: "invalid-handle", error: "Local work folder handle is invalid." };
   }
 
   try {
-    const pageTitle = sanitizeFileSegment(payload.pageTitle, "page");
-    const filename = `${timestampForFile(new Date(payload.savedAt))}-${pageTitle}.json`;
-    const fileHandle = await handle.getFileHandle(filename, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(payload, null, 2));
-    await writable.close();
+    const sequence = await getNextExportSequence();
+    const descriptiveTitle = sanitizeFileSegment(deriveConversationFileTitle(payload), "chat");
+    const baseFilename = `${sequence}-${descriptiveTitle}`;
+    let jsonFileName = "";
+    let markdownFileName = "";
+
+    if (requestedFormats.includes("json")) {
+      jsonFileName = `${baseFilename}.json`;
+      await writeTextFile(handle, jsonFileName, JSON.stringify(payload, null, 2));
+    }
+    if (requestedFormats.includes("md")) {
+      markdownFileName = `${baseFilename}.md`;
+      await writeTextFile(handle, markdownFileName, buildChatMarkdown(payload));
+    }
 
     return {
       savedToFolder: true,
-      fileName: filename,
+      fileName: markdownFileName || jsonFileName,
+      jsonFileName,
+      markdownFileName,
       folderName: handle.name || "",
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const errorName = error && typeof error === "object" && "name" in error ? String(error.name || "") : "";
+    if (errorName === "NotAllowedError" || /permission|denied|not allowed/i.test(message)) {
+      return {
+        savedToFolder: false,
+        reason: "permission-denied",
+        error: message,
+      };
+    }
+    if (/getFileHandle is not a function|invalid/i.test(message)) {
+      return {
+        savedToFolder: false,
+        reason: "invalid-handle",
+        error: message,
+      };
+    }
     return {
       savedToFolder: false,
       reason: "write-failed",
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     };
+  }
+}
+
+async function listLocalWorkFolderDirectory(options = {}) {
+  try {
+    const rootHandle = await ensureWorkFolderReadableHandle();
+    const normalizedPath = splitRelativePath(options.path || "").join("/");
+    const directoryHandle = await resolveDirectoryHandle(rootHandle, normalizedPath);
+    const entries = [];
+
+    for await (const [name, entryHandle] of directoryHandle.entries()) {
+      const nextPath = normalizedPath ? `${normalizedPath}/${name}` : name;
+      if (entryHandle.kind === "directory") {
+        entries.push({ type: "dir", name, path: nextPath });
+        continue;
+      }
+
+      if (!isSupportedLocalDocumentPath(nextPath)) {
+        continue;
+      }
+
+      entries.push({ type: "file", name, path: nextPath });
+    }
+
+    entries.sort((left, right) => {
+      if (left.type !== right.type) {
+        return left.type === "dir" ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
+
+    return {
+      path: normalizedPath,
+      entries,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const errorName = error && typeof error === "object" && "name" in error ? String(error.name || "") : "";
+    if (errorName === "NotAllowedError" || /permission|denied|not allowed|invalid/i.test(message)) {
+      throw new Error("Local work folder permission is unavailable.");
+    }
+    throw error;
+  }
+}
+
+async function readLocalWorkFolderFile(options = {}) {
+  try {
+    const rootHandle = await ensureWorkFolderReadableHandle();
+    const normalizedPath = splitRelativePath(options.path || "").join("/");
+    if (!normalizedPath) {
+      throw new Error("Local work folder file path is required.");
+    }
+    if (!isSupportedLocalDocumentPath(normalizedPath)) {
+      throw new Error("This local file type is not supported.");
+    }
+
+    const parts = splitRelativePath(normalizedPath);
+    const fileName = parts.pop();
+    const parentHandle = await resolveDirectoryHandle(rootHandle, parts.join("/"));
+    const fileHandle = await parentHandle.getFileHandle(fileName);
+    const file = await fileHandle.getFile();
+
+    return {
+      name: file.name,
+      path: normalizedPath,
+      text: await file.text(),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const errorName = error && typeof error === "object" && "name" in error ? String(error.name || "") : "";
+    if (errorName === "NotAllowedError" || /permission|denied|not allowed|invalid/i.test(message)) {
+      throw new Error("Local work folder permission is unavailable.");
+    }
+    throw error;
   }
 }
 
@@ -790,6 +1081,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "ollama:get-latest-chat-session": {
         sendResponse({ ok: true, session: await getLatestChatSession() });
+        return;
+      }
+      case "ollama:list-local-work-folder-directory": {
+        sendResponse({ ok: true, directory: await listLocalWorkFolderDirectory(message || {}) });
+        return;
+      }
+      case "ollama:read-local-work-folder-file": {
+        sendResponse({ ok: true, file: await readLocalWorkFolderFile(message || {}) });
         return;
       }
       case "github:fetch-file": {
