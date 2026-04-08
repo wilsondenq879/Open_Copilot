@@ -97,6 +97,7 @@ let includePickerStep = "repos";
 let includeRepoSearch = "";
 let includeRepoItems = [];
 let includeRepoLoading = false;
+let includeRepoListExpanded = true;
 let includeCurrentRepo = null;
 let includeFileSearch = "";
 let includeFileItems = [];
@@ -4240,9 +4241,16 @@ function renderIncludePicker() {
             <button class="ollama-quick-icon-button" type="button" data-action="close-include-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
           </div>
           <input class="ollama-quick-picker-search" type="text" data-role="include-repo-search" value="${escapeHtml(includeRepoSearch)}" placeholder="${escapeHtml(tl("searchRepositories"))}" />
-          <div class="ollama-quick-picker-section-title">${escapeHtml(tl("selectRepository"))}</div>
-          <div class="ollama-quick-picker-list">
-            ${includeRepoLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingRepositories"))}</div>` : repoItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRepositories"))}</div>`}
+          <div class="ollama-quick-picker-collapsible">
+            <button class="ollama-quick-picker-collapse-toggle" type="button" data-action="toggle-include-repo-list" aria-expanded="${includeRepoListExpanded ? "true" : "false"}">
+              <span>${escapeHtml(tl("selectRepository"))}</span>
+              <span>${includeRepoListExpanded ? "−" : "+"}</span>
+            </button>
+            ${includeRepoListExpanded ? `
+              <div class="ollama-quick-picker-list">
+                ${includeRepoLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingRepositories"))}</div>` : repoItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRepositories"))}</div>`}
+              </div>
+            ` : ""}
           </div>
           <div class="ollama-quick-picker-collapsible">
             <button class="ollama-quick-picker-collapse-toggle" type="button" data-action="toggle-recent-github-files" aria-expanded="${recentGithubFilesExpanded ? "true" : "false"}">
@@ -4586,6 +4594,7 @@ async function handleClick(event) {
     includeRepoSearch = "";
     includeDraftSelection = null;
     includeDraftSelections = [];
+    includeRepoListExpanded = true;
     recentGithubFilesExpanded = false;
     loadIncludeRepositories().catch((error) => {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -4600,8 +4609,20 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "toggle-include-repo-list") {
+    includeRepoListExpanded = !includeRepoListExpanded;
+    if (includeRepoListExpanded) {
+      recentGithubFilesExpanded = false;
+    }
+    renderShell();
+    return;
+  }
+
   if (action === "toggle-recent-github-files") {
     recentGithubFilesExpanded = !recentGithubFilesExpanded;
+    if (recentGithubFilesExpanded) {
+      includeRepoListExpanded = false;
+    }
     renderShell();
     return;
   }
