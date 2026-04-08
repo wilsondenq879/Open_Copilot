@@ -68,6 +68,8 @@ const PAGE_COPILOT_STARTERS = {
   article: ["multiPerspective", "pageSummary", "articleTimeline", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "reflectionArticle", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "articleBiasCheck"],
   code: ["multiPerspective", "codeExplain", "codeRiskReview", "codeTeachBack", "xPost", "memeCaption", "translatePage"],
   github: ["multiPerspective", "githubSummary", "githubReviewFocus", "githubNextSteps", "bullVsBear", "pricedIn", "tickerImpact", "xPost", "memeCaption", "templateIdeas", "codeExplain"],
+  collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary", "multiPerspective", "translatePage", "xPost"],
+  document: ["docExecutiveBrief", "docOutline", "pageSummary", "translatePage", "reflectionArticle", "multiPerspective"],
   market: ["multiPerspective", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary", "articleTimeline", "xPost"],
   entertainment: ["multiPerspective", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "pageSummary", "reflectionArticle"],
   generic: ["multiPerspective", "pageSummary", "translatePage", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "reflectionArticle", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "codeExplain"],
@@ -157,6 +159,10 @@ const CONTENT_I18N = {
     starter_githubSummary: "整理這個 GitHub 頁面",
     starter_githubReviewFocus: "建議 review 重點",
     starter_githubNextSteps: "列出下一步建議",
+    starter_chatWeeklyDigest: "近三天對談重點匯報",
+    starter_chatActionItems: "抓待辦 / owner / deadline",
+    starter_docExecutiveBrief: "文件高層摘要",
+    starter_docOutline: "重建文件大綱",
     starter_bullVsBear: "Bull vs Bear",
     starter_catalystMap: "Catalyst Map",
     starter_pricedIn: "Priced In?",
@@ -179,6 +185,10 @@ const CONTENT_I18N = {
     githubSummaryPrompt: "請整理這個 GitHub 頁面的重點。如果是 repository，請說明用途、結構與值得先看的地方；如果是 PR 或 issue，請整理背景、重點變更與目前狀態。請使用{language}回答。",
     githubReviewFocusPrompt: "請站在 reviewer 角度，根據這個 GitHub 頁面整理最值得優先檢查的項目。請分成「風險最高 / 建議先看 / 可追問問題」三段，並使用{language}回答。",
     githubNextStepsPrompt: "請根據這個 GitHub 頁面，列出最合理的下一步行動。若資訊不足，請明確說明缺什麼。請使用{language}回答。",
+    chatWeeklyDigestPrompt: "請把這個聊天 / 協作頁面整理成「近三天重點匯報」。請優先使用最近 3 天內可見的訊息；如果頁面只載入了昨天或幾小時前的內容，請明確說明你目前實際能看到的時間範圍，不要假裝看過三天。輸出格式：\n1. 近三天最重要 5 點\n2. 已完成事項\n3. 進行中事項\n4. 風險 / 卡點\n5. 建議下一步\n請使用{language}回答。",
+    chatActionItemsPrompt: "請從這個聊天 / 協作頁面抓出可執行事項。請整理成：\n1. 任務\n2. 負責人\n3. 截止時間\n4. 目前狀態 / 依據訊息\n若頁面沒有清楚資訊，請標記為未知。請優先使用最近 3 天內可見的訊息，並使用{language}回答。",
+    docExecutiveBriefPrompt: "請把這份線上文件整理成適合主管快速閱讀的摘要。請分成：\n1. 文件目的\n2. 關鍵結論\n3. 重要數字 / 事實\n4. 風險與假設\n5. 建議決策或下一步\n請使用{language}回答。",
+    docOutlinePrompt: "請根據這份線上文件內容重建清楚的大綱。請先列章節與重點，再補三個最值得優先閱讀的部分。若文件結構不完整，請標記推測處。請使用{language}回答。",
     bullVsBearPrompt: "請根據這個頁面，用股市視角做 `Bull vs Bear` 分析。請分成：\n1. 多頭論點\n2. 空頭論點\n3. 市場最可能先交易哪一段敘事\n4. 我還要觀察什麼\n請使用{language}回答，避免直接給買賣建議。",
     catalystMapPrompt: "請根據這個頁面整理股市 `Catalyst Map`。請分成：\n1. 立即催化\n2. 中期催化\n3. 長期敘事\n4. 可能只是噪音的部分\n請使用{language}回答。",
     pricedInPrompt: "請根據這個頁面分析這個消息對市場來說是 `已反映` 還是 `未完全反映`。請分成：\n1. 市場可能早知道的部分\n2. 真正的 surprise\n3. 可能被高估的反應\n4. 可能被低估的風險或機會\n請使用{language}回答。",
@@ -207,10 +217,14 @@ const CONTENT_I18N = {
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
     adapter_github: "GitHub",
+    adapter_collaboration: "協作聊天",
+    adapter_document: "線上文件",
     adapter_market: "Market",
     adapter_entertainment: "Entertainment",
     pageType_article: "文章頁",
+    pageType_collaboration: "對談頁",
     pageType_code: "程式頁",
+    pageType_document: "文件頁",
     pageType_github: "GitHub 頁",
     pageType_market: "股市頁",
     pageType_entertainment: "娛樂頁",
@@ -300,6 +314,10 @@ const CONTENT_I18N = {
     starter_githubSummary: "Summarize This GitHub Page",
     starter_githubReviewFocus: "Suggest Review Focus",
     starter_githubNextSteps: "Recommend Next Steps",
+    starter_chatWeeklyDigest: "3-Day Chat Digest",
+    starter_chatActionItems: "Action Items / Owners",
+    starter_docExecutiveBrief: "Executive Brief",
+    starter_docOutline: "Rebuild Document Outline",
     starter_bullVsBear: "Bull vs Bear",
     starter_catalystMap: "Catalyst Map",
     starter_pricedIn: "Priced In?",
@@ -322,6 +340,10 @@ const CONTENT_I18N = {
     githubSummaryPrompt: "Summarize this GitHub page. If it is a repository, explain what it is for, how it seems organized, and what is worth reading first. If it is a PR or issue, summarize the background, key changes, and current status. Respond in {language}.",
     githubReviewFocusPrompt: "Act like a reviewer and identify the most important things to inspect on this GitHub page. Structure the answer as Highest risk, Review first, and Questions to ask. Respond in {language}.",
     githubNextStepsPrompt: "Based on this GitHub page, recommend the most reasonable next steps. If critical information is missing, say what is missing. Respond in {language}.",
+    chatWeeklyDigestPrompt: "Turn this chat or collaboration page into a 3-day digest. Prioritize messages visible from the last 3 days. If the page only contains yesterday's or the last few hours of messages, explicitly say what time range is actually visible instead of pretending all 3 days are loaded. Structure the answer as Top 5 updates, Completed work, In-progress work, Risks or blockers, and Recommended next steps. Respond in {language}.",
+    chatActionItemsPrompt: "Extract actionable items from this chat or collaboration page. Structure the answer as Task, Owner, Due date, and Status or evidence from the messages. If something is unclear, mark it unknown. Prioritize messages visible from the last 3 days and respond in {language}.",
+    docExecutiveBriefPrompt: "Turn this online document into an executive brief. Structure the answer as Document purpose, Key conclusions, Important numbers or facts, Risks and assumptions, and Recommended decisions or next steps. Respond in {language}.",
+    docOutlinePrompt: "Rebuild a clean outline from this online document. List the likely sections and key points first, then add the three parts worth reading first. If some structure is inferred, mark it as inferred. Respond in {language}.",
     bullVsBearPrompt: "Analyze this page from a market perspective using a Bull vs Bear format. Structure the answer as Bull case, Bear case, Which narrative the market is most likely to trade first, and What to watch next. Respond in {language} and avoid direct buy/sell advice.",
     catalystMapPrompt: "Turn this page into a market Catalyst Map. Structure the answer as Immediate catalysts, Mid-term catalysts, Long-term narrative, and What may just be noise. Respond in {language}.",
     pricedInPrompt: "Analyze whether this news looks priced in or not. Structure the answer as What the market likely already knew, The real surprise, What may be overreacted to, and What may still be underestimated. Respond in {language}.",
@@ -350,10 +372,14 @@ const CONTENT_I18N = {
     perspectivePreviewSuffix: "...",
     adapter_generic: "Generic",
     adapter_github: "GitHub",
+    adapter_collaboration: "Collaboration",
+    adapter_document: "Document",
     adapter_market: "Market",
     adapter_entertainment: "Entertainment",
     pageType_article: "Article",
+    pageType_collaboration: "Chat",
     pageType_code: "Code",
+    pageType_document: "Document",
     pageType_github: "GitHub",
     pageType_market: "Market",
     pageType_entertainment: "Entertainment",
@@ -840,7 +866,14 @@ function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = tru
     });
   });
 
-  return normalizeExtractedText(blocks.join("\n\n")).slice(0, maxLength);
+  const normalized = normalizeExtractedText(blocks.join("\n\n"));
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return isLikelyCollaborationHost()
+    ? normalized.slice(-maxLength)
+    : normalized.slice(0, maxLength);
 }
 
 function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true) {
@@ -985,6 +1018,90 @@ function matchesEntertainmentPage(signals) {
   );
 }
 
+function matchesCollaborationPage(signals) {
+  const { hostname, pathname, sampleText } = signals;
+  const collaborationHostHints = [
+    "teams.microsoft.com",
+    "slack.com",
+    "app.slack.com",
+    "discord.com",
+    "chat.google.com",
+    "meet.google.com",
+    "web.telegram.org",
+    "mail.google.com",
+  ];
+  const collaborationKeywords = [
+    "chat",
+    "message",
+    "messages",
+    "reply",
+    "thread",
+    "channel",
+    "meeting notes",
+    "mentions",
+    "shared",
+    "catch up",
+    "unread",
+    "posted",
+    "sent",
+  ];
+
+  return (
+    collaborationHostHints.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`)) ||
+    /\/l\/message|\/chat|\/messages|\/channel|\/thread/.test(pathname) ||
+    collaborationKeywords.filter((keyword) => sampleText.includes(keyword)).length >= 3
+  );
+}
+
+function isLikelyCollaborationHost() {
+  const hostname = window.location.hostname.toLowerCase();
+  return [
+    "teams.microsoft.com",
+    "slack.com",
+    "app.slack.com",
+    "discord.com",
+    "chat.google.com",
+    "meet.google.com",
+    "web.telegram.org",
+    "mail.google.com",
+  ].some((hint) => hostname === hint || hostname.endsWith(`.${hint}`));
+}
+
+function matchesDocumentWorkspacePage(signals) {
+  const { hostname, pathname, sampleText } = signals;
+  const documentHostHints = [
+    "docs.google.com",
+    "drive.google.com",
+    "office.com",
+    "officeapps.live.com",
+    "word-edit.officeapps.live.com",
+    "excel.officeapps.live.com",
+    "powerpoint.officeapps.live.com",
+    "onenote.officeapps.live.com",
+    "sharepoint.com",
+  ];
+  const documentKeywords = [
+    "document outline",
+    "editing",
+    "comments",
+    "suggesting",
+    "heading",
+    "table of contents",
+    "share",
+    "last edited",
+    "page setup",
+    "worksheet",
+    "slide",
+    "docx",
+  ];
+
+  return (
+    documentHostHints.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`)) ||
+    /\/document\/|\/spreadsheets\/|\/presentation\/|\/wordeditor|\/excel|\/powerpoint/.test(pathname) ||
+    documentKeywords.filter((keyword) => sampleText.includes(keyword)).length >= 3
+  );
+}
+
 function detectGenericPageType() {
   const { hostname, pathname, pageText, headingText } = getPageSignals();
   const articleNode = document.querySelector("article");
@@ -1020,6 +1137,36 @@ const PAGE_COPILOT_ADAPTERS = [
         type: "github",
         label: getPageTypeLabel("github"),
         starterKeys: PAGE_COPILOT_STARTERS.github,
+      };
+    },
+  },
+  {
+    id: "collaboration",
+    match() {
+      return matchesCollaborationPage(getPageSignals());
+    },
+    resolve() {
+      return {
+        adapterId: "collaboration",
+        adapterLabel: getAdapterLabel("collaboration"),
+        type: "collaboration",
+        label: getPageTypeLabel("collaboration"),
+        starterKeys: PAGE_COPILOT_STARTERS.collaboration,
+      };
+    },
+  },
+  {
+    id: "document",
+    match() {
+      return matchesDocumentWorkspacePage(getPageSignals());
+    },
+    resolve() {
+      return {
+        adapterId: "document",
+        adapterLabel: getAdapterLabel("document"),
+        type: "document",
+        label: getPageTypeLabel("document"),
+        starterKeys: PAGE_COPILOT_STARTERS.document,
       };
     },
   },
@@ -1124,6 +1271,22 @@ function getStarterPrompt(starterKey) {
 
   if (starterKey === "githubNextSteps") {
     return tl("githubNextStepsPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "chatWeeklyDigest") {
+    return tl("chatWeeklyDigestPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "chatActionItems") {
+    return tl("chatActionItemsPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "docExecutiveBrief") {
+    return tl("docExecutiveBriefPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "docOutline") {
+    return tl("docOutlinePrompt", { language: getTargetLanguageLabel() });
   }
 
   if (starterKey === "bullVsBear") {
@@ -1405,6 +1568,20 @@ function renderInlineMarkdown(text) {
     });
 }
 
+function parseMarkdownTableRow(line) {
+  const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((cell) => renderInlineMarkdown(cell.trim()));
+}
+
+function isMarkdownTableSeparator(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
 function renderMarkdown(markdown) {
   const escaped = escapeHtml(markdown || "");
   const codeBlocks = [];
@@ -1430,6 +1607,31 @@ function renderMarkdown(markdown) {
       }
 
       const lines = block.split("\n");
+      if (lines.length >= 2 && lines.every((line) => /^\|.*\|$/.test(line.trim())) && isMarkdownTableSeparator(lines[1])) {
+        const headerCells = parseMarkdownTableRow(lines[0])
+          .map((cell) => `<th>${cell}</th>`)
+          .join("");
+        const bodyRows = lines
+          .slice(2)
+          .filter((line) => /^\|.*\|$/.test(line.trim()))
+          .map((line) => {
+            const cells = parseMarkdownTableRow(line)
+              .map((cell) => `<td>${cell}</td>`)
+              .join("");
+            return `<tr>${cells}</tr>`;
+          })
+          .join("");
+
+        return `
+          <div class="ollama-quick-table-wrap">
+            <table class="ollama-quick-markdown-table">
+              <thead><tr>${headerCells}</tr></thead>
+              <tbody>${bodyRows}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
       if (lines.every((line) => /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line))) {
         const ordered = lines.every((line) => /^\d+\.\s+/.test(line));
         const items = lines
@@ -1506,7 +1708,13 @@ function mergePageContexts(contexts) {
     metaDescription: primaryContext.metaDescription || "",
     selection: selectionContext,
     headings: headings.join(" | "),
-    pageText: normalizeExtractedText(textBlocks.join("\n\n")).slice(0, MAX_PAGE_TEXT),
+    pageText: (() => {
+      const normalized = normalizeExtractedText(textBlocks.join("\n\n"));
+      if (normalized.length <= MAX_PAGE_TEXT) {
+        return normalized;
+      }
+      return isLikelyCollaborationHost() ? normalized.slice(-MAX_PAGE_TEXT) : normalized.slice(0, MAX_PAGE_TEXT);
+    })(),
   };
 }
 

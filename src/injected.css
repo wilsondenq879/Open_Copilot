@@ -730,6 +730,40 @@
   background: transparent;
 }
 
+.ollama-quick-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.ollama-quick-markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(126, 233, 255, 0.18);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ollama-quick-markdown-table th,
+.ollama-quick-markdown-table td {
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 233, 255, 0.12);
+  text-align: left;
+  vertical-align: top;
+  color: #f5f9ff !important;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ollama-quick-markdown-table th {
+  background: rgba(143, 221, 255, 0.1);
+  font-weight: 700;
+}
+
+.ollama-quick-markdown-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .rendered-markdown a {
   color: #8fddff !important;
   text-decoration: none;
