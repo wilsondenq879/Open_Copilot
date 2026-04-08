@@ -1,6 +1,41 @@
 const HOST_ID = "ollama-quick-chat-host";
 const MAX_PAGE_TEXT = 8000;
 const MAX_SELECTION_TEXT = 2000;
+const MAX_FRAME_DEPTH = 2;
+const MAX_CONTEXT_BLOCKS = 24;
+const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 350;
+const FRAME_CONTEXT_MESSAGE_SOURCE = "edge-ai-chat-frame-context";
+const CONTEXT_TEXT_SELECTORS = [
+  "main",
+  "article",
+  "[role='main']",
+  "[role='document']",
+  "[role='textbox']",
+  "[contenteditable='true']",
+  "[contenteditable='plaintext-only']",
+  "textarea",
+  ".ql-editor",
+  ".ProseMirror",
+  ".ck-content",
+  ".public-DraftEditor-content",
+];
+const MICROSOFT_CONTEXT_SELECTORS = [
+  "[data-tid*='message']",
+  "[data-tid*='chat-pane']",
+  "[data-tid*='message-body']",
+  "[data-tid*='reply']",
+  "[data-track-module-name*='message']",
+  "[data-track-module-name*='chat']",
+  "[data-tid*='cell']",
+  "[data-automationid*='Message']",
+  "[data-automationid*='message']",
+  "[data-automation-id*='message']",
+  "[role='listitem']",
+  "[role='row']",
+  "[role='gridcell']",
+  "[role='paragraph']",
+  "[role='document'] [aria-label]",
+];
 
 let currentConfig = null;
 let cachedModels = [];
@@ -13,12 +48,20 @@ let attachedImages = [];
 let attachedDocuments = [];
 let isDragActive = false;
 let pendingMessageRenderFrame = 0;
+let pendingSessionSaveTimer = 0;
 let areStartersExpanded = false;
 let isPanelOpen = false;
 let currentPageCopilot = null;
 let composeMode = "chat";
 let latestPerspectiveRun = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
+const IS_TOP_FRAME = (() => {
+  try {
+    return window.top === window;
+  } catch (_error) {
+    return true;
+  }
+})();
 
 const DEFAULT_STARTER_KEYS = ["pageSummary", "translatePage", "reflectionArticle", "codeExplain", "imageAnalysis", "imageAnalysisMarkdown"];
 const PAGE_COPILOT_STARTERS = {
@@ -50,6 +93,7 @@ const CONTENT_I18N = {
     useSelection: "使用選取內容",
     clearChat: "清除對話",
     openSettings: "開啟設定",
+    loadLatestChat: "載入最近",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
     selectionPrompt: "請幫我處理這段選取文字：\n\n{selection}",
     noSelectedText: "這個頁面沒有選取文字。",
@@ -97,6 +141,10 @@ const CONTENT_I18N = {
     loadConfigFailed: "載入 Ollama 設定失敗。",
     fetchModelsFailed: "取得 Ollama 模型失敗。",
     openSettingsFailed: "開啟設定失敗。",
+    loadChatFailed: "載入最近對談失敗。",
+    noSavedChat: "目前沒有已儲存的對談。",
+    latestChatLoaded: "已載入最近一次對談。",
+    extensionReloadRequired: "擴充功能剛更新或重新載入，這個頁面的舊聊天面板已失效。請重新整理目前頁面後再試一次。",
     streamingFailed: "串流失敗。",
     starter_pageSummary: "網頁內容精華",
     starter_translatePage: "網頁翻譯{language}",
@@ -188,6 +236,7 @@ const CONTENT_I18N = {
     useSelection: "Use selection",
     clearChat: "Clear chat",
     openSettings: "Open settings",
+    loadLatestChat: "Load latest",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
     selectionPrompt: "Please help me with this selected text:\n\n{selection}",
     noSelectedText: "No selected text found on this page.",
@@ -235,6 +284,10 @@ const CONTENT_I18N = {
     loadConfigFailed: "Failed to load Ollama config.",
     fetchModelsFailed: "Failed to fetch Ollama models.",
     openSettingsFailed: "Failed to open settings.",
+    loadChatFailed: "Failed to load the latest chat.",
+    noSavedChat: "No saved conversation is available yet.",
+    latestChatLoaded: "Loaded the latest saved conversation.",
+    extensionReloadRequired: "The extension was updated or reloaded, so this page is still using an old chat panel. Refresh this page and try again.",
     streamingFailed: "Streaming failed.",
     starter_pageSummary: "Summarize This Page",
     starter_translatePage: "Translate Page To {language}",
@@ -426,9 +479,27 @@ const LANGUAGE_LABELS = {
 };
 
 function runtimeMessage(message) {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, resolve);
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(normalizeRuntimeError(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      reject(normalizeRuntimeError(error));
+    }
   });
+}
+
+function normalizeRuntimeError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/Extension context invalidated/i.test(message)) {
+    return new Error(t("extensionReloadRequired"));
+  }
+  return new Error(message);
 }
 
 function getUiLanguage() {
@@ -453,15 +524,367 @@ function getAdapterLabel(adapterId) {
   return tl(`adapter_${adapterId || "generic"}`);
 }
 
+function normalizeExtractedText(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function isMicrosoftAppHost() {
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname.includes("teams.microsoft.com") ||
+    hostname.includes("office.com") ||
+    hostname.includes("officeapps.live.com") ||
+    hostname.includes("sharepoint.com") ||
+    hostname.includes("word-edit.officeapps.live.com") ||
+    hostname.includes("excel.officeapps.live.com") ||
+    hostname.includes("powerpoint.officeapps.live.com")
+  );
+}
+
+function isElementVisible(node) {
+  if (!(node instanceof Element)) {
+    return false;
+  }
+
+  if (node.id === HOST_ID || node.closest?.(`#${HOST_ID}`)) {
+    return false;
+  }
+
+  const style = window.getComputedStyle?.(node);
+  if (!style) {
+    return true;
+  }
+
+  if (style.display === "none" || style.visibility === "hidden") {
+    return false;
+  }
+
+  return true;
+}
+
+function getNodeVisibleText(node) {
+  if (!node) {
+    return "";
+  }
+
+  if (node instanceof Element && !isElementVisible(node)) {
+    return "";
+  }
+
+  if (node instanceof HTMLTextAreaElement || node instanceof HTMLInputElement) {
+    return normalizeExtractedText(node.value);
+  }
+
+  if (node instanceof Element) {
+    const richLabel = [
+      node.getAttribute("aria-label"),
+      node.getAttribute("title"),
+      node.getAttribute("aria-description"),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return normalizeExtractedText(node.innerText || node.textContent || richLabel || "");
+  }
+
+  return normalizeExtractedText(node.textContent || "");
+}
+
+function appendUniqueTextBlock(blocks, seen, text, maxLength) {
+  const normalized = normalizeExtractedText(text);
+  if (!normalized) {
+    return;
+  }
+
+  const dedupeKey = normalized.toLowerCase();
+  if (seen.has(dedupeKey)) {
+    return;
+  }
+
+  seen.add(dedupeKey);
+  blocks.push(maxLength ? normalized.slice(0, maxLength) : normalized);
+}
+
+function collectAccessibleDocuments(rootWindow = window, maxDepth = MAX_FRAME_DEPTH, depth = 0, docs = [], seen = new Set()) {
+  try {
+    const doc = rootWindow.document;
+    if (doc && !seen.has(doc)) {
+      seen.add(doc);
+      docs.push(doc);
+    }
+  } catch (_error) {
+    return docs;
+  }
+
+  if (depth >= maxDepth) {
+    return docs;
+  }
+
+  let childFrames = [];
+  try {
+    childFrames = Array.from(rootWindow.frames || []);
+  } catch (_error) {
+    return docs;
+  }
+
+  childFrames.forEach((childWindow) => {
+    try {
+      if (!childWindow || childWindow === rootWindow) {
+        return;
+      }
+      collectAccessibleDocuments(childWindow, maxDepth, depth + 1, docs, seen);
+    } catch (_error) {
+      // Cross-origin frames are expected to fail; skip quietly.
+    }
+  });
+
+  return docs;
+}
+
+function collectChildFrameWindows(rootWindow = window, maxDepth = MAX_FRAME_DEPTH, depth = 0, frames = [], seen = new Set()) {
+  if (depth >= maxDepth) {
+    return frames;
+  }
+
+  let childFrames = [];
+  try {
+    childFrames = Array.from(rootWindow.frames || []);
+  } catch (_error) {
+    return frames;
+  }
+
+  childFrames.forEach((childWindow) => {
+    if (!childWindow || childWindow === rootWindow || seen.has(childWindow)) {
+      return;
+    }
+
+    seen.add(childWindow);
+    frames.push(childWindow);
+    collectChildFrameWindows(childWindow, maxDepth, depth + 1, frames, seen);
+  });
+
+  return frames;
+}
+
+function collectHeadingsFromDocument(doc) {
+  try {
+    return queryAllIncludingShadow(doc, "h1, h2, h3", 24)
+      .map((node) => normalizeExtractedText(node.textContent || ""))
+      .filter(Boolean);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function queryAllIncludingShadow(root, selectors, maxNodes = 100) {
+  const results = [];
+  const seen = new Set();
+  const selectorList = Array.isArray(selectors) ? selectors : [selectors];
+
+  function visit(nodeRoot) {
+    if (!nodeRoot || results.length >= maxNodes) {
+      return;
+    }
+
+    selectorList.forEach((selector) => {
+      try {
+        Array.from(nodeRoot.querySelectorAll(selector)).forEach((node) => {
+          if (results.length >= maxNodes || seen.has(node)) {
+            return;
+          }
+          seen.add(node);
+          results.push(node);
+        });
+      } catch (_error) {
+        // Ignore selector/root combinations that cannot be queried.
+      }
+    });
+
+    let descendants = [];
+    try {
+      descendants = Array.from(nodeRoot.querySelectorAll("*"));
+    } catch (_error) {
+      return;
+    }
+
+    descendants.forEach((element) => {
+      if (results.length >= maxNodes) {
+        return;
+      }
+
+      if (element.shadowRoot) {
+        visit(element.shadowRoot);
+      }
+    });
+  }
+
+  visit(root);
+  return results;
+}
+
+function collectVisibleTextNodesIncludingShadow(root, maxNodes = 400) {
+  const results = [];
+  const seen = new Set();
+
+  function visit(nodeRoot) {
+    if (!nodeRoot || results.length >= maxNodes) {
+      return;
+    }
+
+    let walker;
+    try {
+      walker = document.createTreeWalker(nodeRoot, NodeFilter.SHOW_TEXT, {
+        acceptNode(textNode) {
+          const text = normalizeExtractedText(textNode.textContent || "");
+          if (!text) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          const parent = textNode.parentElement;
+          if (!parent || !isElementVisible(parent)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      });
+    } catch (_error) {
+      return;
+    }
+
+    let currentNode = walker.nextNode();
+    while (currentNode && results.length < maxNodes) {
+      const value = normalizeExtractedText(currentNode.textContent || "");
+      if (value && !seen.has(value.toLowerCase())) {
+        seen.add(value.toLowerCase());
+        results.push(value);
+      }
+      currentNode = walker.nextNode();
+    }
+
+    let descendants = [];
+    try {
+      descendants = Array.from(nodeRoot.querySelectorAll("*"));
+    } catch (_error) {
+      return;
+    }
+
+    descendants.forEach((element) => {
+      if (results.length >= maxNodes) {
+        return;
+      }
+
+      if (element.shadowRoot) {
+        visit(element.shadowRoot);
+      }
+    });
+  }
+
+  visit(root);
+  return results;
+}
+
+function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+  const blocks = [];
+  const seen = new Set();
+
+  try {
+    const primaryNode =
+      doc.querySelector("main") ||
+      doc.querySelector("article") ||
+      doc.querySelector("[role='main']") ||
+      doc.querySelector("[role='document']") ||
+      doc.body;
+
+    appendUniqueTextBlock(blocks, seen, getNodeVisibleText(primaryNode), MAX_PAGE_TEXT);
+
+    queryAllIncludingShadow(doc, CONTEXT_TEXT_SELECTORS, maxBlocks)
+      .slice(0, maxBlocks)
+      .forEach((node) => {
+        appendUniqueTextBlock(blocks, seen, getNodeVisibleText(node), 2400);
+      });
+
+    if (isMicrosoftAppHost()) {
+      queryAllIncludingShadow(doc, MICROSOFT_CONTEXT_SELECTORS, maxBlocks * 3)
+        .slice(0, maxBlocks * 3)
+        .forEach((node) => {
+          appendUniqueTextBlock(blocks, seen, getNodeVisibleText(node), 1200);
+        });
+
+      collectVisibleTextNodesIncludingShadow(doc, maxBlocks * 12)
+        .slice(0, maxBlocks * 12)
+        .forEach((text) => {
+          appendUniqueTextBlock(blocks, seen, text, 500);
+        });
+    }
+  } catch (_error) {
+    return blocks;
+  }
+
+  return blocks;
+}
+
+function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true) {
+  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+  const blocks = [];
+  const seen = new Set();
+
+  documents.forEach((doc) => {
+    collectTextBlocksFromDocument(doc).forEach((block) => {
+      appendUniqueTextBlock(blocks, seen, block, maxLength);
+    });
+  });
+
+  return normalizeExtractedText(blocks.join("\n\n")).slice(0, maxLength);
+}
+
+function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true) {
+  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+  const headings = [];
+  const seen = new Set();
+
+  documents.forEach((doc) => {
+    collectHeadingsFromDocument(doc).forEach((heading) => {
+      const key = heading.toLowerCase();
+      if (!seen.has(key) && headings.length < maxItems) {
+        seen.add(key);
+        headings.push(heading);
+      }
+    });
+  });
+
+  return headings;
+}
+
+function getSelectionText() {
+  const selection = window.getSelection?.()?.toString().trim() || "";
+  if (selection) {
+    return selection;
+  }
+
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement) {
+    const { selectionStart = 0, selectionEnd = 0, value = "" } = activeElement;
+    if (selectionEnd > selectionStart) {
+      return value.slice(selectionStart, selectionEnd).trim();
+    }
+  }
+
+  return "";
+}
+
 function getPageSignals() {
   const hostname = window.location.hostname.toLowerCase();
   const pathname = window.location.pathname.toLowerCase();
   const title = (document.title || "").trim();
   const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute("content") || "";
-  const mainNode = document.querySelector("main") || document.body;
-  const pageText = (mainNode?.innerText || "").trim();
-  const headingText = Array.from(document.querySelectorAll("h1, h2, h3"))
-    .map((node) => node.textContent?.trim() || "")
+  const pageText = getPageTextSnapshot(6000);
+  const headingText = getPageHeadingsSnapshot()
     .join(" ")
     .toLowerCase();
   const sampleText = `${title} ${metaDescription} ${headingText} ${pageText.slice(0, 2500)}`.toLowerCase();
@@ -804,7 +1227,7 @@ function getPerspectivePreset() {
   ];
 }
 
-function buildPerspectivePrompt(userMessage, roleInstruction, previousOutputs = []) {
+async function buildPerspectivePrompt(userMessage, roleInstruction, previousOutputs = []) {
   const previousBlock = previousOutputs.length
     ? [
         "PREVIOUS PERSPECTIVES",
@@ -812,7 +1235,7 @@ function buildPerspectivePrompt(userMessage, roleInstruction, previousOutputs = 
       ].join("\n\n")
     : "";
 
-  return [buildSystemPrompt(), roleInstruction, previousBlock, buildPrompt(userMessage)]
+  return [buildSystemPrompt(), roleInstruction, previousBlock, await buildPrompt(userMessage)]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -1023,23 +1446,10 @@ function renderMarkdown(markdown) {
   return codeBlocks.reduce((html, block, index) => html.replace(`__CODE_BLOCK_${index}__`, block), blocks);
 }
 
-function getPageContext() {
-  const selection = window.getSelection?.()?.toString().trim() || "";
-  const mainNode =
-    document.querySelector("main") ||
-    document.querySelector("article") ||
-    document.querySelector("[role='main']") ||
-    document.body;
-
-  const pageText = (mainNode?.innerText || document.body?.innerText || "")
-    .replace(/\s+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, MAX_PAGE_TEXT);
-
-  const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
-    .map((node) => node.textContent?.trim() || "")
-    .filter(Boolean)
+function getPageContext(includeChildFrames = true) {
+  const selection = getSelectionText();
+  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames);
+  const headings = getPageHeadingsSnapshot(12, includeChildFrames)
     .slice(0, 12)
     .join(" | ");
 
@@ -1055,8 +1465,112 @@ function getPageContext() {
   };
 }
 
-function buildPrompt(userMessage) {
-  const context = includePageContext ? getPageContext() : null;
+function mergePageContexts(contexts) {
+  const headings = [];
+  const headingSeen = new Set();
+  const textBlocks = [];
+  const textSeen = new Set();
+
+  contexts.forEach((context) => {
+    String(context?.headings || "")
+      .split("|")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((heading) => {
+        const key = heading.toLowerCase();
+        if (!headingSeen.has(key) && headings.length < 12) {
+          headingSeen.add(key);
+          headings.push(heading);
+        }
+      });
+
+    String(context?.pageText || "")
+      .split(/\n{2,}/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((block) => {
+        const key = block.toLowerCase();
+        if (!textSeen.has(key)) {
+          textSeen.add(key);
+          textBlocks.push(block);
+        }
+      });
+  });
+
+  const primaryContext = contexts[0] || {};
+  const selectionContext = contexts.find((item) => item?.selection)?.selection || "";
+
+  return {
+    title: primaryContext.title || document.title || "",
+    url: primaryContext.url || window.location.href,
+    metaDescription: primaryContext.metaDescription || "",
+    selection: selectionContext,
+    headings: headings.join(" | "),
+    pageText: normalizeExtractedText(textBlocks.join("\n\n")).slice(0, MAX_PAGE_TEXT),
+  };
+}
+
+function requestFrameContexts() {
+  if (!IS_TOP_FRAME) {
+    return Promise.resolve([]);
+  }
+
+  const childWindows = collectChildFrameWindows(window);
+  if (!childWindows.length) {
+    return Promise.resolve([]);
+  }
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return new Promise((resolve) => {
+    const responses = [];
+    const handleMessage = (event) => {
+      const payload = event.data;
+      if (!payload || payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE || payload.type !== "frame-context-response" || payload.requestId !== requestId) {
+        return;
+      }
+
+      if (payload.context) {
+        responses.push(payload.context);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    childWindows.forEach((childWindow) => {
+      try {
+        childWindow.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-context-request",
+            requestId,
+          },
+          "*"
+        );
+      } catch (_error) {
+        // Ignore frames that cannot receive messages.
+      }
+    });
+
+    window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      resolve(responses);
+    }, FRAME_CONTEXT_REQUEST_TIMEOUT_MS);
+  });
+}
+
+async function getAggregatedPageContext() {
+  const localContext = getPageContext(false);
+  if (!IS_TOP_FRAME) {
+    return localContext;
+  }
+
+  const frameContexts = await requestFrameContexts();
+  return mergePageContexts([localContext, ...frameContexts]);
+}
+
+async function buildPrompt(userMessage) {
+  const context = includePageContext ? await getAggregatedPageContext() : null;
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const history = chatMessages
     .slice(-8)
@@ -1097,6 +1611,64 @@ function buildSystemPrompt() {
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function buildConversationSnapshot() {
+  return {
+    id: `chat-${Date.now()}`,
+    savedAt: new Date().toISOString(),
+    pageTitle: document.title || "",
+    pageUrl: window.location.href,
+    selectedModel: currentConfig?.selectedModel || "",
+    replyLanguage: currentConfig?.replyLanguage || "zh-TW",
+    includePageContext,
+    messages: chatMessages,
+    latestPerspectiveRun,
+  };
+}
+
+async function persistConversationNow() {
+  if (!chatMessages.length && !latestPerspectiveRun) {
+    return;
+  }
+
+  const result = await runtimeMessage({
+    type: "ollama:save-chat-session",
+    session: buildConversationSnapshot(),
+  });
+
+  if (!result?.ok) {
+    throw new Error(result?.error || "Failed to save chat session.");
+  }
+}
+
+function scheduleConversationSave() {
+  if (pendingSessionSaveTimer) {
+    window.clearTimeout(pendingSessionSaveTimer);
+  }
+
+  pendingSessionSaveTimer = window.setTimeout(() => {
+    persistConversationNow().catch(() => {});
+  }, 800);
+}
+
+async function loadLatestConversation() {
+  const result = await runtimeMessage({ type: "ollama:get-latest-chat-session" });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("loadChatFailed"));
+  }
+
+  if (!result.session) {
+    setStatus(tl("noSavedChat"));
+    return;
+  }
+
+  chatMessages = Array.isArray(result.session.messages) ? result.session.messages : [];
+  latestPerspectiveRun = result.session.latestPerspectiveRun || null;
+  includePageContext = result.session.includePageContext !== false;
+  composeMode = "chat";
+  renderShell();
+  setStatus(tl("latestChatLoaded"));
 }
 
 function fileToBase64(file) {
@@ -1391,6 +1963,7 @@ function renderShell() {
         </div>
         <div class="ollama-quick-header-actions">
           <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
+          <button class="ollama-quick-secondary" type="button" data-action="load-latest-chat" title="${escapeHtml(tl("loadLatestChat"))}" aria-label="${escapeHtml(tl("loadLatestChat"))}">${escapeHtml(tl("loadLatestChat"))}</button>
           <button class="ollama-quick-secondary" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">${escapeHtml(tl("clear"))}</button>
           <button class="ollama-quick-icon-button" type="button" data-action="open-settings" title="${escapeHtml(tl("openSettings"))}" aria-label="${escapeHtml(tl("openSettings"))}">⚙</button>
           <button class="ollama-quick-icon-button" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("collapse"))}">-</button>
@@ -1513,15 +2086,17 @@ async function runMultiPerspectiveAnalysis(userMessage) {
     for (const stage of latestPerspectiveRun.stages) {
       stage.status = "running";
       renderMessages();
+      scheduleConversationSave();
       setStatus(tl("perspectiveStageRunning", { label: stage.label }));
-      stage.content = await runGenerate(buildPerspectivePrompt(promptText, stage.instruction, collected), currentConfig.selectedModel);
+      stage.content = await runGenerate(await buildPerspectivePrompt(promptText, stage.instruction, collected), currentConfig.selectedModel);
       stage.status = "done";
       collected.push({ label: stage.label, content: stage.content });
       renderMessages();
+      scheduleConversationSave();
     }
 
     latestPerspectiveRun.finalContent = await runGenerate(
-      buildPerspectivePrompt(
+      await buildPerspectivePrompt(
         promptText,
         tl("perspectiveSynthesisInstruction"),
         collected
@@ -1530,12 +2105,14 @@ async function runMultiPerspectiveAnalysis(userMessage) {
     );
     latestPerspectiveRun.isComplete = true;
     renderMessages();
+    scheduleConversationSave();
     setStatus(tl("perspectiveDone"));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     latestPerspectiveRun.finalContent = `Error: ${message}`;
     latestPerspectiveRun.isComplete = true;
     renderMessages();
+    scheduleConversationSave();
     setStatus(message);
   } finally {
     isGenerating = false;
@@ -1564,6 +2141,15 @@ async function handleClick(event) {
     const result = await runtimeMessage({ type: "ollama:open-options" });
     if (!result?.ok) {
       setStatus(result?.error || tl("openSettingsFailed"));
+    }
+    return;
+  }
+
+  if (action === "load-latest-chat") {
+    try {
+      await loadLatestConversation();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
     }
     return;
   }
@@ -1662,6 +2248,7 @@ async function handleClick(event) {
     attachedDocuments = [];
     renderMessages();
     renderAttachments();
+    scheduleConversationSave();
     setStatus(tl("chatCleared"));
     return;
   }
@@ -1799,6 +2386,7 @@ async function sendCurrentPrompt() {
   if (composeMode === "perspective") {
     chatMessages.push({ id: Date.now(), role: "user", content: displayMessage });
     renderMessages();
+    scheduleConversationSave();
     await runMultiPerspectiveAnalysis(userMessage);
     attachedDocuments = [];
     renderAttachments();
@@ -1808,6 +2396,7 @@ async function sendCurrentPrompt() {
   chatMessages.push({ id: Date.now(), role: "user", content: displayMessage });
   chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
   renderMessages();
+  scheduleConversationSave();
   togglePanel(true);
   isGenerating = true;
   const waitingParts = [];
@@ -1820,18 +2409,20 @@ async function sendCurrentPrompt() {
   setStatus(tl("waitingForModel", { model: currentConfig.selectedModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(buildChatMessages(displayMessage), currentConfig.selectedModel);
+    await startStreamingChat(await buildChatMessages(displayMessage), currentConfig.selectedModel);
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
     attachedDocuments = [];
     renderAttachments();
     isGenerating = false;
+    scheduleConversationSave();
     setStatus(tl("doneWithModel", { model: currentConfig.selectedModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
     renderMessages();
     isGenerating = false;
+    scheduleConversationSave();
     setStatus(message);
   }
 }
@@ -1893,16 +2484,17 @@ function updateAssistantDraft(text) {
 
   last.content = text;
   scheduleMessagesRender();
+  scheduleConversationSave();
 }
 
-function buildChatMessages(userMessage) {
+async function buildChatMessages(userMessage) {
   const markdownAttachmentBlock = attachedDocuments.length
     ? [
         tl("attachedTextFilesHeading"),
         ...attachedDocuments.map((item) => `FILE: ${item.name}\n${item.text}`),
       ].join("\n\n")
     : "";
-  const contextPrompt = [buildPrompt(userMessage), markdownAttachmentBlock].filter(Boolean).join("\n\n");
+  const contextPrompt = [await buildPrompt(userMessage), markdownAttachmentBlock].filter(Boolean).join("\n\n");
   const systemPrompt = buildSystemPrompt();
   const messages = [];
 
@@ -1963,7 +2555,13 @@ function startStreamingChat(messages, model) {
   activeStreamText = "";
 
   return new Promise((resolve, reject) => {
-    const port = chrome.runtime.connect({ name: "ollama-stream" });
+    let port;
+    try {
+      port = chrome.runtime.connect({ name: "ollama-stream" });
+    } catch (error) {
+      reject(normalizeRuntimeError(error));
+      return;
+    }
     let settled = false;
     activeStreamPort = port;
 
@@ -2010,19 +2608,29 @@ function startStreamingChat(messages, model) {
       if (!settled && chrome.runtime.lastError) {
         settled = true;
         activeStreamPort = null;
-        reject(new Error(chrome.runtime.lastError.message));
+        reject(normalizeRuntimeError(chrome.runtime.lastError.message));
       }
     });
 
-    port.postMessage({
-      type: "ollama:stream-chat",
-      messages,
-      model,
-    });
+    try {
+      port.postMessage({
+        type: "ollama:stream-chat",
+        messages,
+        model,
+      });
+    } catch (error) {
+      settled = true;
+      activeStreamPort = null;
+      reject(normalizeRuntimeError(error));
+    }
   });
 }
 
 async function bootstrap() {
+  if (!IS_TOP_FRAME) {
+    return;
+  }
+
   try {
     await loadConfig();
     await loadModels();
@@ -2035,6 +2643,10 @@ async function bootstrap() {
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (!IS_TOP_FRAME) {
+    return;
+  }
+
   if (areaName !== "sync") {
     return;
   }
@@ -2044,10 +2656,33 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-window.setTimeout(() => {
-  bootstrap().catch(() => {});
-}, 250);
+window.addEventListener("message", (event) => {
+  const payload = event.data;
+  if (!payload || payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE || payload.type !== "frame-context-request") {
+    return;
+  }
 
-window.addEventListener("keydown", (event) => {
-  handleKeydown(event).catch?.(() => {});
-}, true);
+  try {
+    window.top?.postMessage(
+      {
+        source: FRAME_CONTEXT_MESSAGE_SOURCE,
+        type: "frame-context-response",
+        requestId: payload.requestId,
+        context: getPageContext(false),
+      },
+      "*"
+    );
+  } catch (_error) {
+    // Ignore frames that cannot reply to the top window.
+  }
+});
+
+if (IS_TOP_FRAME) {
+  window.setTimeout(() => {
+    bootstrap().catch(() => {});
+  }, 250);
+
+  window.addEventListener("keydown", (event) => {
+    handleKeydown(event).catch?.(() => {});
+  }, true);
+}

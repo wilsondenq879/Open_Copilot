@@ -3,6 +3,12 @@ const DEFAULT_MULTI_PERSPECTIVE_PROFILES = [
   "Skeptic|Challenge assumptions, missing evidence, and weak points.",
   "Action Advisor|Recommend practical next steps and decisions.",
 ].join("\n");
+const LOCAL_DB_NAME = "edge-ai-chat-local-db";
+const LOCAL_DB_VERSION = 1;
+const LOCAL_DB_STORE = "kv";
+const WORK_FOLDER_HANDLE_KEY = "work-folder-handle";
+const LOCAL_META_KEY = "localWorkFolderMeta";
+const LATEST_CHAT_SESSION_KEY = "latestChatSession";
 
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
@@ -27,6 +33,165 @@ const DEFAULT_CONFIG = {
     "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
   ].join("\n"),
 };
+
+function openLocalDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(LOCAL_DB_NAME, LOCAL_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(LOCAL_DB_STORE)) {
+        db.createObjectStore(LOCAL_DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to open IndexedDB."));
+  });
+}
+
+async function idbGet(key) {
+  const db = await openLocalDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_DB_STORE, "readonly");
+    const store = tx.objectStore(LOCAL_DB_STORE);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to read IndexedDB."));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed."));
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openLocalDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_DB_STORE, "readwrite");
+    const store = tx.objectStore(LOCAL_DB_STORE);
+    const request = store.put(value, key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Failed to write IndexedDB."));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed."));
+  });
+}
+
+async function idbDelete(key) {
+  const db = await openLocalDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_DB_STORE, "readwrite");
+    const store = tx.objectStore(LOCAL_DB_STORE);
+    const request = store.delete(key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Failed to delete IndexedDB key."));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed."));
+  });
+}
+
+function sanitizeFileSegment(value, fallback = "chat") {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || fallback;
+}
+
+function timestampForFile(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return `${year}${month}${day}-${hour}${minute}${second}`;
+}
+
+async function getWorkFolderHandle() {
+  return idbGet(WORK_FOLDER_HANDLE_KEY);
+}
+
+async function setWorkFolderHandle(handle) {
+  await idbSet(WORK_FOLDER_HANDLE_KEY, handle);
+  await chrome.storage.local.set({
+    [LOCAL_META_KEY]: {
+      name: handle?.name || "",
+      configuredAt: new Date().toISOString(),
+    },
+  });
+}
+
+async function clearWorkFolderHandle() {
+  await idbDelete(WORK_FOLDER_HANDLE_KEY);
+  await chrome.storage.local.remove(LOCAL_META_KEY);
+}
+
+async function getWorkFolderStatus() {
+  const { [LOCAL_META_KEY]: meta } = await chrome.storage.local.get(LOCAL_META_KEY);
+  const handle = await getWorkFolderHandle();
+  let permission = "missing";
+
+  if (handle?.queryPermission) {
+    permission = await handle.queryPermission({ mode: "readwrite" });
+  }
+
+  return {
+    configured: Boolean(handle),
+    folderName: meta?.name || handle?.name || "",
+    configuredAt: meta?.configuredAt || "",
+    permission,
+  };
+}
+
+async function saveChatSession(session) {
+  const payload = {
+    ...session,
+    savedAt: session?.savedAt || new Date().toISOString(),
+  };
+
+  await chrome.storage.local.set({
+    [LATEST_CHAT_SESSION_KEY]: payload,
+  });
+
+  const handle = await getWorkFolderHandle();
+  if (!handle) {
+    return { savedToFolder: false, reason: "not-configured" };
+  }
+
+  let permission = "prompt";
+  if (handle?.queryPermission) {
+    permission = await handle.queryPermission({ mode: "readwrite" });
+  }
+  if (permission !== "granted") {
+    return { savedToFolder: false, reason: "permission-denied" };
+  }
+
+  try {
+    const pageTitle = sanitizeFileSegment(payload.pageTitle, "page");
+    const filename = `${timestampForFile(new Date(payload.savedAt))}-${pageTitle}.json`;
+    const fileHandle = await handle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(payload, null, 2));
+    await writable.close();
+
+    return {
+      savedToFolder: true,
+      fileName: filename,
+      folderName: handle.name || "",
+    };
+  } catch (error) {
+    return {
+      savedToFolder: false,
+      reason: "write-failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function getLatestChatSession() {
+  const { [LATEST_CHAT_SESSION_KEY]: latestChatSession } = await chrome.storage.local.get(LATEST_CHAT_SESSION_KEY);
+  return latestChatSession || null;
+}
 
 async function getConfig() {
   const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
@@ -336,6 +501,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "ollama:open-options": {
         await chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
+        return;
+      }
+      case "ollama:set-work-folder": {
+        await setWorkFolderHandle(message.handle);
+        sendResponse({ ok: true, status: await getWorkFolderStatus() });
+        return;
+      }
+      case "ollama:clear-work-folder": {
+        await clearWorkFolderHandle();
+        sendResponse({ ok: true, status: await getWorkFolderStatus() });
+        return;
+      }
+      case "ollama:get-work-folder-status": {
+        sendResponse({ ok: true, status: await getWorkFolderStatus() });
+        return;
+      }
+      case "ollama:save-chat-session": {
+        sendResponse({ ok: true, result: await saveChatSession(message.session || {}) });
+        return;
+      }
+      case "ollama:get-latest-chat-session": {
+        sendResponse({ ok: true, session: await getLatestChatSession() });
         return;
       }
       default: {

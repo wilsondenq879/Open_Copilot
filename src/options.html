@@ -143,6 +143,15 @@
             <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
           </div>
           <div class="side-stack">
+            <div class="field">
+              <span id="localWorkFolderLabel">Local Work Folder</span>
+              <div class="actions">
+                <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                <button id="clearFolderButton" class="secondary-button" type="button">Clear Folder</button>
+              </div>
+              <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+              <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+            </div>
             <label class="field">
               <span id="defaultProviderLabel">Default Provider</span>
               <select id="defaultProvider">

@@ -22,6 +22,7 @@ It is not an official GitHub Copilot provider integration. Instead, it is a brow
 - Supports image and text-file attachments
 - Built-in starter prompts
 - Configurable reply language
+- Optional local work folder for saving chat logs as JSON
 
 ## Default Settings
 
@@ -86,6 +87,7 @@ Current settings include:
 - LM Studio URL
 - LM Studio default model ID
 - LM Studio API key
+- Local work folder picker for chat log export
 - Reply language
 - Test connection
 - Installed models / Refresh
@@ -100,11 +102,20 @@ When visiting regular webpages, a floating chat button appears at the bottom-rig
 - `Context` toggle: include/exclude page context in prompts
 - Starter buttons
 - `✦`: insert currently highlighted text into input
+- `Load latest`: restore the latest locally saved conversation
 - `Clear`: clear current conversation and attachments
 - `⚙`: open settings page
 - `-`: collapse panel
 - `⊕`: upload image or text attachments
 - `➤`: send message
+
+## Local Work Folder
+
+You can choose a local folder from the Settings page and let the extension auto-save each conversation as a `.json` file.
+
+- The latest conversation snapshot is also stored locally inside the extension for quick restore
+- Use `Load latest` in the chat header to continue from the most recent saved conversation
+- If browser permission to the folder is lost, re-pick the folder from Settings
 
 ## What Page Data Is Included
 

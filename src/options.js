@@ -35,6 +35,17 @@ const OPTION_I18N = {
     azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
     generalSectionTitle: "互動體驗",
     generalSectionTag: "Prompt 路由",
+    localWorkFolderLabel: "Local Work Folder",
+    localWorkFolderHint: "選擇一個本機資料夾，自動把聊天記錄存成 JSON。之後可以再把最近一次對談載回聊天面板。",
+    pickFolder: "選擇資料夾",
+    clearFolder: "清除資料夾",
+    folderNotSelected: "尚未選擇資料夾。",
+    folderReady: "已連結本機資料夾：{name}",
+    folderPermissionMissing: "資料夾已記錄，但寫入權限失效。請重新選擇一次。",
+    folderChooseUnsupported: "這個瀏覽器頁面目前不支援選擇本機資料夾。",
+    folderSaveSuccess: "已儲存本機資料夾設定。",
+    folderSaveFailed: "儲存本機資料夾失敗。",
+    folderClearSuccess: "已清除本機資料夾設定。",
     defaultProviderLabel: "預設 Provider",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
@@ -90,6 +101,17 @@ const OPTION_I18N = {
     azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
     generalSectionTitle: "Experience",
     generalSectionTag: "Prompt Routing",
+    localWorkFolderLabel: "Local Work Folder",
+    localWorkFolderHint: "Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest conversation back into the chat panel.",
+    pickFolder: "Choose Folder",
+    clearFolder: "Clear Folder",
+    folderNotSelected: "No folder selected.",
+    folderReady: "Local folder connected: {name}",
+    folderPermissionMissing: "Folder remembered, but write permission is no longer available. Please pick it again.",
+    folderChooseUnsupported: "This browser page does not support choosing a local folder here.",
+    folderSaveSuccess: "Local work folder saved.",
+    folderSaveFailed: "Failed to save local work folder.",
+    folderClearSuccess: "Local work folder cleared.",
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
@@ -583,6 +605,10 @@ function applyTranslations() {
   document.getElementById("azureHint").textContent = t("azureHint");
   document.getElementById("generalSectionTitle").textContent = t("generalSectionTitle");
   document.getElementById("generalSectionTag").textContent = t("generalSectionTag");
+  document.getElementById("localWorkFolderLabel").textContent = t("localWorkFolderLabel");
+  document.getElementById("localWorkFolderHint").textContent = t("localWorkFolderHint");
+  document.getElementById("pickFolderButton").textContent = t("pickFolder");
+  document.getElementById("clearFolderButton").textContent = t("clearFolder");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
@@ -652,6 +678,28 @@ function setStatus(message, isError = false) {
   node.classList.toggle("is-error", isError);
 }
 
+function renderWorkFolderStatus(status) {
+  const node = document.getElementById("localWorkFolderStatus");
+  if (!status?.configured) {
+    node.textContent = t("folderNotSelected");
+    return;
+  }
+
+  if (status.permission !== "granted") {
+    node.textContent = t("folderPermissionMissing");
+    return;
+  }
+
+  node.textContent = t("folderReady", { name: status.folderName || "Unnamed folder" });
+}
+
+async function loadWorkFolderStatus() {
+  const result = await sendMessage({ type: "ollama:get-work-folder-status" });
+  if (result?.ok) {
+    renderWorkFolderStatus(result.status);
+  }
+}
+
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
@@ -673,6 +721,7 @@ async function loadConfig() {
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
     document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
     setActiveProviderTab(result.config.defaultProvider || "ollama");
+    await loadWorkFolderStatus();
     setStatus(t("waiting"));
   }
 }
@@ -753,6 +802,48 @@ document.getElementById("testButton").addEventListener("click", async () => {
 document.getElementById("refreshButton").addEventListener("click", async () => {
   try {
     await refreshModels();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("pickFolderButton").addEventListener("click", async () => {
+  try {
+    if (typeof window.showDirectoryPicker !== "function") {
+      throw new Error(t("folderChooseUnsupported"));
+    }
+
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    if (typeof handle.requestPermission === "function") {
+      const permission = await handle.requestPermission({ mode: "readwrite" });
+      if (permission !== "granted") {
+        throw new Error(t("folderPermissionMissing"));
+      }
+    }
+    const saved = await sendMessage({ type: "ollama:set-work-folder", handle });
+    if (!saved?.ok) {
+      throw new Error(saved?.error || t("folderSaveFailed"));
+    }
+
+    renderWorkFolderStatus(saved.status);
+    setStatus(t("folderSaveSuccess"));
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("clearFolderButton").addEventListener("click", async () => {
+  try {
+    const result = await sendMessage({ type: "ollama:clear-work-folder" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("folderSaveFailed"));
+    }
+
+    renderWorkFolderStatus(result.status);
+    setStatus(t("folderClearSuccess"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
