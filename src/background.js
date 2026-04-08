@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = {
   lmStudioUrl: "http://127.0.0.1:1234",
   lmStudioModel: "",
   lmStudioApiKey: "lm-studio",
+  githubApiKey: "",
   geminiApiKey: "",
   geminiModel: "gemini-2.5-flash",
   azureOpenAiEndpoint: "",
@@ -25,6 +26,8 @@ const DEFAULT_CONFIG = {
   selectedModel: "",
   replyLanguage: "zh-TW",
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
+  customStarters: [],
+  recentGithubFiles: [],
   systemPrompt: [
     "You are an Ollama quick assistant inside the user's browser.",
     "Answer using the current page as context when it is relevant.",
@@ -237,6 +240,270 @@ async function fetchJson(url, init) {
   }
 
   return response.json();
+}
+
+async function fetchText(url, init) {
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+  }
+
+  return response.text();
+}
+
+function getGithubRequestHeaders(token, accept = "application/vnd.github+json") {
+  const headers = {
+    Accept: accept,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+async function fetchGithubPages(urlFactory, headers, maxPages = 10) {
+  const items = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const url = urlFactory(page);
+    const payload = await fetchJson(url.toString(), { headers });
+    const pageItems = Array.isArray(payload) ? payload : [];
+    items.push(...pageItems);
+
+    if (pageItems.length < 100) {
+      break;
+    }
+  }
+
+  return items;
+}
+
+async function fetchGithubFile({ owner, repo, path, ref, token }) {
+  const normalizedOwner = String(owner || "").trim();
+  const normalizedRepo = String(repo || "").trim();
+  const normalizedPath = String(path || "").replace(/^\/+/, "").trim();
+  const normalizedRef = String(ref || "").trim();
+
+  if (!normalizedOwner || !normalizedRepo || !normalizedPath) {
+    throw new Error("GitHub file request is missing owner, repo, or path.");
+  }
+
+  const config = await getConfig();
+  const githubToken = String(token || config.githubApiKey || "").trim();
+  const encodedPath = normalizedPath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const url = new URL(`https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}/contents/${encodedPath}`);
+  if (normalizedRef) {
+    url.searchParams.set("ref", normalizedRef);
+  }
+
+  const content = await fetchText(url.toString(), {
+    headers: getGithubRequestHeaders(githubToken, "application/vnd.github.raw"),
+  });
+  return {
+    owner: normalizedOwner,
+    repo: normalizedRepo,
+    path: normalizedPath,
+    ref: normalizedRef,
+    content,
+  };
+}
+
+async function listGithubDirectory({ owner, repo, path, ref, token }) {
+  const normalizedOwner = String(owner || "").trim();
+  const normalizedRepo = String(repo || "").trim();
+  const normalizedPath = String(path || "").replace(/^\/+|\/+$/g, "").trim();
+  const normalizedRef = String(ref || "").trim();
+
+  if (!normalizedOwner || !normalizedRepo) {
+    throw new Error("GitHub directory request is missing owner or repo.");
+  }
+
+  const config = await getConfig();
+  const githubToken = String(token || config.githubApiKey || "").trim();
+  const suffix = normalizedPath
+    ? `/${normalizedPath
+        .split("/")
+        .filter(Boolean)
+        .map((segment) => encodeURIComponent(segment))
+        .join("/")}`
+    : "";
+  const url = new URL(`https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}/contents${suffix}`);
+  if (normalizedRef) {
+    url.searchParams.set("ref", normalizedRef);
+  }
+
+  const payload = await fetchJson(url.toString(), {
+    headers: getGithubRequestHeaders(githubToken),
+  });
+
+  const entries = Array.isArray(payload) ? payload : [payload];
+  return {
+    owner: normalizedOwner,
+    repo: normalizedRepo,
+    path: normalizedPath,
+    ref: normalizedRef,
+    entries: entries
+      .map((entry) => ({
+        name: entry.name || "",
+        path: entry.path || "",
+        type: entry.type || "",
+        size: entry.size || 0,
+      }))
+      .sort((left, right) => {
+        if (left.type === right.type) {
+          return left.name.localeCompare(right.name);
+        }
+        return left.type === "dir" ? -1 : 1;
+      }),
+  };
+}
+
+async function fetchGithubReadme({ owner, repo, ref, token }) {
+  const normalizedOwner = String(owner || "").trim();
+  const normalizedRepo = String(repo || "").trim();
+  const normalizedRef = String(ref || "").trim();
+
+  if (!normalizedOwner || !normalizedRepo) {
+    throw new Error("GitHub README request is missing owner or repo.");
+  }
+
+  const config = await getConfig();
+  const githubToken = String(token || config.githubApiKey || "").trim();
+  const url = new URL(`https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}/readme`);
+  if (normalizedRef) {
+    url.searchParams.set("ref", normalizedRef);
+  }
+
+  const content = await fetchText(url.toString(), {
+    headers: getGithubRequestHeaders(githubToken, "application/vnd.github.raw"),
+  });
+
+  return {
+    owner: normalizedOwner,
+    repo: normalizedRepo,
+    ref: normalizedRef,
+    content,
+  };
+}
+
+async function listGithubRepositories({ query, token }) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const config = await getConfig();
+  const githubToken = String(token || config.githubApiKey || "").trim();
+  const headers = getGithubRequestHeaders(githubToken);
+  const items = [];
+  const seenRepoIds = new Set();
+  const warnings = [];
+  let userRepos = [];
+
+  try {
+    userRepos = await fetchGithubPages((page) => {
+      const url = new URL("https://api.github.com/user/repos");
+      url.searchParams.set("sort", "updated");
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("affiliation", "owner,collaborator,organization_member");
+      return url;
+    }, headers);
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+  }
+
+  userRepos.forEach((repo) => {
+    if (seenRepoIds.has(repo.id)) {
+      return;
+    }
+    seenRepoIds.add(repo.id);
+    items.push(repo);
+  });
+
+  let orgs = [];
+  try {
+    orgs = await fetchGithubPages((page) => {
+      const url = new URL("https://api.github.com/user/orgs");
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+      return url;
+    }, headers, 5);
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+  }
+
+  for (const org of orgs) {
+    const orgLogin = String(org?.login || "").trim();
+    if (!orgLogin) {
+      continue;
+    }
+
+    let orgRepos = [];
+    try {
+      orgRepos = await fetchGithubPages((page) => {
+        const url = new URL(`https://api.github.com/orgs/${encodeURIComponent(orgLogin)}/repos`);
+        url.searchParams.set("type", "all");
+        url.searchParams.set("sort", "updated");
+        url.searchParams.set("per_page", "100");
+        url.searchParams.set("page", String(page));
+        return url;
+      }, headers);
+    } catch (error) {
+      warnings.push(`${orgLogin}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+
+    orgRepos.forEach((repo) => {
+      if (seenRepoIds.has(repo.id)) {
+        return;
+      }
+      seenRepoIds.add(repo.id);
+      items.push(repo);
+    });
+  }
+
+  return {
+    repositories: items
+      .map((repo) => ({
+        id: repo.id,
+        fullName: repo.full_name || "",
+        owner: repo.owner?.login || "",
+        name: repo.name || "",
+        private: Boolean(repo.private),
+        defaultBranch: repo.default_branch || "",
+      }))
+      .filter((repo) => !normalizedQuery || repo.fullName.toLowerCase().includes(normalizedQuery)),
+    warnings,
+  };
+}
+
+async function fetchGithubRepository({ owner, repo, token }) {
+  const normalizedOwner = String(owner || "").trim();
+  const normalizedRepo = String(repo || "").trim();
+
+  if (!normalizedOwner || !normalizedRepo) {
+    throw new Error("GitHub repository request is missing owner or repo.");
+  }
+
+  const config = await getConfig();
+  const githubToken = String(token || config.githubApiKey || "").trim();
+  const url = new URL(`https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}`);
+  const payload = await fetchJson(url.toString(), {
+    headers: getGithubRequestHeaders(githubToken),
+  });
+
+  return {
+    owner: normalizedOwner,
+    repo: normalizedRepo,
+    fullName: payload.full_name || `${normalizedOwner}/${normalizedRepo}`,
+    defaultBranch: payload.default_branch || "",
+    private: Boolean(payload.private),
+  };
 }
 
 async function listModels() {
@@ -523,6 +790,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "ollama:get-latest-chat-session": {
         sendResponse({ ok: true, session: await getLatestChatSession() });
+        return;
+      }
+      case "github:fetch-file": {
+        sendResponse({ ok: true, file: await fetchGithubFile(message || {}) });
+        return;
+      }
+      case "github:list-directory": {
+        sendResponse({ ok: true, directory: await listGithubDirectory(message || {}) });
+        return;
+      }
+      case "github:fetch-readme": {
+        sendResponse({ ok: true, readme: await fetchGithubReadme(message || {}) });
+        return;
+      }
+      case "github:list-repositories": {
+        sendResponse({ ok: true, ...(await listGithubRepositories(message || {})) });
+        return;
+      }
+      case "github:fetch-repository": {
+        sendResponse({ ok: true, repository: await fetchGithubRepository(message || {}) });
         return;
       }
       default: {

@@ -192,6 +192,30 @@ textarea:focus {
   margin-top: 18px;
 }
 
+.settings-toolbar {
+  position: sticky;
+  top: 16px;
+  z-index: 4;
+  justify-content: flex-end;
+  margin-top: 0;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(104, 187, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(7, 19, 35, 0.88);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.settings-toolbar .primary-button {
+  min-width: 172px;
+}
+
+.settings-inline-actions {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+
 .status-card {
   margin-top: 22px;
   padding: 18px;
@@ -227,6 +251,20 @@ textarea:focus {
   color: #dff5ff;
   background: rgba(8, 19, 34, 0.78);
   font-weight: 600;
+}
+
+.danger-button {
+  border-color: rgba(255, 130, 72, 0.62);
+  color: #ffd7c4;
+  background: rgba(56, 20, 10, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(255, 156, 110, 0.08);
+}
+
+.danger-button:hover,
+.danger-button:focus {
+  border-color: rgba(255, 153, 97, 0.86);
+  color: #fff1e8;
+  background: rgba(84, 28, 11, 0.72);
 }
 
 .status-message {
@@ -370,7 +408,9 @@ textarea:focus {
 }
 
 .provider-card {
-  min-height: 100%;
+  display: grid;
+  gap: 18px;
+  align-self: start;
 }
 
 .provider-tabs {
@@ -410,6 +450,32 @@ textarea:focus {
   background: rgba(6, 17, 31, 0.5);
 }
 
+.provider-support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.provider-support-card {
+  padding: 16px;
+  border: 1px solid rgba(104, 187, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(6, 17, 31, 0.42);
+}
+
+.provider-support-wide {
+  grid-column: 1 / -1;
+}
+
+.provider-support-card .actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.provider-support-card .field-hint {
+  margin-top: 10px;
+}
+
 .provider-panel-head {
   margin-bottom: 14px;
 }
@@ -421,7 +487,7 @@ textarea:focus {
 
 .side-stack {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .setting-card-head {
@@ -460,6 +526,10 @@ textarea:focus {
   gap: 14px;
 }
 
+.settings-compact-fields {
+  align-items: start;
+}
+
 .behavior-grid {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -479,8 +549,97 @@ textarea:focus {
   font-size: 13px;
 }
 
+.behavior-card textarea {
+  min-height: 160px;
+}
+
+.behavior-card #systemPrompt {
+  min-height: 180px;
+}
+
+.starter-json-field {
+  margin-top: 12px;
+}
+
+.starter-json-field textarea {
+  min-height: 180px;
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  line-height: 1.55;
+}
+
+.starter-preview-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.starter-preview-card {
+  padding: 14px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(10, 24, 43, 0.72);
+}
+
+.starter-preview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.starter-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.starter-preview-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f4fbff;
+}
+
+.starter-preview-mode {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7fdcff;
+}
+
+.starter-preview-delete {
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.starter-preview-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.starter-preview-scope {
+  padding: 6px 9px;
+  border: 1px solid rgba(104, 187, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(7, 22, 40, 0.76);
+  color: #def9ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.starter-preview-prompt {
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(214, 235, 255, 0.76);
+}
+
 @media (max-width: 720px) {
   .settings-layout,
+  .provider-support-grid,
   .split-fields,
   .behavior-grid {
     grid-template-columns: 1fr;
@@ -495,6 +654,10 @@ textarea:focus {
   .actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-toolbar {
+    top: 12px;
   }
 
   .hero-metrics {

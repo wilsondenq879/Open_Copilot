@@ -3,6 +3,8 @@ const MAX_PAGE_TEXT = 8000;
 const MAX_SELECTION_TEXT = 2000;
 const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
+const MAX_INCLUDED_GITHUB_SOURCES = 5;
+const MAX_RECENT_GITHUB_FILES = 10;
 const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 350;
 const FRAME_CONTEXT_MESSAGE_SOURCE = "edge-ai-chat-frame-context";
 const CONTEXT_TEXT_SELECTORS = [
@@ -36,6 +38,36 @@ const MICROSOFT_CONTEXT_SELECTORS = [
   "[role='paragraph']",
   "[role='document'] [aria-label]",
 ];
+const EMAIL_HOST_HINTS = [
+  "mail.google.com",
+  "outlook.office.com",
+  "outlook.office365.com",
+  "outlook.live.com",
+  "mail.yahoo.com",
+  "mail.proton.me",
+  "app.fastmail.com",
+];
+const EMAIL_SUBJECT_SELECTORS = [
+  "h2.hP",
+  "h2[data-thread-perm-id]",
+  "[data-testid='message-subject']",
+  "[aria-label*='Subject']",
+  "[data-app-section='MailReadCompose'] [role='heading']",
+];
+const EMAIL_BODY_SELECTORS = [
+  ".a3s.aiL",
+  ".ii.gt .a3s",
+  ".ii.gt",
+  "[aria-label='Message Body']",
+  "[aria-label^='Message Body']",
+  "[data-testid='message-body']",
+  "[data-test-id='message-view-body']",
+  "[data-test-id='compose-body']",
+  "[data-app-section='MailReadCompose'] [role='document']",
+  "[data-app-section='MailReadCompose'] [contenteditable='true']",
+  "[role='textbox'][g_editable='true']",
+  ".ProseMirror[contenteditable='true']",
+];
 
 let currentConfig = null;
 let cachedModels = [];
@@ -51,9 +83,25 @@ let pendingMessageRenderFrame = 0;
 let pendingSessionSaveTimer = 0;
 let areStartersExpanded = false;
 let isPanelOpen = false;
+let isPanelMaximized = false;
 let currentPageCopilot = null;
 let composeMode = "chat";
 let latestPerspectiveRun = null;
+let githubTargetRepo = "";
+let githubTargetRef = "";
+let githubTargetPath = "";
+let includedGithubSources = [];
+let includePickerOpen = false;
+let includePickerStep = "repos";
+let includeRepoSearch = "";
+let includeRepoItems = [];
+let includeRepoLoading = false;
+let includeCurrentRepo = null;
+let includeFileSearch = "";
+let includeFileItems = [];
+let includeFileLoading = false;
+let includeBrowsePath = "";
+let includeDraftSelection = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const IS_TOP_FRAME = (() => {
   try {
@@ -64,15 +112,40 @@ const IS_TOP_FRAME = (() => {
 })();
 
 const DEFAULT_STARTER_KEYS = ["pageSummary", "translatePage", "reflectionArticle", "codeExplain", "imageAnalysis", "imageAnalysisMarkdown"];
+const GITHUB_INCLUDED_STARTERS = ["githubCrossCheck", "githubSpecCoverage", "githubDriftCheck", "githubReviewChecklist", "githubTestGap"];
+const GITHUB_DOCUMENT_STARTERS = ["githubDocReview", "githubRequirementMap", "githubSecurityRequirementCheck"];
+const GITHUB_WEB_STARTERS = ["githubWebReview", "githubAccessibilityReview", "githubFrontendSecurityReview"];
+const GITHUB_CODE_STARTERS = ["githubCodeReviewDeep", "githubContractCheck", "githubSecurityReview", "githubRegressionHotspots"];
+const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSurfaceReview"];
+const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
+const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
+const CUSTOM_STARTER_SCOPE_ALIASES = {
+  "*": "all",
+  any: "all",
+  all: "all",
+  default: "generic",
+  general: "generic",
+  repo: "github",
+  repository: "github",
+  git: "github",
+  docs: "document",
+  doc: "document",
+  mail: "email",
+  email: "email",
+  teamwork: "collaboration",
+  chat: "collaboration",
+  finance: "market",
+};
 const PAGE_COPILOT_STARTERS = {
-  article: ["multiPerspective", "pageSummary", "articleTimeline", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "reflectionArticle", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "articleBiasCheck"],
-  code: ["multiPerspective", "codeExplain", "codeRiskReview", "codeTeachBack", "xPost", "memeCaption", "translatePage"],
-  github: ["multiPerspective", "githubSummary", "githubReviewFocus", "githubNextSteps", "bullVsBear", "pricedIn", "tickerImpact", "xPost", "memeCaption", "templateIdeas", "codeExplain"],
-  collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary", "multiPerspective", "translatePage", "xPost"],
-  document: ["docExecutiveBrief", "docOutline", "pageSummary", "translatePage", "reflectionArticle", "multiPerspective"],
-  market: ["multiPerspective", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary", "articleTimeline", "xPost"],
-  entertainment: ["multiPerspective", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "pageSummary", "reflectionArticle"],
-  generic: ["multiPerspective", "pageSummary", "translatePage", "bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "reflectionArticle", "memeCaption", "darkMeme", "xPost", "templateIdeas", "lowIqMeme", "codeExplain"],
+  article: ["pageSummary", "articleTimeline", "articleBiasCheck", "reflectionArticle", "multiPerspective"],
+  code: ["codeExplain", "codeRiskReview", "codeTeachBack", "multiPerspective"],
+  email: ["emailSummary", "translatePage"],
+  github: ["githubRepoPurpose", "githubSummary", "githubReviewFocus", "githubNextSteps"],
+  collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary"],
+  document: ["docExecutiveBrief", "docOutline", "pageSummary", "translatePage"],
+  market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
+  entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
+  generic: ["pageSummary", "translatePage", "multiPerspective"],
 };
 const CONTENT_I18N = {
   "zh-TW": {
@@ -91,9 +164,12 @@ const CONTENT_I18N = {
     promptPlaceholder: "輸入你想問 Ollama 的內容...",
     openQuickChat: "開啟 Ollama 快速聊天",
     collapse: "收合",
+    maximize: "最大化",
+    restore: "還原視窗",
     refreshModels: "重新整理模型",
     useSelection: "使用選取內容",
     clearChat: "清除對話",
+    confirmClearChat: "確定要清除目前對話嗎？",
     openSettings: "開啟設定",
     loadLatestChat: "載入最近",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
@@ -101,6 +177,7 @@ const CONTENT_I18N = {
     noSelectedText: "這個頁面沒有選取文字。",
     insertedSelection: "已把目前選取內容放進輸入框。",
     removedAttachment: "已移除附件。",
+    confirmRemoveAttachment: "確定要移除這個附件嗎？",
     starterReady: "已填入範本：{starter}",
     starterTools: "快捷指令",
     pageCopilot: "Page Copilot",
@@ -116,10 +193,54 @@ const CONTENT_I18N = {
     expandPerspective: "展開",
     collapsePerspective: "收合",
     copyFailed: "複製失敗，可能被瀏覽器權限擋住。",
+    saveStarter: "儲存 Starter",
+    saveAllStarters: "全部儲存",
+    starterSaved: "已儲存 starter：{name}",
+    startersSaved: "已儲存 {count} 個 starters。",
+    starterAlreadySaved: "這個 starter 已經存在。",
+    starterSaveFailed: "儲存 starter 失敗。",
+    starterDraftLabel: "Starter Draft",
+    starterDraftScopes: "適用範圍",
+    starterDraftMode: "模式",
+    starterDraftModeChat: "聊天",
+    starterDraftModePerspective: "多視角",
+    starterDraftScopeAll: "所有頁面",
+    starterDraftSaved: "已儲存",
     modelSelected: "目前模型：{model}",
     modelSelectFailed: "選擇模型失敗。",
     pageContextEnabled: "已啟用頁面脈絡。",
     pageContextDisabled: "已停用頁面脈絡。",
+    includeRepoOrFile: "加入Github資料",
+    changeIncludedSource: "更換來源",
+    clearIncludedSource: "清除來源",
+    confirmClearIncludedSource: "確定要清除目前附加來源嗎？",
+    noIncludedSource: "尚未選擇額外來源。",
+    includedRepo: "已加入 {name}",
+    includedFile: "已加入 {name}",
+    includedRepoBadge: "專案",
+    includedFileBadge: "檔案",
+    selectRepository: "選擇資料來源",
+    searchRepositories: "搜尋專案",
+    selectFoldersAndFiles: "選擇 {name} 中的資料夾與檔案",
+    searchFilesAndFolders: "搜尋檔案或資料夾",
+    useRepository: "加入整個專案",
+    addSelection: "加入",
+    cancelSelection: "取消",
+    backSelection: "返回",
+    loadingRepositories: "正在載入可用的 repositories...",
+    loadingFiles: "正在載入檔案清單...",
+    noRepositories: "沒有可選的 repository。",
+    noFiles: "這個目錄沒有可顯示的項目。",
+    includeSelectionSaved: "已更新附加來源。",
+    includeSourceAlreadyAdded: "這個 GitHub 來源已經加入了。",
+    includeSourceLimitReached: "最多只能加入 5 筆 GitHub 來源。",
+    recentGithubFiles: "最近使用檔案",
+    noRecentGithubFiles: "還沒有最近使用的 GitHub 檔案。",
+    includeSelectRepoFirst: "請先選擇 repository。",
+    includePathNotFound: "找不到這個檔案或資料夾。",
+    githubRepoNotFound: "找不到這個 GitHub repo。請確認 owner/repo 是否正確，或 token 是否有權限讀取這個 repo。",
+    githubRefNotFound: "找不到這個 branch 或 commit。請確認你輸入的 ref 是否存在。",
+    githubPathNotFound: "找不到這個 GitHub 路徑。請確認檔案或資料夾 path 是否正確。",
     filesUnsupported: "目前只支援圖片與文字檔（.txt、.md、.json、.csv）。",
     imagesOnly: "目前只支援圖片檔。",
     attachedImagesVisionWarning: "已附加 {count} 張圖片。目前模型可能不支援視覺，建議切換模型。",
@@ -152,13 +273,38 @@ const CONTENT_I18N = {
     starter_translatePage: "網頁翻譯{language}",
     starter_reflectionArticle: "依照網頁內容生成心得文",
     starter_codeExplain: "code 內容白話文解析",
+    starter_emailSummary: "Email內容摘要",
     starter_articleTimeline: "整理事件時間線",
     starter_articleBiasCheck: "檢查觀點與可能盲點",
     starter_codeRiskReview: "找出程式風險點",
     starter_codeTeachBack: "轉成教學筆記",
+    starter_githubRepoPurpose: "這個 Repo 是做什麼用的？",
     starter_githubSummary: "整理這個 GitHub 頁面",
     starter_githubReviewFocus: "建議 review 重點",
     starter_githubNextSteps: "列出下一步建議",
+    starter_githubCrossCheck: "比對目前頁面與加入文件",
+    starter_githubSpecCoverage: "檢查規格 / 文件覆蓋度",
+    starter_githubDriftCheck: "找出與加入文件的不一致",
+    starter_githubReviewChecklist: "產生交叉 review 清單",
+    starter_githubTestGap: "找測試與驗證缺口",
+    starter_githubDocReview: "文件 review",
+    starter_githubRequirementMap: "需求 / 文件對照",
+    starter_githubSecurityRequirementCheck: "安全需求覆蓋檢查",
+    starter_githubWebReview: "HTML / 前端結構 review",
+    starter_githubAccessibilityReview: "可近用性與語意檢查",
+    starter_githubFrontendSecurityReview: "前端安全 review",
+    starter_githubCodeReviewDeep: "程式碼深度 review",
+    starter_githubContractCheck: "介面 / 契約一致性檢查",
+    starter_githubSecurityReview: "安全風險 review",
+    starter_githubRegressionHotspots: "回歸風險熱點",
+    starter_githubMemorySafetyReview: "記憶體安全 review",
+    starter_githubAttackSurfaceReview: "攻擊面檢查",
+    starter_githubConfigReview: "設定檔風險 review",
+    starter_githubSecretAndPermissionReview: "Secrets / 權限檢查",
+    starter_githubOperationalRiskReview: "部署與操作風險檢查",
+    starter_githubArchitectureMap: "專案架構對照",
+    starter_githubImpactSurfaceMap: "影響面盤點",
+    starter_githubRepoSecurityReview: "Repo 層級安全檢查",
     starter_chatWeeklyDigest: "近三天對談重點匯報",
     starter_chatActionItems: "抓待辦 / owner / deadline",
     starter_docExecutiveBrief: "文件高層摘要",
@@ -177,14 +323,39 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
     reflectionArticlePrompt: "請依照這個網頁內容生成一篇心得文。先簡短整理重點，再用自然、有觀點的語氣寫出閱讀心得、啟發與可延伸思考。請使用{language}輸出，避免只是逐段重述原文。",
+    emailSummaryPrompt: "請摘要目前可見的 email 內容。若這是單封信，請整理：1. 主旨與背景 2. 關鍵重點 3. 需要回覆或跟進的事項 4. 重要的人名、時間、連結或附件線索。若這是信件串，請整理 thread 的最新狀態與待處理事項。若目前畫面其實是撰寫中的草稿，請改成摘要草稿目的、核心訊息與仍缺少的資訊。若頁面只顯示部分內容，請明確說明你是根據可見內容整理。請使用{language}回答。",
     multiPerspectivePrompt: "請從多個視角分析這個頁面，最後整合成一份決策友善的結論。",
     articleTimelinePrompt: "請依照這個頁面內容整理出事件時間線。若時間資訊不完整，請標記不確定處。先列時間線，再補充三個關鍵觀察。請使用{language}回答。",
     articleBiasCheckPrompt: "請分析這個頁面的主要論點、隱含假設與可能忽略的反面觀點。請分成「核心主張 / 依據 / 可能盲點 / 我還應該查什麼」四段，並使用{language}回答。",
     codeRiskReviewPrompt: "請把這個頁面中的程式內容當成 code review 對象，找出高風險處、潛在 bug、可讀性問題與建議改善方向。請優先列出最重要的問題，並使用{language}回答。",
     codeTeachBackPrompt: "請把這個頁面中的程式或技術內容轉成容易吸收的教學筆記。先講它在做什麼，再講關鍵概念，最後補上初學者容易卡住的點。請使用{language}回答。",
+    githubRepoPurposePrompt: "請根據目前這個 GitHub 頁面，說明這個 repository 主要是做什麼用的。請優先整理：\n1. 這個 repo 想解決什麼問題\n2. 它的核心功能或主要模組\n3. 可能的使用對象或使用情境\n4. 主要技術棧或實作方向\n5. 我接下來最值得先看的檔案或目錄\n如果目前頁面不是 repository 首頁，也請根據可見內容、路徑、README、檔名、PR / issue / code 線索做最合理的推斷，並明確標示哪些是推測。請使用{language}回答。",
     githubSummaryPrompt: "請整理這個 GitHub 頁面的重點。如果是 repository，請說明用途、結構與值得先看的地方；如果是 PR 或 issue，請整理背景、重點變更與目前狀態。請使用{language}回答。",
     githubReviewFocusPrompt: "請站在 reviewer 角度，根據這個 GitHub 頁面整理最值得優先檢查的項目。請分成「風險最高 / 建議先看 / 可追問問題」三段，並使用{language}回答。",
     githubNextStepsPrompt: "請根據這個 GitHub 頁面，列出最合理的下一步行動。若資訊不足，請明確說明缺什麼。請使用{language}回答。",
+    githubCrossCheckPrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源一起交叉比對。把目前頁面當成主要檢視對象，把加入的來源當成參考依據，協助我判斷這個 PR / commit / file / issue / repository 是否一致、合理、完整。請優先輸出：\n1. 目前頁面重點\n2. 與加入來源的對應關係\n3. 不一致、缺漏、風險或值得懷疑的地方\n4. 建議我接下來優先看的檔案、diff、commit 或問題\n5. 若資訊不足，明確指出還缺什麼\n回答時請明確引用「目前頁面」與「加入來源」各自提供了哪些線索。請使用{language}回答。",
+    githubSpecCoveragePrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源做規格 / 文件覆蓋度比對。把加入來源視為需求、設計、既有實作或參考基準，檢查目前這個 PR / commit / file / issue 是否有覆蓋到應該處理的部分。請輸出：\n1. 已覆蓋項目\n2. 看起來尚未覆蓋或只覆蓋一半的項目\n3. 可能需要補的檔案、測試、文件或 reviewer 問題\n4. 你的判斷依據\n若加入來源本身不是規格文件，也請根據內容做最合理的 coverage 判斷。請使用{language}回答。",
+    githubDriftCheckPrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源做一致性檢查，找出可能的偏離、衝突、命名不一致、流程不一致、架構漂移或安全假設落差。請輸出：\n1. 一致的地方\n2. 可疑的不一致\n3. 高風險偏離點\n4. 建議我追看的 diff / commit / 檔案 / 問題\n請明確標註每個判斷主要來自「目前頁面」還是「加入來源」。請使用{language}回答。",
+    githubReviewChecklistPrompt: "請根據目前這個 GitHub 頁面與我加入的 GitHub 來源，產出一份 reviewer 可直接使用的交叉 review checklist。請優先列出最需要確認的 8 到 12 點，每點都包含：\n- 要檢查什麼\n- 為什麼要檢查\n- 應該去看哪個檔案、diff、commit、段落或來源\n若資訊不足，也請把缺的資訊列成 checklist。請使用{language}回答。",
+    githubTestGapPrompt: "請根據目前這個 GitHub 頁面與我加入的 GitHub 來源，檢查測試、驗證與風險控管是否有缺口。請輸出：\n1. 目前看起來已有的驗證\n2. 可能缺少的測試案例\n3. 容易被漏掉的 edge cases / regression / security checks\n4. 建議補看的測試檔、CI、文件或 commit\n若目前頁面不是 PR，也請根據可見內容做最合理的判斷。請使用{language}回答。",
+    githubDocReviewPrompt: "請從文件 review 角度檢查目前這個 GitHub 頁面。如果目前頁面或我加入的來源是 md / txt / rst / adoc 等文件，請重點檢查：結構清楚度、內容完整性、是否有過時資訊、需求是否模糊、與實作是否對得上。若我有加入額外 GitHub 來源，也請一併納入比對。請使用{language}回答。",
+    githubRequirementMapPrompt: "請把目前這個 GitHub 頁面與相關文件內容做需求 / 文件對照。整理出：\n1. 文件列出的需求或承諾\n2. 目前頁面看起來有對上的實作 / diff / 討論\n3. 尚未明確對上的部分\n4. 建議追問 reviewer 或作者的問題\n若有加入 GitHub 來源，請優先引用它。請使用{language}回答。",
+    githubSecurityRequirementCheckPrompt: "請從安全需求與控制項覆蓋角度檢查目前這個 GitHub 頁面。若加入的來源是規格、設計或文件，請檢查目前頁面是否有反映必要的驗證、權限、資料保護、錯誤處理、審計或安全假設。請使用{language}回答。",
+    githubWebReviewPrompt: "請把目前這個 GitHub 頁面當成 HTML / 前端相關內容來 review。若主體或加入來源是 html / css / 前端元件，請檢查 DOM 結構、語意、內容一致性、可維護性、是否容易產生 UI regression，以及與文件或設計說明是否對得上。請使用{language}回答。",
+    githubAccessibilityReviewPrompt: "請從 accessibility 與語意結構角度檢查目前這個 GitHub 頁面。若主體或加入來源與 html / 前端有關，請重點檢查 heading 結構、語意標籤、aria 使用、鍵盤操作、focus flow、可讀性與替代文字。請使用{language}回答。",
+    githubFrontendSecurityReviewPrompt: "請從前端安全角度檢查目前這個 GitHub 頁面。若主體或加入來源與 html / 前端有關，請特別留意 XSS、dangerouslySetInnerHTML 類型風險、URL 注入、第三方 script、使用者輸入處理、權限顯示邏輯與敏感資訊暴露。請使用{language}回答。",
+    githubCodeReviewDeepPrompt: "請對目前這個 GitHub 頁面做偏工程實務的 code review。若主體或加入來源是程式碼檔，請重點檢查 correctness、可讀性、錯誤處理、狀態流、邊界條件、命名與設計一致性。若有加入來源，請一起判斷是否符合原本意圖。請使用{language}回答。",
+    githubContractCheckPrompt: "請從介面 / 契約一致性角度檢查目前這個 GitHub 頁面。若主體或加入來源是 code / header / API / schema 類內容，請檢查函式介面、結構定義、資料格式、回傳約定、錯誤碼、命名與相依模組是否一致。請使用{language}回答。",
+    githubSecurityReviewPrompt: "請從安全 review 角度檢查目前這個 GitHub 頁面。若主體或加入來源是程式碼，請特別留意輸入驗證、注入風險、權限邏輯、敏感資料處理、競態、信任邊界與錯誤訊息洩漏。請優先列出高風險項目。請使用{language}回答。",
+    githubRegressionHotspotsPrompt: "請找出目前這個 GitHub 頁面最可能引發 regression 的熱點。若主體或加入來源是程式碼，請特別指出高耦合區、共用模組、初始化流程、錯誤路徑、狀態同步、相容性與測試不足處。請使用{language}回答。",
+    githubMemorySafetyReviewPrompt: "請把目前這個 GitHub 頁面當成 C / C++ / 原生程式碼來做記憶體安全 review。請特別留意 buffer overflow、越界、use-after-free、double free、null pointer、未初始化資料、整數溢位與資源釋放路徑。若有加入來源，請一起判斷是否違背原設計或安全假設。請使用{language}回答。",
+    githubAttackSurfaceReviewPrompt: "請把目前這個 GitHub 頁面當成 C / C++ / 系統層內容來檢查 attack surface。請重點看外部輸入、解析器、檔案處理、網路邊界、權限切換、系統呼叫、指令執行與危險函式使用。請使用{language}回答。",
+    githubConfigReviewPrompt: "請把目前這個 GitHub 頁面當成設定檔 / 基礎設施內容來 review。若主體或加入來源是 yaml / json / toml / Dockerfile / env / CI / terraform 類型，請檢查設定是否合理、預設值是否危險、環境差異、相依版本、覆蓋順序與部署風險。請使用{language}回答。",
+    githubSecretAndPermissionReviewPrompt: "請從 secrets、credentials 與權限控管角度檢查目前這個 GitHub 頁面。若主體或加入來源是設定檔、CI 或部署內容，請重點檢查 hardcoded secrets、token 使用、scope 過大、檔案權限、服務帳號與敏感變數傳遞。請使用{language}回答。",
+    githubOperationalRiskReviewPrompt: "請從部署與操作風險角度檢查目前這個 GitHub 頁面。若主體或加入來源是設定檔、CI、部署腳本或 infra 內容，請重點看 rollback 風險、觀測性、失敗處理、環境切換、依賴順序、migration 風險與營運中斷可能。請使用{language}回答。",
+    githubArchitectureMapPrompt: "請根據目前這個 GitHub 頁面與我加入的 repository 來源，整理一份專案架構對照。請說明這個頁面涉及 repo 的哪個模組、上下游影響、主要責任邊界，以及我接下來應該先看哪幾個目錄或檔案。請使用{language}回答。",
+    githubImpactSurfaceMapPrompt: "請根據目前這個 GitHub 頁面與我加入的 repository 來源，盤點可能的影響面。請整理哪些模組、流程、設定、測試、文件或相依元件可能被波及，並指出最值得先追的連動點。請使用{language}回答。",
+    githubRepoSecurityReviewPrompt: "請根據目前這個 GitHub 頁面與我加入的 repository 來源，從 repo 層級做安全檢查。請盤點權限邊界、敏感模組、配置風險、外部輸入點、部署面與可能需要補看的安全相關檔案。請使用{language}回答。",
     chatWeeklyDigestPrompt: "請把這個聊天 / 協作頁面整理成「近三天重點匯報」。請優先使用最近 3 天內可見的訊息；如果頁面只載入了昨天或幾小時前的內容，請明確說明你目前實際能看到的時間範圍，不要假裝看過三天。整理時請利用聊天前後文做合理推理：把同一串討論中的追問、確認、回覆、反對意見與結論串起來，不要只摘單句。輸出格式：\n1. 近三天最重要 5 點\n2. 已完成事項\n3. 進行中事項\n4. 風險 / 卡點\n5. 建議下一步\n若某結論是根據上下文推得，請標記「推測」。請使用{language}回答。",
     chatActionItemsPrompt: "請從這個聊天 / 協作頁面抓出可執行事項，並利用聊天前後文釐清 owner、任務與目前狀態。不要只抽單句，請把同一主題前後的補充、指派、承諾、追蹤和回覆合併理解後再整理。若多則訊息提到同一個型號、產品名、專案代號、ticket、漏洞編號或其他重複關鍵字，且本質上是在討論同一件事，請整合成同一個 issue，不要拆成多列。請輸出 Markdown 表格，欄位固定為：Issue / 主題 | 任務 | 負責人 | 截止時間 | 目前狀態 / 依據訊息 | 信心。規則：\n1. 若負責人是明確點名，信心標示為高。\n2. 若負責人是根據上下文推得，請在名字後加上「（推測）」並把信心標示為中或低。\n3. 若無法判定，就填「未知」，不要亂猜。\n4. 同一任務若在不同訊息中有更新，請整合成一列，並在狀態中寫出最新判斷。\n5. 若同一 issue 底下其實有多個子任務，請優先合併成同一列並在任務欄簡潔列出子項，只有在 owner 或狀態明顯不同時才拆列。\n6. 先列最需要追蹤的項目。\n請優先使用最近 3 天內可見的訊息，並使用{language}回答。",
     docExecutiveBriefPrompt: "請把這份線上文件整理成適合主管快速閱讀的摘要。請分成：\n1. 文件目的\n2. 關鍵結論\n3. 重要數字 / 事實\n4. 風險與假設\n5. 建議決策或下一步\n請使用{language}回答。",
@@ -216,6 +387,7 @@ const CONTENT_I18N = {
     perspectiveInputFallback: "請從摘要、質疑與行動建議三個角度分析這個頁面，最後整合成一份結論。",
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
+    adapter_email: "Email",
     adapter_github: "GitHub",
     adapter_collaboration: "協作聊天",
     adapter_document: "線上文件",
@@ -225,6 +397,7 @@ const CONTENT_I18N = {
     pageType_collaboration: "對談頁",
     pageType_code: "程式頁",
     pageType_document: "文件頁",
+    pageType_email: "Email 頁",
     pageType_github: "GitHub 頁",
     pageType_market: "股市頁",
     pageType_entertainment: "娛樂頁",
@@ -246,9 +419,12 @@ const CONTENT_I18N = {
     promptPlaceholder: "Ask Ollama about this page...",
     openQuickChat: "Open Ollama quick chat",
     collapse: "Collapse",
+    maximize: "Maximize",
+    restore: "Restore window",
     refreshModels: "Refresh models",
     useSelection: "Use selection",
     clearChat: "Clear chat",
+    confirmClearChat: "Clear the current conversation?",
     openSettings: "Open settings",
     loadLatestChat: "Load latest",
     currentPageContextDisabled: "CURRENT PAGE CONTEXT\nDisabled",
@@ -256,6 +432,7 @@ const CONTENT_I18N = {
     noSelectedText: "No selected text found on this page.",
     insertedSelection: "Inserted current selection into the prompt.",
     removedAttachment: "Removed attachment.",
+    confirmRemoveAttachment: "Remove this attachment?",
     starterReady: "Starter ready: {starter}",
     starterTools: "Starters",
     pageCopilot: "Page Copilot",
@@ -271,10 +448,54 @@ const CONTENT_I18N = {
     expandPerspective: "Expand",
     collapsePerspective: "Collapse",
     copyFailed: "Copy failed. Clipboard permission may be blocked.",
+    saveStarter: "Save Starter",
+    saveAllStarters: "Save All",
+    starterSaved: "Saved starter: {name}",
+    startersSaved: "Saved {count} starter(s).",
+    starterAlreadySaved: "This starter is already saved.",
+    starterSaveFailed: "Failed to save starter.",
+    starterDraftLabel: "Starter Draft",
+    starterDraftScopes: "Scopes",
+    starterDraftMode: "Mode",
+    starterDraftModeChat: "Chat",
+    starterDraftModePerspective: "Perspective",
+    starterDraftScopeAll: "All Pages",
+    starterDraftSaved: "Saved",
     modelSelected: "Using model: {model}",
     modelSelectFailed: "Failed to select model.",
     pageContextEnabled: "Page context enabled.",
     pageContextDisabled: "Page context disabled.",
+    includeRepoOrFile: "Add source",
+    changeIncludedSource: "Change source",
+    clearIncludedSource: "Clear source",
+    confirmClearIncludedSource: "Clear the current included source?",
+    noIncludedSource: "No extra source selected.",
+    includedRepo: "Included repository: {name}",
+    includedFile: "Included file: {name}",
+    includedRepoBadge: "REPO",
+    includedFileBadge: "FILE",
+    selectRepository: "Select a repository",
+    searchRepositories: "Search",
+    selectFoldersAndFiles: "Select folders and files in {name}",
+    searchFilesAndFolders: "Search for files or folders",
+    useRepository: "Add repository",
+    addSelection: "Add",
+    cancelSelection: "Cancel",
+    backSelection: "Back",
+    loadingRepositories: "Loading available repositories...",
+    loadingFiles: "Loading files...",
+    noRepositories: "No repositories available.",
+    noFiles: "This directory is empty.",
+    includeSelectionSaved: "Included source updated.",
+    includeSourceAlreadyAdded: "This GitHub source is already included.",
+    includeSourceLimitReached: "You can include up to 5 GitHub sources.",
+    recentGithubFiles: "Recent Files",
+    noRecentGithubFiles: "No recently used GitHub files yet.",
+    includeSelectRepoFirst: "Select a repository first.",
+    includePathNotFound: "That file or folder was not found.",
+    githubRepoNotFound: "GitHub repo not found. Check the owner/repo value or whether your token can access this repository.",
+    githubRefNotFound: "That branch or commit was not found. Check whether the ref exists.",
+    githubPathNotFound: "That GitHub path was not found. Check whether the file or directory path is correct.",
     filesUnsupported: "Only images and text files (.txt, .md, .json, .csv) are supported.",
     imagesOnly: "Only image files are supported.",
     attachedImagesVisionWarning: "Attached {count} image(s). Current model may not support vision. Consider switching models.",
@@ -307,13 +528,38 @@ const CONTENT_I18N = {
     starter_translatePage: "Translate Page To {language}",
     starter_reflectionArticle: "Write a Reflection Article",
     starter_codeExplain: "Explain Code Clearly",
+    starter_emailSummary: "Email Content Summary",
     starter_articleTimeline: "Build a Timeline",
     starter_articleBiasCheck: "Check Claims and Blind Spots",
     starter_codeRiskReview: "Review Code Risks",
     starter_codeTeachBack: "Turn Into Study Notes",
+    starter_githubRepoPurpose: "What Is This Repo For?",
     starter_githubSummary: "Summarize This GitHub Page",
     starter_githubReviewFocus: "Suggest Review Focus",
     starter_githubNextSteps: "Recommend Next Steps",
+    starter_githubCrossCheck: "Cross-check With Added Source",
+    starter_githubSpecCoverage: "Check Spec Coverage",
+    starter_githubDriftCheck: "Find Mismatches",
+    starter_githubReviewChecklist: "Build Review Checklist",
+    starter_githubTestGap: "Find Test Gaps",
+    starter_githubDocReview: "Document Review",
+    starter_githubRequirementMap: "Map Requirements",
+    starter_githubSecurityRequirementCheck: "Check Security Requirements",
+    starter_githubWebReview: "Review HTML / Frontend",
+    starter_githubAccessibilityReview: "Review Accessibility",
+    starter_githubFrontendSecurityReview: "Review Frontend Security",
+    starter_githubCodeReviewDeep: "Deep Code Review",
+    starter_githubContractCheck: "Check Interfaces / Contracts",
+    starter_githubSecurityReview: "Review Security Risks",
+    starter_githubRegressionHotspots: "Find Regression Hotspots",
+    starter_githubMemorySafetyReview: "Review Memory Safety",
+    starter_githubAttackSurfaceReview: "Review Attack Surface",
+    starter_githubConfigReview: "Review Config Risks",
+    starter_githubSecretAndPermissionReview: "Check Secrets / Permissions",
+    starter_githubOperationalRiskReview: "Review Operational Risks",
+    starter_githubArchitectureMap: "Map Architecture",
+    starter_githubImpactSurfaceMap: "Map Impact Surface",
+    starter_githubRepoSecurityReview: "Review Repo Security",
     starter_chatWeeklyDigest: "3-Day Chat Digest",
     starter_chatActionItems: "Action Items / Owners",
     starter_docExecutiveBrief: "Executive Brief",
@@ -332,14 +578,39 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     translationPrompt: "Translate this page into {language}.",
     reflectionArticlePrompt: "Write a reflection article based on this page. Start with a brief recap of the key points, then write thoughtful takeaways, insights, and possible follow-up ideas in a natural voice. Respond in {language}, and do not just restate the page section by section.",
+    emailSummaryPrompt: "Summarize the currently visible email content. If this is a single email, cover: 1. Subject and background 2. Key points 3. Needed replies or follow-ups 4. Important people, dates, links, or attachment clues. If this is a thread, summarize the latest state of the conversation and outstanding actions. If the visible page is actually a draft email, summarize the draft's purpose, main message, and what information is still missing. If only part of the email is visible, say clearly that the summary is based only on visible content. Respond in {language}.",
     multiPerspectivePrompt: "Analyze this page from multiple perspectives, then combine the results into one decision-friendly conclusion.",
     articleTimelinePrompt: "Build a timeline from this page. If dates or sequence details are incomplete, mark the uncertainty. Start with the timeline, then add three key observations. Respond in {language}.",
     articleBiasCheckPrompt: "Analyze this page's main claims, hidden assumptions, and possible blind spots. Structure the answer as Core claims, Evidence, Blind spots, and What to verify next. Respond in {language}.",
     codeRiskReviewPrompt: "Treat the code or technical content on this page like a code review. Identify the highest-risk areas, possible bugs, readability issues, and practical improvements. Prioritize the most important findings first and respond in {language}.",
     codeTeachBackPrompt: "Turn the code or technical content on this page into easy-to-follow study notes. Explain what it does, the key concepts behind it, and where a beginner is most likely to get stuck. Respond in {language}.",
+    githubRepoPurposePrompt: "Explain what this GitHub repository is mainly for based on the current GitHub page. Prioritize: 1. What problem this repo is trying to solve 2. Its main features or modules 3. Who it seems to be for or when it would be used 4. The likely tech stack or implementation direction 5. Which files or directories I should read next. If the current page is not the repository homepage, still infer from the visible page, path, README, filenames, PR / issue / code clues, and clearly mark anything that is an inference. Respond in {language}.",
     githubSummaryPrompt: "Summarize this GitHub page. If it is a repository, explain what it is for, how it seems organized, and what is worth reading first. If it is a PR or issue, summarize the background, key changes, and current status. Respond in {language}.",
     githubReviewFocusPrompt: "Act like a reviewer and identify the most important things to inspect on this GitHub page. Structure the answer as Highest risk, Review first, and Questions to ask. Respond in {language}.",
     githubNextStepsPrompt: "Based on this GitHub page, recommend the most reasonable next steps. If critical information is missing, say what is missing. Respond in {language}.",
+    githubCrossCheckPrompt: "Cross-check this GitHub page with the GitHub source I added. Treat the current page as the main subject under review, and the added source as supporting evidence to help judge whether this PR, commit, file, issue, or repository looks consistent, reasonable, and complete. Prioritize: 1. Key points on the current page 2. How they map to the added source 3. Mismatches, missing pieces, risks, or suspicious areas 4. Which files, diffs, commits, or questions I should inspect next 5. What information is still missing if the evidence is incomplete. Be explicit about which clues come from the current page versus the added source. Respond in {language}.",
+    githubSpecCoveragePrompt: "Compare this GitHub page against the GitHub source I added for spec or documentation coverage. Treat the added source as requirements, design intent, existing implementation, or a reference baseline, and check whether this PR, commit, file, or issue covers what it should. Output: 1. What appears covered 2. What looks missing or only partially covered 3. Which files, tests, docs, or reviewer questions likely need follow-up 4. The evidence behind your judgment. If the added source is not a formal spec, still make the best coverage judgment from the available content. Respond in {language}.",
+    githubDriftCheckPrompt: "Compare this GitHub page with the GitHub source I added and look for mismatches, drift, conflicting assumptions, inconsistent naming, process mismatch, architecture drift, or security expectation gaps. Output: 1. What appears aligned 2. Suspicious inconsistencies 3. High-risk drift points 4. Which diffs, commits, files, or questions I should inspect next. Explicitly note whether each judgment mainly comes from the current page or the added source. Respond in {language}.",
+    githubReviewChecklistPrompt: "Use this GitHub page and the GitHub source I added to build a reviewer-ready cross-check checklist. Prioritize the top 8 to 12 things to verify. For each item, include: what to check, why it matters, and which file, diff, commit, section, or source I should inspect. If important information is missing, include that as checklist items too. Respond in {language}.",
+    githubTestGapPrompt: "Use this GitHub page and the GitHub source I added to identify testing, validation, and risk-control gaps. Output: 1. Validation that already seems present 2. Likely missing test cases 3. Easy-to-miss edge cases, regressions, or security checks 4. Which test files, CI signals, docs, or commits I should inspect next. If the current page is not a PR, still make the most reasonable judgment from the visible evidence. Respond in {language}.",
+    githubDocReviewPrompt: "Review this GitHub page from a document-review perspective. If the current page or added source is a markdown, text, rst, or adoc-style document, focus on structure, completeness, stale information, ambiguity, and whether the document still matches the implementation. If I added another GitHub source, use it as extra evidence. Respond in {language}.",
+    githubRequirementMapPrompt: "Map requirements or documented commitments to this GitHub page. Summarize: 1. Requirements or promises stated in the relevant document or source 2. Evidence on the current page that appears to satisfy them 3. Gaps that do not clearly map yet 4. Reviewer questions worth asking next. If I added a GitHub source, prioritize it. Respond in {language}.",
+    githubSecurityRequirementCheckPrompt: "Review this GitHub page from a security-requirements perspective. If the added source is a spec, design, or document, check whether the current page reflects needed validation, authorization, data protection, error handling, auditability, and security assumptions. Respond in {language}.",
+    githubWebReviewPrompt: "Review this GitHub page as HTML or frontend-related content. If the current page or added source is html, css, or frontend code, inspect DOM structure, semantics, content consistency, maintainability, likely UI regressions, and whether it matches the related document or design intent. Respond in {language}.",
+    githubAccessibilityReviewPrompt: "Review this GitHub page from an accessibility and semantic-structure perspective. If the current page or added source is html or frontend-related, focus on heading structure, semantic tags, aria usage, keyboard flow, focus management, readability, and alternative text. Respond in {language}.",
+    githubFrontendSecurityReviewPrompt: "Review this GitHub page from a frontend-security perspective. If the current page or added source is html or frontend-related, focus on XSS risk, unsafe HTML injection, URL injection, third-party scripts, user-input handling, permission display logic, and sensitive data exposure. Respond in {language}.",
+    githubCodeReviewDeepPrompt: "Perform a practical engineering code review on this GitHub page. If the current page or added source is code, focus on correctness, readability, error handling, state flow, boundary conditions, naming, and design consistency. If I added another source, use it to judge whether the implementation matches the intended behavior. Respond in {language}.",
+    githubContractCheckPrompt: "Review this GitHub page for interface or contract consistency. If the current page or added source is code, headers, API definitions, or schemas, inspect function interfaces, data structures, response shapes, error contracts, naming, and module-level assumptions. Respond in {language}.",
+    githubSecurityReviewPrompt: "Review this GitHub page from a security perspective. If the current page or added source is code, focus on input validation, injection risk, permission logic, sensitive data handling, race conditions, trust boundaries, and information leakage. Prioritize the highest-risk issues first. Respond in {language}.",
+    githubRegressionHotspotsPrompt: "Identify the areas on this GitHub page most likely to cause regressions. If the current page or added source is code, call out highly coupled modules, shared logic, initialization flow, failure paths, state synchronization, compatibility risk, and missing tests. Respond in {language}.",
+    githubMemorySafetyReviewPrompt: "Review this GitHub page as C, C++, or native code for memory-safety risk. Focus on buffer overflows, bounds issues, use-after-free, double free, null dereference, uninitialized data, integer overflow, and cleanup paths. If I added another source, use it to assess whether the implementation violates original safety assumptions. Respond in {language}.",
+    githubAttackSurfaceReviewPrompt: "Review this GitHub page as C, C++, or systems-level code for attack surface. Focus on external inputs, parsers, file handling, network boundaries, privilege changes, system calls, command execution, and dangerous functions. Respond in {language}.",
+    githubConfigReviewPrompt: "Review this GitHub page as configuration or infrastructure content. If the current page or added source is yaml, json, toml, Dockerfile, env, CI, or Terraform-like content, inspect whether the settings are reasonable, defaults are risky, environments may drift, dependency versions are safe, precedence is clear, and deployment risk is controlled. Respond in {language}.",
+    githubSecretAndPermissionReviewPrompt: "Review this GitHub page for secrets, credentials, and permission-control risk. If the current page or added source is config, CI, or deployment-related, focus on hardcoded secrets, token usage, scope that is too broad, file permissions, service accounts, and sensitive variable flow. Respond in {language}.",
+    githubOperationalRiskReviewPrompt: "Review this GitHub page for deployment and operational risk. If the current page or added source is config, CI, deployment script, or infra-related, focus on rollback risk, observability gaps, failure handling, environment switching, dependency order, migration risk, and possible operational disruption. Respond in {language}.",
+    githubArchitectureMapPrompt: "Use this GitHub page and the repository source I added to produce an architecture-oriented map. Explain which module area this page touches, likely upstream and downstream impact, major responsibility boundaries, and which directories or files I should inspect next. Respond in {language}.",
+    githubImpactSurfaceMapPrompt: "Use this GitHub page and the repository source I added to map likely impact surface. Identify which modules, flows, settings, tests, docs, or dependencies may be affected, and highlight the most important follow-up touchpoints. Respond in {language}.",
+    githubRepoSecurityReviewPrompt: "Use this GitHub page and the repository source I added to perform a repository-level security review. Map permission boundaries, sensitive modules, configuration risk, external input points, deployment surfaces, and which security-relevant files I should inspect next. Respond in {language}.",
     chatWeeklyDigestPrompt: "Turn this chat or collaboration page into a 3-day digest. Prioritize messages visible from the last 3 days. If the page only contains yesterday's or the last few hours of messages, explicitly say what time range is actually visible instead of pretending all 3 days are loaded. Use conversational context, not isolated lines: connect follow-ups, confirmations, objections, and decisions from the same discussion thread before summarizing. Structure the answer as Top 5 updates, Completed work, In-progress work, Risks or blockers, and Recommended next steps. If a conclusion is inferred from context rather than explicitly stated, label it as inferred. Respond in {language}.",
     chatActionItemsPrompt: "Extract actionable items from this chat or collaboration page and use conversational context to clarify the likely owner, task, and current status. Do not just copy single lines. Merge nearby messages from the same topic, including assignment, commitment, follow-up, and resolution. If multiple messages mention the same model number, product name, project code, ticket, vulnerability ID, or other repeated keyword and they are really about the same underlying topic, merge them into the same issue instead of creating separate rows. Output a Markdown table with these exact columns: Issue / Topic | Task | Owner | Due date | Status or message evidence | Confidence. Rules: 1. If the owner is explicitly named, confidence should be high. 2. If the owner is inferred from context, append '(inferred)' to the owner name and use medium or low confidence. 3. If ownership is unclear, write unknown instead of guessing. 4. If the same task appears across multiple messages, merge it into one row and reflect the latest state. 5. If one issue contains multiple sub-tasks, prefer keeping them in one row and summarize the sub-tasks in the Task column unless owner or status clearly differs. 6. Put the most important follow-up items first. Prioritize messages visible from the last 3 days and respond in {language}.",
     docExecutiveBriefPrompt: "Turn this online document into an executive brief. Structure the answer as Document purpose, Key conclusions, Important numbers or facts, Risks and assumptions, and Recommended decisions or next steps. Respond in {language}.",
@@ -371,6 +642,7 @@ const CONTENT_I18N = {
     perspectiveInputFallback: "Analyze this page from summary, skepticism, and action-planning perspectives, then synthesize the result.",
     perspectivePreviewSuffix: "...",
     adapter_generic: "Generic",
+    adapter_email: "Email",
     adapter_github: "GitHub",
     adapter_collaboration: "Collaboration",
     adapter_document: "Document",
@@ -380,6 +652,7 @@ const CONTENT_I18N = {
     pageType_collaboration: "Chat",
     pageType_code: "Code",
     pageType_document: "Document",
+    pageType_email: "Email",
     pageType_github: "GitHub",
     pageType_market: "Market",
     pageType_entertainment: "Entertainment",
@@ -523,7 +796,7 @@ function runtimeMessage(message) {
 function normalizeRuntimeError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
   if (/Extension context invalidated/i.test(message)) {
-    return new Error(t("extensionReloadRequired"));
+    return new Error(tl("extensionReloadRequired"));
   }
   return new Error(message);
 }
@@ -557,6 +830,302 @@ function normalizeExtractedText(value) {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
+}
+
+function parseGithubRepoInput(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/^github\.com\//i, "")
+    .replace(/^\/+|\/+$/g, "");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+  return {
+    owner: parts[0],
+    repo: parts[1],
+    fullName: `${parts[0]}/${parts[1]}`,
+  };
+}
+
+function getCurrentGithubRepoDescriptor() {
+  const { hostname, pathname } = window.location;
+  if (hostname !== "github.com") {
+    return null;
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length < 2) {
+    return null;
+  }
+
+  const owner = segments[0];
+  const repo = segments[1];
+  const descriptor = {
+    owner,
+    repo,
+    fullName: `${owner}/${repo}`,
+    ref: "",
+    path: "",
+  };
+
+  const blobDescriptor = getGithubBlobDescriptor();
+  if (blobDescriptor) {
+    descriptor.ref = blobDescriptor.ref;
+    descriptor.path = blobDescriptor.path;
+  }
+
+  return descriptor;
+}
+
+function formatGithubRuntimeError(error, mode = "repo") {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (!/HTTP 404:/i.test(message)) {
+    return message;
+  }
+
+  if (mode === "file") {
+    return tl("githubPathNotFound");
+  }
+
+  if (/\"documentation_url\"\s*:\s*\"https:\/\/docs\.github\.com\/rest\/repos\/contents/i.test(message)) {
+    return tl("githubRepoNotFound");
+  }
+
+  if (/\"ref\"|No commit found for the ref|Branch not found/i.test(message)) {
+    return tl("githubRefNotFound");
+  }
+
+  return tl("githubRepoNotFound");
+}
+
+function getPrimaryIncludedGithubSource() {
+  return includedGithubSources[includedGithubSources.length - 1] || null;
+}
+
+function normalizeIncludedGithubSource(source) {
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const type = source.type === "file" ? "file" : "repo";
+  const repoFullName = String(source.repoFullName || "").trim();
+  const ref = String(source.ref || "").trim();
+  const path = String(source.path || "").trim();
+  if (!repoFullName) {
+    return null;
+  }
+
+  if (type === "file" && !path) {
+    return null;
+  }
+
+  return {
+    type,
+    repoFullName,
+    ref,
+    path: type === "file" ? path : "",
+  };
+}
+
+function getIncludedGithubSourceKey(source) {
+  const normalized = normalizeIncludedGithubSource(source);
+  if (!normalized) {
+    return "";
+  }
+  return [normalized.type, normalized.repoFullName, normalized.ref || "", normalized.path || ""].join("::");
+}
+
+function getRecentGithubFiles() {
+  const recentFiles = Array.isArray(currentConfig?.recentGithubFiles) ? currentConfig.recentGithubFiles : [];
+  const seen = new Set();
+  return recentFiles
+    .map((item) => normalizeIncludedGithubSource(item))
+    .filter((item) => item?.type === "file")
+    .filter((item) => {
+      const key = getIncludedGithubSourceKey(item);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_RECENT_GITHUB_FILES);
+}
+
+async function persistRecentGithubFile(source) {
+  const normalized = normalizeIncludedGithubSource(source);
+  if (!normalized || normalized.type !== "file") {
+    return;
+  }
+
+  const nextRecentFiles = [
+    normalized,
+    ...getRecentGithubFiles().filter((item) => getIncludedGithubSourceKey(item) !== getIncludedGithubSourceKey(normalized)),
+  ].slice(0, MAX_RECENT_GITHUB_FILES);
+
+  const result = await runtimeMessage({
+    type: "ollama:set-config",
+    config: {
+      recentGithubFiles: nextRecentFiles,
+    },
+  });
+
+  if (result?.ok && result.config) {
+    currentConfig = result.config;
+  }
+}
+
+function getIncludedSourceSummary() {
+  if (includedGithubSources.length) {
+    return includedGithubSources
+      .map((source) => {
+        if (source.type === "file" && source.repoFullName && source.path) {
+          return `
+            <span class="ollama-quick-include-badge is-file">${escapeHtml(tl("includedFileBadge"))}</span>
+            <span class="ollama-quick-include-text">${escapeHtml(tl("includedFile", { name: `${source.repoFullName}/${source.path}` }))}</span>
+          `;
+        }
+
+        return `
+          <span class="ollama-quick-include-badge">${escapeHtml(tl("includedRepoBadge"))}</span>
+          <span class="ollama-quick-include-text">${escapeHtml(tl("includedRepo", { name: source.repoFullName }))}</span>
+        `;
+      })
+      .join("");
+  }
+  return `<span class="ollama-quick-include-text">${escapeHtml(tl("noIncludedSource"))}</span>`;
+}
+
+function getGithubReviewSubjectPath() {
+  const includedSource = getPrimaryIncludedGithubSource();
+  if (includedSource?.type === "file" && includedSource.path) {
+    return includedSource.path;
+  }
+
+  const blobDescriptor = getGithubBlobDescriptor();
+  return blobDescriptor?.path || "";
+}
+
+async function addIncludedGithubSource(source) {
+  const nextSource = normalizeIncludedGithubSource(source);
+  if (!nextSource) {
+    setStatus(tl("includeSelectRepoFirst"));
+    return false;
+  }
+
+  const sourceKey = getIncludedGithubSourceKey(nextSource);
+  if (includedGithubSources.some((item) => getIncludedGithubSourceKey(item) === sourceKey)) {
+    setStatus(tl("includeSourceAlreadyAdded"));
+    return false;
+  }
+
+  if (includedGithubSources.length >= MAX_INCLUDED_GITHUB_SOURCES) {
+    setStatus(tl("includeSourceLimitReached"));
+    return false;
+  }
+
+  includedGithubSources = [...includedGithubSources, nextSource];
+  includePickerOpen = false;
+  renderShell();
+
+  try {
+    await persistRecentGithubFile(nextSource);
+  } catch (error) {
+    console.warn("[Edge AI Chat] Failed to persist recent GitHub file", error);
+  }
+
+  setStatus(tl("includeSelectionSaved"));
+  return true;
+}
+
+function getPathFileName(path) {
+  return String(path || "")
+    .split("/")
+    .filter(Boolean)
+    .pop()
+    ?.toLowerCase() || "";
+}
+
+function getPathExtension(path) {
+  const fileName = getPathFileName(path);
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
+    return "";
+  }
+  return fileName.slice(dotIndex + 1);
+}
+
+function getGithubReviewSubjectType() {
+  const includedSource = getPrimaryIncludedGithubSource();
+  if (includedSource?.type === "repo") {
+    return "repository";
+  }
+
+  const path = getGithubReviewSubjectPath();
+  if (!path) {
+    return "generic";
+  }
+
+  const fileName = getPathFileName(path);
+  const extension = getPathExtension(path);
+
+  if (["md", "markdown", "txt", "rst", "adoc", "asciidoc"].includes(extension)) {
+    return "document";
+  }
+
+  if (["html", "htm", "css", "scss", "sass", "less", "vue", "svelte"].includes(extension)) {
+    return "web";
+  }
+
+  if (["jsx", "tsx"].includes(extension)) {
+    return "web";
+  }
+
+  if (["c", "h", "cc", "cpp", "cxx", "hh", "hpp", "hxx"].includes(extension)) {
+    return "nativeCode";
+  }
+
+  if (
+    ["yml", "yaml", "json", "toml", "ini", "cfg", "conf", "config", "properties", "xml", "tf", "tfvars"].includes(extension) ||
+    ["dockerfile", ".env", "makefile", "cmakelists.txt"].includes(fileName)
+  ) {
+    return "config";
+  }
+
+  if (["js", "mjs", "cjs", "ts", "py", "go", "rs", "java", "kt", "swift", "rb", "php", "cs", "scala", "sh", "bash", "zsh"].includes(extension)) {
+    return "code";
+  }
+
+  return "generic";
+}
+
+function getGithubTypeSpecificStarterKeys() {
+  const reviewType = getGithubReviewSubjectType();
+  if (reviewType === "document") {
+    return GITHUB_DOCUMENT_STARTERS;
+  }
+  if (reviewType === "web") {
+    return GITHUB_WEB_STARTERS;
+  }
+  if (reviewType === "nativeCode") {
+    return [...GITHUB_CODE_STARTERS, ...GITHUB_NATIVE_CODE_STARTERS];
+  }
+  if (reviewType === "config") {
+    return GITHUB_CONFIG_STARTERS;
+  }
+  if (reviewType === "code") {
+    return GITHUB_CODE_STARTERS;
+  }
+  if (reviewType === "repository") {
+    return GITHUB_REPOSITORY_STARTERS;
+  }
+  return [];
+}
+
+function isLikelyEmailHost(hostname = window.location.hostname.toLowerCase()) {
+  return EMAIL_HOST_HINTS.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`));
 }
 
 function isMicrosoftAppHost() {
@@ -753,6 +1322,34 @@ function queryAllIncludingShadow(root, selectors, maxNodes = 100) {
   return results;
 }
 
+function collectEmailTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+  try {
+    const subject = queryAllIncludingShadow(doc, EMAIL_SUBJECT_SELECTORS, 6)
+      .map((node) => getNodeVisibleText(node))
+      .find(Boolean);
+    const bodyNodes = queryAllIncludingShadow(doc, EMAIL_BODY_SELECTORS, maxBlocks * 2);
+
+    if (!subject && !bodyNodes.length) {
+      return [];
+    }
+
+    const blocks = [];
+    const seen = new Set();
+
+    if (subject) {
+      appendUniqueTextBlock(blocks, seen, `Subject: ${subject}`, 400);
+    }
+
+    bodyNodes.forEach((node) => {
+      appendUniqueTextBlock(blocks, seen, getNodeVisibleText(node), 2600);
+    });
+
+    return blocks.slice(0, maxBlocks);
+  } catch (_error) {
+    return [];
+  }
+}
+
 function collectVisibleTextNodesIncludingShadow(root, maxNodes = 400) {
   const results = [];
   const seen = new Set();
@@ -820,6 +1417,13 @@ function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   const seen = new Set();
 
   try {
+    if (isLikelyEmailHost()) {
+      const emailBlocks = collectEmailTextBlocksFromDocument(doc, maxBlocks);
+      if (emailBlocks.length) {
+        return emailBlocks;
+      }
+    }
+
     const primaryNode =
       doc.querySelector("main") ||
       doc.querySelector("article") ||
@@ -1018,8 +1622,39 @@ function matchesEntertainmentPage(signals) {
   );
 }
 
+function matchesEmailPage(signals) {
+  const { hostname, sampleText } = signals;
+  if (!isLikelyEmailHost(hostname)) {
+    return false;
+  }
+
+  const visibleBodies = queryAllIncludingShadow(document, EMAIL_BODY_SELECTORS, 4)
+    .map((node) => getNodeVisibleText(node))
+    .filter(Boolean);
+  const subject = queryAllIncludingShadow(document, EMAIL_SUBJECT_SELECTORS, 2)
+    .map((node) => getNodeVisibleText(node))
+    .find(Boolean);
+  const emailKeywords = [
+    "from:",
+    "to:",
+    "cc:",
+    "bcc:",
+    "reply",
+    "forward",
+    "sent:",
+    "draft",
+  ];
+  const keywordHits = emailKeywords.filter((keyword) => sampleText.includes(keyword)).length;
+
+  return Boolean(subject) || visibleBodies.length > 0 || keywordHits >= 2;
+}
+
 function matchesCollaborationPage(signals) {
   const { hostname, pathname, sampleText } = signals;
+  if (matchesEmailPage(signals)) {
+    return false;
+  }
+
   const collaborationHostHints = [
     "teams.microsoft.com",
     "slack.com",
@@ -1028,7 +1663,6 @@ function matchesCollaborationPage(signals) {
     "chat.google.com",
     "meet.google.com",
     "web.telegram.org",
-    "mail.google.com",
   ];
   const collaborationKeywords = [
     "chat",
@@ -1063,7 +1697,6 @@ function isLikelyCollaborationHost() {
     "chat.google.com",
     "meet.google.com",
     "web.telegram.org",
-    "mail.google.com",
   ].some((hint) => hostname === hint || hostname.endsWith(`.${hint}`));
 }
 
@@ -1120,6 +1753,21 @@ function detectGenericPageType() {
 }
 
 const PAGE_COPILOT_ADAPTERS = [
+  {
+    id: "email",
+    match() {
+      return matchesEmailPage(getPageSignals());
+    },
+    resolve() {
+      return {
+        adapterId: "email",
+        adapterLabel: getAdapterLabel("email"),
+        type: "email",
+        label: getPageTypeLabel("email"),
+        starterKeys: PAGE_COPILOT_STARTERS.email,
+      };
+    },
+  },
   {
     id: "github",
     match() {
@@ -1223,6 +1871,582 @@ function detectPageCopilot() {
   return adapter.resolve();
 }
 
+function isGithubAdapterActive(pageCopilot = currentPageCopilot) {
+  return pageCopilot?.adapterId === "github";
+}
+
+function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
+  const baseKeys = Array.isArray(pageCopilot?.starterKeys) ? pageCopilot.starterKeys : DEFAULT_STARTER_KEYS;
+  let nextKeys = [...baseKeys];
+
+  if (isGithubAdapterActive(pageCopilot)) {
+    if (includedGithubSources.length) {
+      nextKeys = [...nextKeys, ...GITHUB_INCLUDED_STARTERS];
+    }
+    nextKeys = [...nextKeys, ...getGithubTypeSpecificStarterKeys()];
+  }
+
+  return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
+}
+
+function getRecommendedStarterScopes(pageCopilot = currentPageCopilot) {
+  const adapterId = String(pageCopilot?.adapterId || "generic").trim().toLowerCase();
+  const pageType = String(pageCopilot?.type || "generic").trim().toLowerCase();
+
+  if (adapterId && adapterId !== "generic") {
+    return [adapterId];
+  }
+
+  if (pageType && pageType !== "generic") {
+    return [pageType];
+  }
+
+  return ["generic"];
+}
+
+function slugifyStarterId(value, fallback = "starter") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
+function normalizeCustomStarterScope(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^type:/, "")
+    .replace(/^adapter:/, "");
+  return CUSTOM_STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
+}
+
+function normalizeCustomStarter(item, index = 0) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+
+  const label = String(item.label || item.title || item.name || "").trim();
+  const prompt = String(item.prompt || item.instruction || item.text || "").trim();
+  if (!label || !prompt) {
+    return null;
+  }
+
+  const rawScopes = Array.isArray(item.scopes) ? item.scopes : item.scopes || item.scope || item.pageTypes || item.pageType ? [item.scopes || item.scope || item.pageTypes || item.pageType] : ["all"];
+  const scopes = rawScopes
+    .flat()
+    .map((scope) => normalizeCustomStarterScope(scope))
+    .filter(Boolean)
+    .filter((scope, scopeIndex, list) => list.indexOf(scope) === scopeIndex);
+  const composeModeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
+
+  return {
+    id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
+    label,
+    prompt,
+    scopes: scopes.length ? scopes : ["all"],
+    composeMode: composeModeValue === "perspective" ? "perspective" : "chat",
+  };
+}
+
+function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
+  const starters = Array.isArray(currentConfig?.customStarters) ? currentConfig.customStarters : [];
+  const normalized = starters
+    .map((item, index) => normalizeCustomStarter(item, index))
+    .filter(Boolean);
+
+  return normalized
+    .filter((starter) => {
+      if (starter.scopes.includes("all")) {
+        return true;
+      }
+
+      return starter.scopes.includes(pageCopilot?.type || "generic") || starter.scopes.includes(pageCopilot?.adapterId || "generic");
+    })
+    .map((starter) => ({
+      id: `custom:${starter.id}`,
+      label: starter.label,
+      prompt: starter.prompt,
+      composeMode: starter.composeMode,
+    }));
+}
+
+function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
+  return getActiveStarterKeys(pageCopilot).map((starterKey) => ({
+    id: `builtin:${starterKey}`,
+    label: getStarterText(starterKey),
+    prompt: getStarterPrompt(starterKey),
+    composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
+  }));
+}
+
+function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
+  return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)];
+}
+
+function normalizeStarterDraftCollection(parsedValue) {
+  if (Array.isArray(parsedValue)) {
+    return parsedValue
+      .map((item, index) => normalizeCustomStarter(item, index))
+      .filter(Boolean);
+  }
+
+  if (parsedValue && typeof parsedValue === "object") {
+    if (Array.isArray(parsedValue.starters)) {
+      return parsedValue.starters
+        .map((item, index) => normalizeCustomStarter(item, index))
+        .filter(Boolean);
+    }
+
+    const singleStarter = normalizeCustomStarter(parsedValue, 0);
+    return singleStarter ? [singleStarter] : [];
+  }
+
+  return [];
+}
+
+function stripJsonFenceDecorators(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^(?:json|jsonc)\s*/i, "")
+    .trim();
+}
+
+function collectLikelyJsonCandidates(rawText) {
+  const candidates = [];
+  const addCandidate = (value) => {
+    const normalized = stripJsonFenceDecorators(value);
+    if (normalized) {
+      candidates.push(normalized);
+    }
+  };
+
+  const fencePatterns = [
+    /```([\s\S]*?)```/g,
+    /~~~([\s\S]*?)~~~/g,
+    /'''([\s\S]*?)'''/g,
+  ];
+
+  fencePatterns.forEach((pattern) => {
+    let match;
+    while ((match = pattern.exec(rawText))) {
+      addCandidate(match[1]);
+    }
+  });
+
+  if (/^\s*[\[{]/.test(rawText)) {
+    addCandidate(rawText);
+  }
+
+  const firstArrayStart = rawText.indexOf("[");
+  const lastArrayEnd = rawText.lastIndexOf("]");
+  if (firstArrayStart >= 0 && lastArrayEnd > firstArrayStart) {
+    addCandidate(rawText.slice(firstArrayStart, lastArrayEnd + 1));
+  }
+
+  const firstObjectStart = rawText.indexOf("{");
+  const lastObjectEnd = rawText.lastIndexOf("}");
+  if (firstObjectStart >= 0 && lastObjectEnd > firstObjectStart) {
+    addCandidate(rawText.slice(firstObjectStart, lastObjectEnd + 1));
+  }
+
+  return candidates.filter((candidate, index, list) => list.indexOf(candidate) === index);
+}
+
+function escapeJsonStringLineBreaks(value) {
+  let repaired = "";
+  let inString = false;
+  let isEscaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (inString) {
+      if (isEscaped) {
+        repaired += char;
+        isEscaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        repaired += char;
+        isEscaped = true;
+        continue;
+      }
+
+      if (char === "\"") {
+        repaired += char;
+        inString = false;
+        continue;
+      }
+
+      if (char === "\r") {
+        if (value[index + 1] === "\n") {
+          index += 1;
+        }
+        repaired += "\\n";
+        continue;
+      }
+
+      if (char === "\n") {
+        repaired += "\\n";
+        continue;
+      }
+
+      repaired += char;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    }
+
+    repaired += char;
+  }
+
+  return repaired;
+}
+
+function parseStarterDraftCandidate(candidate) {
+  try {
+    return JSON.parse(candidate);
+  } catch (_error) {
+    try {
+      return JSON.parse(escapeJsonStringLineBreaks(candidate));
+    } catch (_nextError) {
+      return null;
+    }
+  }
+}
+
+function looksLikeStarterDraftText(text) {
+  const value = String(text || "");
+  if (!value) {
+    return false;
+  }
+
+  const fieldMatches = ["id", "label", "prompt", "scopes", "mode"].filter((field) => new RegExp(`["']${field}["']\\s*:`).test(value));
+  return fieldMatches.length >= 4 && (/[{\[]/.test(value) || /```|~~~|'''/.test(value));
+}
+
+function getMessageIndexById(messageId) {
+  return chatMessages.findIndex((item) => String(item.id) === String(messageId));
+}
+
+function getPreviousUserMessage(index) {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (chatMessages[cursor]?.role === "user") {
+      return chatMessages[cursor];
+    }
+  }
+  return null;
+}
+
+function extractStarterLabelFromRequest(requestText) {
+  const value = String(requestText || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const quotedMatch = value.match(/starter\s*[「"“']([^"”'」]{1,40})[」"”']?/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1].trim();
+  }
+
+  const cleaned = value
+    .replace(/^(請|请|幫我|帮我|請幫我|请帮我)\s*/i, "")
+    .replace(/(建立|新增|設計|设计|產生|生成|做|製作|制作)\s*(一個|一个)?\s*(starter|custom starter|快捷指令|提示模板)\s*/i, "")
+    .replace(/^(把|將|将)\s*/i, "")
+    .trim();
+
+  if (!cleaned) {
+    return "";
+  }
+
+  return cleaned.length > 24 ? `${cleaned.slice(0, 24).trim()}...` : cleaned;
+}
+
+function buildStarterPromptFromRequest(requestText) {
+  const value = String(requestText || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const cleaned = value
+    .replace(/^(請|请|幫我|帮我|請幫我|请帮我)\s*/i, "")
+    .replace(/(建立|新增|設計|设计|產生|生成|做|製作|制作)\s*(一個|一个)?\s*(starter|custom starter|快捷指令|提示模板)\s*/i, "")
+    .replace(/^(把|將|将)\s*/i, "")
+    .trim();
+  const core = cleaned || value;
+  return `請根據目前提供的內容執行以下任務：${core}`;
+}
+
+function extractLooseQuotedField(candidate, fieldName) {
+  const fieldMarker = `"${fieldName}"`;
+  const fieldIndex = candidate.indexOf(fieldMarker);
+  if (fieldIndex < 0) {
+    return "";
+  }
+
+  const colonIndex = candidate.indexOf(":", fieldIndex + fieldMarker.length);
+  if (colonIndex < 0) {
+    return "";
+  }
+
+  const firstQuoteIndex = candidate.indexOf("\"", colonIndex + 1);
+  if (firstQuoteIndex < 0) {
+    return "";
+  }
+
+  let value = "";
+  let escaped = false;
+
+  for (let index = firstQuoteIndex + 1; index < candidate.length; index += 1) {
+    const char = candidate[index];
+    if (escaped) {
+      value += char === "n" ? "\n" : char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "\"") {
+      return value.trim();
+    }
+
+    value += char;
+  }
+
+  return value.trim();
+}
+
+function extractLooseStringArrayField(candidate, fieldName) {
+  const fieldMarker = `"${fieldName}"`;
+  const fieldIndex = candidate.indexOf(fieldMarker);
+  if (fieldIndex < 0) {
+    return [];
+  }
+
+  const colonIndex = candidate.indexOf(":", fieldIndex + fieldMarker.length);
+  if (colonIndex < 0) {
+    return [];
+  }
+
+  const arrayStartIndex = candidate.indexOf("[", colonIndex + 1);
+  const arrayEndIndex = candidate.indexOf("]", arrayStartIndex + 1);
+  if (arrayStartIndex < 0 || arrayEndIndex < 0) {
+    return [];
+  }
+
+  return (candidate.slice(arrayStartIndex + 1, arrayEndIndex).match(/"([^"]+)"/g) || [])
+    .map((item) => item.replace(/^"|"$/g, "").trim())
+    .filter(Boolean);
+}
+
+function extractStarterDraftFromLooseCandidate(candidate) {
+  const looseStarter = {
+    id: extractLooseQuotedField(candidate, "id"),
+    label: extractLooseQuotedField(candidate, "label"),
+    prompt: extractLooseQuotedField(candidate, "prompt"),
+    scopes: extractLooseStringArrayField(candidate, "scopes"),
+    mode: extractLooseQuotedField(candidate, "mode") || "chat",
+  };
+
+  return normalizeStarterDraftCollection(looseStarter);
+}
+
+function getStarterDraftsForMessage(message) {
+  if (!message || message.role !== "assistant") {
+    return [];
+  }
+
+  const parsedDrafts = extractStarterDraftsFromText(message.content);
+  if (parsedDrafts.length) {
+    return parsedDrafts;
+  }
+
+  const messageIndex = getMessageIndexById(message.id);
+  if (messageIndex < 0) {
+    return [];
+  }
+
+  const previousUserMessage = getPreviousUserMessage(messageIndex);
+  if (!previousUserMessage || !isStarterBuilderRequest(previousUserMessage.content)) {
+    return [];
+  }
+
+  const fallbackStarter = {
+    id: extractLooseQuotedField(message.content, "id") || slugifyStarterId(extractStarterLabelFromRequest(previousUserMessage.content) || previousUserMessage.content, "starter"),
+    label: extractLooseQuotedField(message.content, "label") || extractStarterLabelFromRequest(previousUserMessage.content) || tl("starterDraftLabel"),
+    prompt: extractLooseQuotedField(message.content, "prompt") || buildStarterPromptFromRequest(previousUserMessage.content),
+    scopes: extractLooseStringArrayField(message.content, "scopes"),
+    mode: extractLooseQuotedField(message.content, "mode") || "chat",
+  };
+  const normalizedFallback = normalizeStarterDraftCollection({
+    ...fallbackStarter,
+    scopes: fallbackStarter.scopes.length ? fallbackStarter.scopes : getRecommendedStarterScopes(currentPageCopilot),
+  });
+
+  return normalizedFallback;
+}
+
+function extractStarterDraftsFromText(text) {
+  const rawText = String(text || "").trim();
+  if (!rawText) {
+    return [];
+  }
+
+  const candidates = collectLikelyJsonCandidates(rawText);
+  if (looksLikeStarterDraftText(rawText)) {
+    candidates.push(stripJsonFenceDecorators(rawText));
+    candidates.push(rawText);
+  }
+
+  const seenIds = new Set();
+  const drafts = [];
+
+  candidates.forEach((candidate) => {
+    const parsed = parseStarterDraftCandidate(candidate);
+    const starterCandidates = parsed ? normalizeStarterDraftCollection(parsed) : extractStarterDraftFromLooseCandidate(candidate);
+    if (!starterCandidates.length) {
+      return;
+    }
+
+    starterCandidates.forEach((starter) => {
+      if (!starter || seenIds.has(starter.id)) {
+        return;
+      }
+      seenIds.add(starter.id);
+      drafts.push(starter);
+    });
+  });
+
+  return drafts;
+}
+
+function getSavedCustomStarterIds() {
+  return new Set(
+    (Array.isArray(currentConfig?.customStarters) ? currentConfig.customStarters : [])
+      .map((item, index) => normalizeCustomStarter(item, index))
+      .filter(Boolean)
+      .map((starter) => starter.id)
+  );
+}
+
+function getStarterDraftModeLabel(mode) {
+  return mode === "perspective" ? tl("starterDraftModePerspective") : tl("starterDraftModeChat");
+}
+
+function getStarterDraftScopeLabel(scope) {
+  return scope === "all" ? tl("starterDraftScopeAll") : scope;
+}
+
+function renderStarterDrafts(message) {
+  if (message.role !== "assistant") {
+    return "";
+  }
+
+  const drafts = getStarterDraftsForMessage(message);
+  if (!drafts.length) {
+    return "";
+  }
+
+  const savedIds = getSavedCustomStarterIds();
+  const allSaved = drafts.every((draft) => savedIds.has(draft.id));
+
+  const cards = drafts
+    .map((draft) => {
+      const isSaved = savedIds.has(draft.id);
+      const scopeMarkup = draft.scopes
+        .map((scope) => `<span class="ollama-quick-starter-draft-scope">${escapeHtml(getStarterDraftScopeLabel(scope))}</span>`)
+        .join("");
+
+      return `
+        <article class="ollama-quick-starter-draft-card ${isSaved ? "is-saved" : ""}">
+          <div class="ollama-quick-starter-draft-top">
+            <div>
+              <div class="ollama-quick-starter-draft-kicker">${escapeHtml(tl("starterDraftLabel"))}</div>
+              <div class="ollama-quick-starter-draft-title">${escapeHtml(draft.label)}</div>
+            </div>
+            ${
+              isSaved
+                ? `<span class="ollama-quick-starter-draft-badge">${escapeHtml(tl("starterDraftSaved"))}</span>`
+                : `<button class="ollama-quick-copy" type="button" data-action="save-generated-starter" data-message-id="${escapeHtml(message.id)}" data-starter-id="${escapeHtml(draft.id)}">${escapeHtml(tl("saveStarter"))}</button>`
+            }
+          </div>
+          <div class="ollama-quick-starter-draft-meta">
+            <span>${escapeHtml(tl("starterDraftMode"))}: ${escapeHtml(getStarterDraftModeLabel(draft.composeMode))}</span>
+            <span>${escapeHtml(tl("starterDraftScopes"))}:</span>
+            <div class="ollama-quick-starter-draft-scopes">${scopeMarkup}</div>
+          </div>
+          <div class="ollama-quick-starter-draft-prompt">${escapeHtml(draft.prompt)}</div>
+        </article>
+      `;
+    })
+    .join("");
+
+  const bulkAction = drafts.length > 1 && !allSaved
+    ? `
+      <div class="ollama-quick-starter-draft-actions">
+        <button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${escapeHtml(message.id)}">${escapeHtml(tl("saveAllStarters"))}</button>
+      </div>
+    `
+    : "";
+
+  return `
+    <section class="ollama-quick-starter-drafts">
+      ${cards}
+      ${bulkAction}
+    </section>
+  `;
+}
+
+async function persistGeneratedStarters(starters) {
+  const normalizedStarters = starters
+    .map((item, index) => normalizeCustomStarter(item, index))
+    .filter(Boolean);
+
+  if (!normalizedStarters.length) {
+    throw new Error(tl("starterSaveFailed"));
+  }
+
+  const existingStarters = (Array.isArray(currentConfig?.customStarters) ? currentConfig.customStarters : [])
+    .map((item, index) => normalizeCustomStarter(item, index))
+    .filter(Boolean);
+  const nextById = new Map(existingStarters.map((starter) => [starter.id, starter]));
+  const hasChanges = normalizedStarters.some((starter) => {
+    const existing = nextById.get(starter.id);
+    return !existing || JSON.stringify(existing) !== JSON.stringify(starter);
+  });
+
+  if (!hasChanges) {
+    throw new Error(tl("starterAlreadySaved"));
+  }
+
+  normalizedStarters.forEach((starter) => {
+    nextById.set(starter.id, starter);
+  });
+
+  const result = await runtimeMessage({
+    type: "ollama:set-config",
+    config: {
+      customStarters: Array.from(nextById.values()),
+    },
+  });
+
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("starterSaveFailed"));
+  }
+
+  currentConfig = result.config;
+  renderShell();
+}
+
 function getStarterText(starterKey) {
   if (starterKey === "translatePage") {
     const language = getTargetLanguageLabel();
@@ -1235,6 +2459,10 @@ function getStarterText(starterKey) {
 function getStarterPrompt(starterKey) {
   if (starterKey === "translatePage") {
     return tl("translationPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "emailSummary") {
+    return tl("emailSummaryPrompt", { language: getTargetLanguageLabel() });
   }
 
   if (starterKey === "multiPerspective") {
@@ -1261,6 +2489,10 @@ function getStarterPrompt(starterKey) {
     return tl("codeTeachBackPrompt", { language: getTargetLanguageLabel() });
   }
 
+  if (starterKey === "githubRepoPurpose") {
+    return tl("githubRepoPurposePrompt", { language: getTargetLanguageLabel() });
+  }
+
   if (starterKey === "githubSummary") {
     return tl("githubSummaryPrompt", { language: getTargetLanguageLabel() });
   }
@@ -1271,6 +2503,98 @@ function getStarterPrompt(starterKey) {
 
   if (starterKey === "githubNextSteps") {
     return tl("githubNextStepsPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubCrossCheck") {
+    return tl("githubCrossCheckPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubSpecCoverage") {
+    return tl("githubSpecCoveragePrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubDriftCheck") {
+    return tl("githubDriftCheckPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubReviewChecklist") {
+    return tl("githubReviewChecklistPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubTestGap") {
+    return tl("githubTestGapPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubDocReview") {
+    return tl("githubDocReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubRequirementMap") {
+    return tl("githubRequirementMapPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubSecurityRequirementCheck") {
+    return tl("githubSecurityRequirementCheckPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubWebReview") {
+    return tl("githubWebReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubAccessibilityReview") {
+    return tl("githubAccessibilityReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubFrontendSecurityReview") {
+    return tl("githubFrontendSecurityReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubCodeReviewDeep") {
+    return tl("githubCodeReviewDeepPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubContractCheck") {
+    return tl("githubContractCheckPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubSecurityReview") {
+    return tl("githubSecurityReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubRegressionHotspots") {
+    return tl("githubRegressionHotspotsPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubMemorySafetyReview") {
+    return tl("githubMemorySafetyReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubAttackSurfaceReview") {
+    return tl("githubAttackSurfaceReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubConfigReview") {
+    return tl("githubConfigReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubSecretAndPermissionReview") {
+    return tl("githubSecretAndPermissionReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubOperationalRiskReview") {
+    return tl("githubOperationalRiskReviewPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubArchitectureMap") {
+    return tl("githubArchitectureMapPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubImpactSurfaceMap") {
+    return tl("githubImpactSurfaceMapPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "githubRepoSecurityReview") {
+    return tl("githubRepoSecurityReviewPrompt", { language: getTargetLanguageLabel() });
   }
 
   if (starterKey === "chatWeeklyDigest") {
@@ -1522,6 +2846,11 @@ function ensureHost() {
   return host;
 }
 
+function syncHostState(host = ensureHost()) {
+  host.classList.toggle("is-panel-open", isPanelOpen);
+  host.classList.toggle("is-panel-maximized", isPanelOpen && isPanelMaximized);
+}
+
 function escapeHtml(value) {
   return value
     .replaceAll("&", "&amp;")
@@ -1667,6 +2996,149 @@ function getPageContext(includeChildFrames = true) {
   };
 }
 
+function getGithubBlobDescriptor() {
+  const { hostname, pathname } = window.location;
+  if (hostname !== "github.com") {
+    return null;
+  }
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length < 5 || segments[2] !== "blob") {
+    return null;
+  }
+
+  const owner = segments[0];
+  const repo = segments[1];
+  const repoMarker = ` · ${owner}/${repo}`;
+  const title = document.title || "";
+
+  if (title.endsWith(repoMarker)) {
+    const left = title.slice(0, -repoMarker.length);
+    const separatorIndex = left.lastIndexOf(" at ");
+    if (separatorIndex > 0) {
+      const path = left.slice(0, separatorIndex).trim().replace(/^\/+/, "");
+      const ref = left.slice(separatorIndex + 4).trim();
+      if (path && ref) {
+        return { owner, repo, path, ref };
+      }
+    }
+  }
+
+  const fallbackRef = segments[3];
+  const fallbackPath = segments.slice(4).join("/");
+  if (!fallbackRef || !fallbackPath) {
+    return null;
+  }
+
+  return {
+    owner,
+    repo,
+    path: fallbackPath,
+    ref: fallbackRef,
+  };
+}
+
+async function getGithubFileContext() {
+  const descriptor = getGithubBlobDescriptor();
+  if (!descriptor) {
+    return "";
+  }
+
+  try {
+    const result = await runtimeMessage({
+      type: "github:fetch-file",
+      ...descriptor,
+    });
+
+    if (!result?.ok || !result.file?.content) {
+      return "";
+    }
+
+    return [
+      "GITHUB FILE CONTENT",
+      `Repository: ${descriptor.owner}/${descriptor.repo}`,
+      `Ref: ${descriptor.ref}`,
+      `Path: ${descriptor.path}`,
+      result.file.content,
+    ].join("\n\n");
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function getSelectedGithubContext() {
+  if (!includedGithubSources.length || !isGithubAdapterActive()) {
+    return "";
+  }
+
+  const contexts = await Promise.all(
+    includedGithubSources.map(async (source) => {
+      const repoDescriptor = parseGithubRepoInput(source.repoFullName);
+      if (!repoDescriptor) {
+        return "";
+      }
+
+      if (source.type === "file") {
+        const result = await runtimeMessage({
+          type: "github:fetch-file",
+          owner: repoDescriptor.owner,
+          repo: repoDescriptor.repo,
+          ref: source.ref,
+          path: source.path,
+        });
+
+        if (!result?.ok || !result.file?.content) {
+          return "";
+        }
+
+        return [
+          "GITHUB FILE CONTEXT",
+          `Repository: ${repoDescriptor.fullName}`,
+          source.ref ? `Ref: ${source.ref}` : "",
+          `Path: ${source.path}`,
+          result.file.content,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+
+      const directoryResult = await runtimeMessage({
+        type: "github:list-directory",
+        owner: repoDescriptor.owner,
+        repo: repoDescriptor.repo,
+        ref: source.ref,
+        path: "",
+      });
+      const readmeResult = await runtimeMessage({
+        type: "github:fetch-readme",
+        owner: repoDescriptor.owner,
+        repo: repoDescriptor.repo,
+        ref: source.ref,
+      });
+
+      const entries = directoryResult?.ok ? directoryResult.directory?.entries || [] : [];
+      const readme = readmeResult?.ok ? readmeResult.readme?.content || "" : "";
+
+      return [
+        "GITHUB REPOSITORY CONTEXT",
+        `Repository: ${repoDescriptor.fullName}`,
+        source.ref ? `Ref: ${source.ref}` : "",
+        entries.length
+          ? `Top-level entries:\n${entries
+              .slice(0, 40)
+              .map((entry) => `- ${entry.type === "dir" ? "dir" : "file"}: ${entry.path}`)
+              .join("\n")}`
+          : "",
+        readme ? `README:\n${readme}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    })
+  );
+
+  return contexts.filter(Boolean).join("\n\n---\n\n");
+}
+
 function mergePageContexts(contexts) {
   const headings = [];
   const headingSeen = new Set();
@@ -1778,8 +3250,12 @@ async function getAggregatedPageContext() {
 }
 
 async function buildPrompt(userMessage) {
+  const starterRequest = isStarterBuilderRequest(userMessage);
   const context = includePageContext ? await getAggregatedPageContext() : null;
+  const githubContext = await getSelectedGithubContext();
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const recommendedStarterScopes = getRecommendedStarterScopes(currentPageCopilot);
+  const recommendedStarterScopesJson = JSON.stringify(recommendedStarterScopes);
   const history = chatMessages
     .slice(-8)
     .map((message) => `${message.role.toUpperCase()}:\n${message.content}`)
@@ -1798,15 +3274,63 @@ async function buildPrompt(userMessage) {
         .filter(Boolean)
         .join("\n\n")
     : tl("currentPageContextDisabled");
+  const starterBuilderInstruction = starterRequest
+    ? [
+        "STARTER GENERATION MODE",
+        "The user is asking you to design a reusable starter for this browser extension.",
+        "Do not perform the requested task itself. Convert the request into starter JSON instead.",
+        "Reply with a single complete JSON code block only. Do not add explanation before or after it.",
+        "Your response must start with ```json and end with ```.",
+        "Any response that is not a JSON code block is invalid.",
+        "Do not return a markdown table, bullet list, prose, or partial JSON.",
+        "Ignore the page body, article text, email content, code, and chat history as answer targets.",
+        "Use them only as inspiration for what the starter should ask the model to do later.",
+        "Do not summarize, extract, rewrite, or complete the user's task right now.",
+        `Current detected adapter: ${currentPageCopilot?.adapterId || "generic"}.`,
+        `Current detected page type: ${currentPageCopilot?.type || "generic"}.`,
+        "Use either one object or an array of objects with this schema:",
+        `[{\"id\":\"short-kebab-id\",\"label\":\"Visible starter name\",\"prompt\":\"Prompt text to send\",\"scopes\":${recommendedStarterScopesJson},\"mode\":\"chat\"}]`,
+        "Allowed scopes: all, generic, article, code, email, github, collaboration, document, market, entertainment.",
+        "Allowed mode values: chat, perspective.",
+        `Default to scopes ${recommendedStarterScopesJson} for this request.`,
+        "Do not use scopes [\"all\"] unless the user explicitly asks for a starter that should appear on every page.",
+        "Write label and prompt in the user's requested language.",
+      ].join("\n")
+    : "";
+
+  if (starterRequest) {
+    return [
+      `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+      starterBuilderInstruction,
+      `USER REQUEST TO CONVERT INTO A STARTER\n${userMessage}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
 
   return [
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
     contextBlock,
+    githubContext,
     history ? `CHAT HISTORY\n\n${history}` : "",
+    starterBuilderInstruction,
     `USER MESSAGE\n${userMessage}`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function isStarterBuilderRequest(userMessage) {
+  const value = String(userMessage || "").toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  const starterKeyword = /(starter|custom starter|prompt template|快捷指令|提示模板|啟動模板|启动模板)/i.test(value);
+  const actionKeyword = /(create|generate|design|build|make|add|craft|新增|建立|設計|设计|產生|生成|製作|制作|做|寫|写|弄)/i.test(value);
+  const directStarterRequest = /(幫我.*starter|帮我.*starter|做一個.*starter|做個.*starter|做个.*starter|來一個.*starter|给我.*starter|給我.*starter|make me.*starter|build me.*starter|create.*starter for me)/i.test(value);
+  const jsonKeyword = /\bjson\b/i.test(value);
+  return starterKeyword && (actionKeyword || jsonKeyword || directStarterRequest);
 }
 
 function buildSystemPrompt() {
@@ -2061,10 +3585,10 @@ function renderMessages() {
   const starters = ensureHost().querySelector(".ollama-quick-starters-panel");
   const startersToggle = ensureHost().querySelector("[data-action='toggle-starters']");
   if (starters) {
-    starters.classList.toggle("is-hidden", chatMessages.length > 0);
+    starters.classList.remove("is-hidden");
   }
   if (startersToggle instanceof HTMLButtonElement) {
-    startersToggle.hidden = chatMessages.length > 0;
+    startersToggle.hidden = false;
   }
 
   const perspectivePanel = renderPerspectivePanel(latestPerspectiveRun);
@@ -2076,38 +3600,72 @@ function renderMessages() {
 
   const messageMarkup = chatMessages
     .map((message) => {
-      const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
-      const isTypingAssistant = message.role === "assistant" && !message.content.trim() && isGenerating;
-      const body =
-        isTypingAssistant
-          ? `
-            <div class="ollama-quick-typing">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          `
-          : message.role === "assistant"
-          ? renderMarkdown(message.content)
-          : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>`;
-      const copyButton =
-        message.role === "assistant" && !isTypingAssistant
-          ? `<button class="ollama-quick-copy" type="button" data-action="copy-message" data-index="${message.id}">${escapeHtml(tl("copy"))}</button>`
+      try {
+        const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
+        const isTypingAssistant = message.role === "assistant" && !message.content.trim() && isGenerating;
+        const body =
+          isTypingAssistant
+            ? `
+              <div class="ollama-quick-typing">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            `
+            : message.role === "assistant"
+            ? renderMarkdown(message.content)
+            : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>`;
+        const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
+        const messageIndex = getMessageIndexById(message.id);
+        const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
+        const showSaveStarterButton = parsedStarterDrafts.length || (
+          message.role === "assistant" &&
+          !isTypingAssistant &&
+          (
+            looksLikeStarterDraftText(message.content) ||
+            (previousUserMessage && isStarterBuilderRequest(previousUserMessage.content))
+          )
+        );
+        const actionButtons = [];
+        if (showSaveStarterButton) {
+          actionButtons.push(`<button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${message.id}">${escapeHtml(tl("saveStarter"))}</button>`);
+        }
+        const topActions = message.role === "assistant" && !isTypingAssistant
+          ? `<div class="ollama-quick-message-top-actions"><button class="ollama-quick-copy" type="button" data-action="copy-message" data-index="${message.id}">${escapeHtml(tl("copy"))}</button></div>`
           : "";
-      const roleLabel = isTypingAssistant
-        ? tl("assistantThinking")
-        : message.role === "assistant"
-        ? tl("assistantRole")
-        : tl("userRole");
-      return `
-        <article class="ollama-quick-message ${roleClass}">
-          <div class="ollama-quick-message-top">
-            <div class="ollama-quick-message-role">${escapeHtml(roleLabel)}</div>
-          </div>
-          <div class="ollama-quick-message-body rendered-markdown">${body}</div>
-          ${copyButton ? `<div class="ollama-quick-message-actions">${copyButton}</div>` : ""}
-        </article>
-      `;
+        const starterDrafts = parsedStarterDrafts.length ? renderStarterDrafts(message) : "";
+        const roleLabel = isTypingAssistant
+          ? tl("assistantThinking")
+          : message.role === "assistant"
+          ? tl("assistantRole")
+          : tl("userRole");
+        return `
+          <article class="ollama-quick-message ${roleClass}">
+            <div class="ollama-quick-message-top">
+              <div class="ollama-quick-message-role">${escapeHtml(roleLabel)}</div>
+              ${topActions}
+            </div>
+            <div class="ollama-quick-message-body rendered-markdown">${body}</div>
+            ${starterDrafts}
+            ${actionButtons.length ? `<div class="ollama-quick-message-actions">${actionButtons.join("")}</div>` : ""}
+          </article>
+        `;
+      } catch (error) {
+        console.error("[Edge AI Chat] Failed to render message", error);
+        const fallbackRoleLabel = message.role === "assistant" ? tl("assistantRole") : tl("userRole");
+        const fallbackBody = message.role === "assistant"
+          ? `<pre><code>${escapeHtml(String(message.content || ""))}</code></pre>`
+          : `<div class="ollama-quick-user-text">${escapeHtml(String(message.content || "")).replace(/\n/g, "<br>")}</div>`;
+        return `
+          <article class="ollama-quick-message ${message.role === "assistant" ? "is-assistant" : "is-user"}">
+            <div class="ollama-quick-message-top">
+              <div class="ollama-quick-message-role">${escapeHtml(fallbackRoleLabel)}</div>
+              ${message.role === "assistant" ? `<div class="ollama-quick-message-top-actions"><button class="ollama-quick-copy" type="button" data-action="copy-message" data-index="${message.id}">${escapeHtml(tl("copy"))}</button></div>` : ""}
+            </div>
+            <div class="ollama-quick-message-body rendered-markdown">${fallbackBody}</div>
+          </article>
+        `;
+      }
     })
     .join("");
 
@@ -2148,8 +3706,15 @@ function setDragState(active) {
 
 function renderShell() {
   const host = ensureHost();
+  const existingPrompt = host.querySelector("[data-role='prompt']");
+  const promptDraft = existingPrompt instanceof HTMLTextAreaElement ? existingPrompt.value : "";
+  syncHostState(host);
   currentPageCopilot = detectPageCopilot();
-  const activeStarterKeys = currentPageCopilot?.starterKeys || DEFAULT_STARTER_KEYS;
+  const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
+  if (!showGithubIncludePanel) {
+    includePickerOpen = false;
+  }
+  const activeStarterEntries = getActiveStarterEntries(currentPageCopilot);
   const modelOptions = cachedModels.length
     ? cachedModels
         .map((model) => {
@@ -2163,7 +3728,7 @@ function renderShell() {
     <button class="ollama-quick-launcher" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("openQuickChat"))}" title="${escapeHtml(tl("openQuickChat"))}">
       <span class="ollama-quick-launcher-core"></span>
     </button>
-    <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""}" data-role="panel">
+    <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""} ${isPanelMaximized ? "is-maximized" : ""}" data-role="panel">
       <header class="ollama-quick-header">
         <div class="ollama-quick-header-main">
           <div class="ollama-quick-eyebrow">${escapeHtml(tl("quickAccess"))}</div>
@@ -2171,64 +3736,87 @@ function renderShell() {
         </div>
         <div class="ollama-quick-header-actions">
           <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
-          <button class="ollama-quick-secondary" type="button" data-action="load-latest-chat" title="${escapeHtml(tl("loadLatestChat"))}" aria-label="${escapeHtml(tl("loadLatestChat"))}">${escapeHtml(tl("loadLatestChat"))}</button>
-          <button class="ollama-quick-secondary" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">${escapeHtml(tl("clear"))}</button>
+          <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
+            <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M9 4h6" />
+              <path d="M5 7h14" />
+              <path d="M8 7v11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7" />
+              <path d="M10 11v5" />
+              <path d="M14 11v5" />
+            </svg>
+          </button>
+          <button class="ollama-quick-icon-button" type="button" data-action="toggle-maximize" title="${escapeHtml(tl(isPanelMaximized ? "restore" : "maximize"))}" aria-label="${escapeHtml(tl(isPanelMaximized ? "restore" : "maximize"))}">${isPanelMaximized ? "❐" : "□"}</button>
           <button class="ollama-quick-icon-button" type="button" data-action="open-settings" title="${escapeHtml(tl("openSettings"))}" aria-label="${escapeHtml(tl("openSettings"))}">⚙</button>
           <button class="ollama-quick-icon-button" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("collapse"))}">-</button>
         </div>
       </header>
-      <div class="ollama-quick-controls">
-        <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
-        <label class="ollama-quick-toggle ollama-quick-toggle-below">
-          <input type="checkbox" data-role="include-context" ${includePageContext ? "checked" : ""} />
-          <span>${escapeHtml(tl("context"))}</span>
-        </label>
-      </div>
-      <div class="ollama-quick-starters-panel ${areStartersExpanded ? "is-expanded" : ""}">
-        <div class="ollama-quick-starters-head">
-          <div class="ollama-quick-starters-meta">
-            <div class="ollama-quick-starters-label">${escapeHtml(tl("starterTools"))}</div>
-            <div class="ollama-quick-page-copilot-summary">
-              <span class="ollama-quick-page-copilot-pill" title="${escapeHtml(tl("pageTypeDetected", { type: currentPageCopilot.label }))}">
-                <span class="ollama-quick-page-copilot-icon" aria-hidden="true">◈</span>
-                <span>${escapeHtml(currentPageCopilot.label)}</span>
-              </span>
-              <span class="ollama-quick-page-copilot-pill" title="${escapeHtml(tl("adapterDetected", { adapter: currentPageCopilot.adapterLabel }))}">
-                <span class="ollama-quick-page-copilot-icon" aria-hidden="true">↗</span>
-                <span>${escapeHtml(currentPageCopilot.adapterLabel)}</span>
-              </span>
+      <div class="ollama-quick-workspace">
+        <div class="ollama-quick-main-pane">
+          <div class="ollama-quick-status-wrap">
+            <span class="ollama-quick-status-indicator" data-role="status-indicator"></span>
+            <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
+          </div>
+          <div class="ollama-quick-messages" data-role="messages"></div>
+          <div class="ollama-quick-compose">
+            <div class="ollama-quick-dropzone" data-role="dropzone">${escapeHtml(tl("dropzone"))}</div>
+            <div class="ollama-quick-compose-main">
+              <div class="ollama-quick-compose-attachments" data-role="attachments"></div>
+              <div class="ollama-quick-compose-input">
+                <label class="ollama-quick-compose-upload" title="${escapeHtml(tl("uploadFile"))}" aria-label="${escapeHtml(tl("uploadFile"))}">
+                  ⊕
+                  <input type="file" accept="image/*,.txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" hidden multiple />
+                </label>
+                <textarea class="ollama-quick-textarea" data-role="prompt" placeholder="${escapeHtml(tl("promptPlaceholder"))}"></textarea>
+              </div>
+            </div>
+            <button class="ollama-quick-primary" type="button" data-action="send-message">➤</button>
+          </div>
+        </div>
+        <aside class="ollama-quick-sidebar">
+          <div class="ollama-quick-controls">
+            <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
+            <label class="ollama-quick-toggle ollama-quick-toggle-below">
+              <input type="checkbox" data-role="include-context" ${includePageContext ? "checked" : ""} />
+              <span>${escapeHtml(tl("context"))}</span>
+            </label>
+          </div>
+          ${showGithubIncludePanel ? `
+            <div class="ollama-quick-include-panel">
+              <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-include-picker">${escapeHtml(includedGithubSources.length ? tl("changeIncludedSource") : tl("includeRepoOrFile"))}</button>
+              <div class="ollama-quick-include-summary">${getIncludedSourceSummary()}</div>
+              ${includedGithubSources.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-include-source" aria-label="${escapeHtml(tl("clearIncludedSource"))}" title="${escapeHtml(tl("clearIncludedSource"))}">×</button>` : ""}
+            </div>
+          ` : ""}
+          <div class="ollama-quick-starters-panel ${areStartersExpanded ? "is-expanded" : ""}">
+            <div class="ollama-quick-starters-head">
+              <div class="ollama-quick-starters-meta">
+                <div class="ollama-quick-starters-label">${escapeHtml(tl("starterTools"))}</div>
+                <div class="ollama-quick-page-copilot-summary">
+                  <span class="ollama-quick-page-copilot-pill" title="${escapeHtml(tl("pageTypeDetected", { type: currentPageCopilot.label }))}">
+                    <span class="ollama-quick-page-copilot-icon" aria-hidden="true">◈</span>
+                    <span>${escapeHtml(currentPageCopilot.label)}</span>
+                  </span>
+                  <span class="ollama-quick-page-copilot-pill" title="${escapeHtml(tl("adapterDetected", { adapter: currentPageCopilot.adapterLabel }))}">
+                    <span class="ollama-quick-page-copilot-icon" aria-hidden="true">↗</span>
+                    <span>${escapeHtml(currentPageCopilot.adapterLabel)}</span>
+                  </span>
+                </div>
+              </div>
+              <button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${areStartersExpanded ? "true" : "false"}">${escapeHtml(areStartersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>
+            </div>
+            <div class="ollama-quick-starters">
+            ${activeStarterEntries.map((starter) => `<button class="ollama-quick-starter" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(starter.label)}</button>`).join("")}
             </div>
           </div>
-          <button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${areStartersExpanded ? "true" : "false"}">${escapeHtml(areStartersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>
-        </div>
-        <div class="ollama-quick-starters">
-        ${activeStarterKeys.map((starterKey) => `<button class="ollama-quick-starter" type="button" data-action="use-starter" data-starter-key="${escapeHtml(starterKey)}">${escapeHtml(getStarterText(starterKey))}</button>`).join("")}
-        </div>
+        </aside>
       </div>
-      <div class="ollama-quick-status-wrap">
-        <span class="ollama-quick-status-indicator" data-role="status-indicator"></span>
-        <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
-      </div>
-      <div class="ollama-quick-messages" data-role="messages"></div>
-      <div class="ollama-quick-compose">
-        <div class="ollama-quick-dropzone" data-role="dropzone">${escapeHtml(tl("dropzone"))}</div>
-        <div class="ollama-quick-compose-main">
-          <div class="ollama-quick-compose-attachments" data-role="attachments"></div>
-          <div class="ollama-quick-compose-input">
-            <label class="ollama-quick-compose-upload" title="${escapeHtml(tl("uploadFile"))}" aria-label="${escapeHtml(tl("uploadFile"))}">
-              ⊕
-              <input type="file" accept="image/*,.txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" hidden multiple />
-            </label>
-            <textarea class="ollama-quick-textarea" data-role="prompt" placeholder="${escapeHtml(tl("promptPlaceholder"))}"></textarea>
-          </div>
-        </div>
-        <button class="ollama-quick-primary" type="button" data-action="send-message">➤</button>
-      </div>
+      ${showGithubIncludePanel ? renderIncludePicker() : ""}
     </section>
   `;
 
   host.onclick = handleClick;
   host.onchange = handleChange;
+  host.oninput = handleInput;
   host.onpaste = handlePaste;
   host.ondragenter = handleDragEnter;
   host.ondragover = handleDragOver;
@@ -2246,10 +3834,16 @@ function renderShell() {
       await sendCurrentPrompt();
     };
   }
+
+  const prompt = host.querySelector("[data-role='prompt']");
+  if (prompt instanceof HTMLTextAreaElement && promptDraft) {
+    prompt.value = promptDraft;
+  }
 }
 
 function togglePanel(force) {
-  const panel = ensureHost().querySelector("[data-role='panel']");
+  const host = ensureHost();
+  const panel = host.querySelector("[data-role='panel']");
   if (!panel) {
     return;
   }
@@ -2257,6 +3851,217 @@ function togglePanel(force) {
   const next = typeof force === "boolean" ? force : !panel.classList.contains("is-open");
   isPanelOpen = next;
   panel.classList.toggle("is-open", next);
+  syncHostState(host);
+}
+
+function togglePanelMaximize(force) {
+  const host = ensureHost();
+  const panel = host.querySelector("[data-role='panel']");
+  if (!panel) {
+    return;
+  }
+
+  const next = typeof force === "boolean" ? force : !panel.classList.contains("is-maximized");
+  isPanelMaximized = next;
+  panel.classList.toggle("is-maximized", next);
+  syncHostState(host);
+}
+
+function getFilteredIncludeFileItems() {
+  const query = includeFileSearch.trim().toLowerCase();
+  if (!query) {
+    return includeFileItems;
+  }
+  return includeFileItems.filter((item) => item.path.toLowerCase().includes(query) || item.name.toLowerCase().includes(query));
+}
+
+function getFilteredIncludeRepoItems() {
+  const query = includeRepoSearch.trim().toLowerCase();
+  if (!query) {
+    return includeRepoItems;
+  }
+  return includeRepoItems.filter((item) => item.fullName.toLowerCase().includes(query));
+}
+
+function restorePickerInputFocus(role) {
+  window.requestAnimationFrame(() => {
+    const input = ensureHost().querySelector(`[data-role='${role}']`);
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  });
+}
+
+function renderIncludePicker() {
+  if (!includePickerOpen || !isGithubAdapterActive()) {
+    return "";
+  }
+
+  if (includePickerStep === "repos") {
+    const recentGithubFiles = getRecentGithubFiles();
+    const recentFileItems = recentGithubFiles
+      .map((item) => `
+        <button class="ollama-quick-picker-row" type="button" data-action="picker-add-recent-file" data-repo-full-name="${escapeHtml(item.repoFullName)}" data-ref="${escapeHtml(item.ref || "")}" data-picker-path="${escapeHtml(item.path)}">
+          <span class="ollama-quick-picker-icon">•</span>
+          <span class="ollama-quick-picker-stack">
+            <span class="ollama-quick-picker-name">${escapeHtml(getPathFileName(item.path) || item.path)}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(`${item.repoFullName}/${item.path}${item.ref ? ` @ ${item.ref}` : ""}`)}</span>
+          </span>
+        </button>
+      `)
+      .join("");
+    const repoItems = getFilteredIncludeRepoItems()
+      .map((repo) => `
+        <button class="ollama-quick-picker-row ${includeCurrentRepo?.fullName === repo.fullName ? "is-selected" : ""}" type="button" data-action="picker-open-repo" data-repo-full-name="${escapeHtml(repo.fullName)}" data-repo-default-branch="${escapeHtml(repo.defaultBranch || "")}">
+          <span class="ollama-quick-picker-entry-dot" aria-hidden="true"></span>
+          <span class="ollama-quick-picker-name">${escapeHtml(repo.fullName)}</span>
+        </button>
+      `)
+      .join("");
+
+    return `
+      <div class="ollama-quick-picker-backdrop">
+        <section class="ollama-quick-picker-modal">
+          <div class="ollama-quick-picker-headline is-simple">
+            <div>
+              <div class="ollama-quick-picker-kicker">${escapeHtml(tl("includeRepoOrFile"))}</div>
+              <div class="ollama-quick-picker-title">${escapeHtml(tl("selectRepository"))}</div>
+            </div>
+            <button class="ollama-quick-icon-button" type="button" data-action="close-include-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+          </div>
+          <div class="ollama-quick-picker-section-title">${escapeHtml(tl("recentGithubFiles"))}</div>
+          <div class="ollama-quick-picker-list ollama-quick-picker-list-recent">
+            ${recentFileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRecentGithubFiles"))}</div>`}
+          </div>
+          <input class="ollama-quick-picker-search" type="text" data-role="include-repo-search" value="${escapeHtml(includeRepoSearch)}" placeholder="${escapeHtml(tl("searchRepositories"))}" />
+          <div class="ollama-quick-picker-section-title">${escapeHtml(tl("selectRepository"))}</div>
+          <div class="ollama-quick-picker-list">
+            ${includeRepoLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingRepositories"))}</div>` : repoItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noRepositories"))}</div>`}
+          </div>
+          <div class="ollama-quick-picker-footer">
+            <button class="ollama-quick-secondary" type="button" data-action="close-include-picker">${escapeHtml(tl("cancelSelection"))}</button>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  const fileItems = getFilteredIncludeFileItems()
+    .map((item) => {
+      const isDir = item.type === "dir";
+      const isSelected = includeDraftSelection?.type === "file" && includeDraftSelection?.path === item.path;
+      return `
+        <button class="ollama-quick-picker-row ${isSelected ? "is-selected" : ""}" type="button" data-action="${isDir ? "picker-open-folder" : "picker-select-file"}" data-picker-path="${escapeHtml(item.path)}">
+          <span class="ollama-quick-picker-icon">${isDir ? "▸" : "•"}</span>
+          <span class="ollama-quick-picker-check ${isSelected ? "is-active" : ""}">${isSelected ? "✓" : ""}</span>
+          <span class="ollama-quick-picker-name">${escapeHtml(item.name)}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal">
+        <div class="ollama-quick-picker-headline">
+          <button class="ollama-quick-icon-button" type="button" data-action="picker-back-repos" aria-label="${escapeHtml(tl("backSelection"))}">←</button>
+          <div class="ollama-quick-picker-title">${escapeHtml(tl("selectFoldersAndFiles", { name: includeCurrentRepo?.fullName || "" }))}</div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-include-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <input class="ollama-quick-picker-search" type="text" data-role="include-file-search" value="${escapeHtml(includeFileSearch)}" placeholder="${escapeHtml(tl("searchFilesAndFolders"))}" />
+        <div class="ollama-quick-picker-list">
+          ${includeBrowsePath ? `<button class="ollama-quick-picker-row" type="button" data-action="picker-up-folder"><span class="ollama-quick-picker-icon">←</span><span class="ollama-quick-picker-name">${escapeHtml(tl("backSelection"))}</span></button>` : ""}
+          ${includeFileLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingFiles"))}</div>` : fileItems || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noFiles"))}</div>`}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-include-picker">${escapeHtml(tl("cancelSelection"))}</button>
+          <button class="ollama-quick-secondary" type="button" data-action="picker-use-repo">${escapeHtml(tl("useRepository"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="picker-apply-selection">${escapeHtml(tl("addSelection"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+async function loadIncludeRepositories() {
+  includeRepoLoading = true;
+  renderShell();
+  const result = await runtimeMessage({
+    type: "github:list-repositories",
+    query: "",
+  });
+  includeRepoLoading = false;
+  includeRepoItems = result?.ok ? result.repositories || [] : [];
+  renderShell();
+  restorePickerInputFocus("include-repo-search");
+
+  if (!result?.ok) {
+    setStatus(result?.error || tl("noRepositories"));
+    return;
+  }
+
+  if (Array.isArray(result.warnings) && result.warnings.length) {
+    setStatus(`Loaded ${includeRepoItems.length} repos. Some org repos may be hidden by token/SSO permissions.`);
+  }
+}
+
+async function openIncludeRepository(fullName, defaultBranch = "") {
+  const repoDescriptor = parseGithubRepoInput(fullName);
+  if (!repoDescriptor) {
+    throw new Error(tl("includeSelectRepoFirst"));
+  }
+
+  const repoResult = await runtimeMessage({
+    type: "github:fetch-repository",
+    owner: repoDescriptor.owner,
+    repo: repoDescriptor.repo,
+  });
+
+  if (!repoResult?.ok) {
+    throw new Error(formatGithubRuntimeError(repoResult?.error || "", "repo"));
+  }
+
+  includeCurrentRepo = repoResult.repository;
+  githubTargetRepo = repoResult.repository.fullName;
+  githubTargetRef = repoResult.repository.defaultBranch || defaultBranch || "";
+  includeBrowsePath = "";
+  includeFileSearch = "";
+  includeDraftSelection = { type: "repo", path: "", repoFullName: githubTargetRepo };
+  includePickerStep = "files";
+  await loadIncludeFiles("");
+}
+
+async function loadIncludeFiles(pathOverride = includeBrowsePath) {
+  const repoDescriptor = parseGithubRepoInput(githubTargetRepo);
+  if (!repoDescriptor) {
+    throw new Error(tl("includeSelectRepoFirst"));
+  }
+
+  includeFileLoading = true;
+  includePickerOpen = true;
+  renderShell();
+  const result = await runtimeMessage({
+    type: "github:list-directory",
+    owner: repoDescriptor.owner,
+    repo: repoDescriptor.repo,
+    ref: githubTargetRef,
+    path: pathOverride,
+  });
+  includeFileLoading = false;
+
+  if (!result?.ok) {
+    includeFileItems = [];
+    renderShell();
+    throw new Error(formatGithubRuntimeError(result?.error || "", "file"));
+  }
+
+  includeBrowsePath = result.directory?.path || "";
+  includeFileItems = result.directory?.entries || [];
+  renderShell();
+  restorePickerInputFocus("include-file-search");
 }
 
 async function runGenerate(prompt, model) {
@@ -2330,18 +4135,27 @@ async function runMultiPerspectiveAnalysis(userMessage) {
 
 async function handleClick(event) {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Element)) {
     return;
   }
 
   const actionNode = target.closest("[data-action]");
-  if (!(actionNode instanceof HTMLElement)) {
+  if (!(actionNode instanceof Element)) {
     return;
   }
 
   const action = actionNode.dataset.action;
   if (action === "toggle-panel") {
     togglePanel();
+    return;
+  }
+
+  if (action === "toggle-maximize") {
+    togglePanelMaximize();
+    const buttonLabel = isPanelMaximized ? tl("restore") : tl("maximize");
+    actionNode.setAttribute("title", buttonLabel);
+    actionNode.setAttribute("aria-label", buttonLabel);
+    actionNode.textContent = isPanelMaximized ? "❐" : "□";
     return;
   }
 
@@ -2368,6 +4182,124 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "open-include-picker") {
+    if (!isGithubAdapterActive()) {
+      return;
+    }
+    includePickerOpen = true;
+    includePickerStep = "repos";
+    includeRepoSearch = "";
+    includeDraftSelection = null;
+    loadIncludeRepositories().catch((error) => {
+      setStatus(error instanceof Error ? error.message : String(error));
+    });
+    renderShell();
+    return;
+  }
+
+  if (action === "close-include-picker") {
+    includePickerOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "clear-include-source") {
+    if (!window.confirm(tl("confirmClearIncludedSource"))) {
+      return;
+    }
+    includedGithubSources = [];
+    includeCurrentRepo = null;
+    includeDraftSelection = null;
+    includePickerOpen = false;
+    renderShell();
+    setStatus(tl("includeSelectionSaved"));
+    return;
+  }
+
+  if (action === "picker-open-repo") {
+    try {
+      await openIncludeRepository(actionNode.dataset.repoFullName || "", actionNode.dataset.repoDefaultBranch || "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "picker-back-repos") {
+    includePickerStep = "repos";
+    includeDraftSelection = null;
+    renderShell();
+    return;
+  }
+
+  if (action === "picker-open-folder") {
+    try {
+      await loadIncludeFiles(actionNode.dataset.pickerPath || "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "picker-up-folder") {
+    try {
+      const parentPath = includeBrowsePath.split("/").slice(0, -1).join("/");
+      await loadIncludeFiles(parentPath);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "picker-select-file") {
+    includeDraftSelection = {
+      type: "file",
+      path: actionNode.dataset.pickerPath || "",
+      repoFullName: githubTargetRepo,
+    };
+    renderShell();
+    return;
+  }
+
+  if (action === "picker-use-repo") {
+    includeDraftSelection = {
+      type: "repo",
+      path: "",
+      repoFullName: githubTargetRepo,
+    };
+    renderShell();
+    return;
+  }
+
+  if (action === "picker-add-recent-file") {
+    try {
+      await addIncludedGithubSource({
+        type: "file",
+        repoFullName: actionNode.dataset.repoFullName || "",
+        ref: actionNode.dataset.ref || "",
+        path: actionNode.dataset.pickerPath || "",
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "picker-apply-selection") {
+    if (!includeDraftSelection?.repoFullName) {
+      setStatus(tl("includeSelectRepoFirst"));
+      return;
+    }
+
+    await addIncludedGithubSource({
+      type: includeDraftSelection.type,
+      repoFullName: includeDraftSelection.repoFullName,
+      ref: githubTargetRef,
+      path: includeDraftSelection.type === "file" ? includeDraftSelection.path || "" : "",
+    });
+    return;
+  }
+
   if (action === "use-selection") {
     const prompt = ensureHost().querySelector("[data-role='prompt']");
     if (!(prompt instanceof HTMLTextAreaElement)) {
@@ -2387,6 +4319,9 @@ async function handleClick(event) {
   }
 
   if (action === "remove-attachment") {
+    if (!window.confirm(tl("confirmRemoveAttachment"))) {
+      return;
+    }
     const imageId = actionNode.dataset.imageId;
     const removed = attachedImages.find((item) => item.id === imageId);
     if (removed?.previewUrl) {
@@ -2405,12 +4340,16 @@ async function handleClick(event) {
       return;
     }
 
-    const starterKey = actionNode.dataset.starterKey || "";
-    const starter = getStarterPrompt(starterKey);
-    composeMode = starterKey === "multiPerspective" ? "perspective" : "chat";
-    prompt.value = starter;
+    const starterId = actionNode.dataset.starterId || "";
+    const starter = getActiveStarterEntries(currentPageCopilot).find((item) => item.id === starterId);
+    if (!starter) {
+      return;
+    }
+
+    composeMode = starter.composeMode;
+    prompt.value = starter.prompt;
     prompt.focus();
-    setStatus(starterKey === "multiPerspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter }));
+    setStatus(starter.composeMode === "perspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter: starter.label }));
     return;
   }
 
@@ -2447,7 +4386,46 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "save-generated-starter" || action === "save-generated-starters") {
+    const messageId = actionNode.dataset.messageId || "";
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const drafts = getStarterDraftsForMessage(message);
+    if (!drafts.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    const startersToSave =
+      action === "save-generated-starter"
+        ? drafts.filter((draft) => draft.id === (actionNode.dataset.starterId || ""))
+        : drafts;
+    if (!startersToSave.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    try {
+      await persistGeneratedStarters(startersToSave);
+      setStatus(
+        startersToSave.length === 1
+          ? tl("starterSaved", { name: startersToSave[0].label })
+          : tl("startersSaved", { count: startersToSave.length })
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
   if (action === "clear-chat") {
+    if (!window.confirm(tl("confirmClearChat"))) {
+      return;
+    }
     chatMessages = [];
     latestPerspectiveRun = null;
     composeMode = "chat";
@@ -2515,6 +4493,22 @@ async function handleChange(event) {
     } finally {
       target.value = "";
     }
+  }
+}
+
+function handleInput(event) {
+  const target = event.target;
+  if (target instanceof HTMLInputElement && target.dataset.role === "include-repo-search") {
+    includeRepoSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("include-repo-search");
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "include-file-search") {
+    includeFileSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("include-file-search");
   }
 }
 
@@ -2603,10 +4597,10 @@ async function sendCurrentPrompt() {
 
   chatMessages.push({ id: Date.now(), role: "user", content: displayMessage });
   chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
+  isGenerating = true;
   renderMessages();
   scheduleConversationSave();
   togglePanel(true);
-  isGenerating = true;
   const waitingParts = [];
   if (attachedImages.length) {
     waitingParts.push(tl("attachedImages", { count: attachedImages.length }).replace(/^已附加 |^Attached /, "").replace(/\.$/, ""));
@@ -2859,7 +4853,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     return;
   }
 
-  if (changes.ollamaUrl || changes.selectedModel || changes.replyLanguage || changes.systemPrompt || changes.multiPerspectiveProfiles) {
+  if (changes.ollamaUrl || changes.selectedModel || changes.replyLanguage || changes.systemPrompt || changes.multiPerspectiveProfiles || changes.githubApiKey || changes.customStarters) {
     bootstrap().catch(() => {});
   }
 });

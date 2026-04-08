@@ -33,6 +33,8 @@ const OPTION_I18N = {
     azureApiVersionLabel: "API Version",
     azureApiKeyLabel: "API Key",
     azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
+    githubApiKeyLabel: "GitHub API Key",
+    githubApiKeyHint: "儲存 GitHub personal access token，之後 extension 就能抓 GitHub 檔案內容，也可讀取你有權限的 private repository。",
     generalSectionTitle: "互動體驗",
     generalSectionTag: "Prompt 路由",
     localWorkFolderLabel: "Local Work Folder",
@@ -51,8 +53,26 @@ const OPTION_I18N = {
     replyLanguageLabel: "回覆語言",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "多視角角色",
+    customStartersLabel: "自訂 Starters",
+    customStartersInputLabel: "貼上 Starter JSON",
     systemPromptHint: "這段內容會先於使用者訊息與頁面 context 一起送給模型，適合放角色設定、格式要求與回覆限制。",
     multiPerspectiveProfilesHint: "每行一個視角，格式為 `標題|指令`。留白時會使用內建的頁型預設。",
+    customStartersHint: "把 starter JSON 貼到文字框後按建立。每個項目至少要有 `label` 和 `prompt`，可選 `scopes` 與 `mode`。",
+    customStartersInputPlaceholder: '[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]',
+    createStarters: "建立",
+    clearStarters: "清除匯入",
+    noCustomStarters: "目前沒有匯入自訂 starters。",
+    customStarterImported: "已匯入 {count} 個自訂 starters。",
+    customStarterCleared: "已清除自訂 starters。",
+    customStarterImportFailed: "Starter JSON 匯入失敗。",
+    deleteStarter: "刪除",
+    customStarterDeleted: "已刪除 starter：{name}",
+    confirmClearFolder: "確定要清除本機資料夾設定嗎？",
+    confirmClearStarters: "確定要清除所有匯入的 starters 嗎？",
+    confirmDeleteStarter: "確定要刪除 starter「{name}」嗎？",
+    starterPreviewScopeAll: "所有頁面",
+    starterPreviewModeChat: "聊天",
+    starterPreviewModePerspective: "多視角",
     saveSettings: "儲存設定",
     testConnection: "測試連線",
     installedModels: "已安裝模型",
@@ -99,6 +119,8 @@ const OPTION_I18N = {
     azureApiVersionLabel: "API Version",
     azureApiKeyLabel: "API Key",
     azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
+    githubApiKeyLabel: "GitHub API Key",
+    githubApiKeyHint: "Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.",
     generalSectionTitle: "Experience",
     generalSectionTag: "Prompt Routing",
     localWorkFolderLabel: "Local Work Folder",
@@ -117,8 +139,26 @@ const OPTION_I18N = {
     replyLanguageLabel: "Reply Language",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
+    customStartersLabel: "Custom Starters",
+    customStartersInputLabel: "Paste Starter JSON",
     systemPromptHint: "This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.",
     multiPerspectiveProfilesHint: "One perspective per line using `Title|Instruction`. Leave it empty to use the built-in defaults for each page type.",
+    customStartersHint: "Paste starter JSON into the text box, then click Create. Each item needs at least `label` and `prompt`, with optional `scopes` and `mode`.",
+    customStartersInputPlaceholder: '[{"label":"Email Summary","prompt":"Summarize this email"}]',
+    createStarters: "Create",
+    clearStarters: "Clear Imported",
+    noCustomStarters: "No custom starters imported yet.",
+    customStarterImported: "Imported {count} custom starter(s).",
+    customStarterCleared: "Custom starters cleared.",
+    customStarterImportFailed: "Failed to import starter JSON.",
+    deleteStarter: "Delete",
+    customStarterDeleted: "Deleted starter: {name}",
+    confirmClearFolder: "Clear the local work folder setting?",
+    confirmClearStarters: "Clear all imported starters?",
+    confirmDeleteStarter: "Delete starter \"{name}\"?",
+    starterPreviewScopeAll: "All Pages",
+    starterPreviewModeChat: "Chat",
+    starterPreviewModePerspective: "Perspective",
     saveSettings: "Save Settings",
     testConnection: "Test Connection",
     installedModels: "Installed Models",
@@ -559,6 +599,23 @@ const OPTION_I18N = {
 
 let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
+let currentCustomStarters = [];
+const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "github", "collaboration", "document", "market", "entertainment"];
+const STARTER_SCOPE_ALIASES = {
+  "*": "all",
+  any: "all",
+  all: "all",
+  default: "generic",
+  general: "generic",
+  repo: "github",
+  repository: "github",
+  git: "github",
+  docs: "document",
+  doc: "document",
+  teamwork: "collaboration",
+  chat: "collaboration",
+  finance: "market",
+};
 
 function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -567,6 +624,15 @@ function sendMessage(message) {
 function t(key, vars = {}) {
   const template = currentLocale[key] || OPTION_I18N.en[key] || key;
   return template.replace(/\{(\w+)\}/g, (_match, name) => String(vars[name] ?? ""));
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function applyTranslations() {
@@ -603,6 +669,8 @@ function applyTranslations() {
   document.getElementById("azureApiVersionLabel").textContent = t("azureApiVersionLabel");
   document.getElementById("azureApiKeyLabel").textContent = t("azureApiKeyLabel");
   document.getElementById("azureHint").textContent = t("azureHint");
+  document.getElementById("githubApiKeyLabel").textContent = t("githubApiKeyLabel");
+  document.getElementById("githubApiKeyHint").textContent = t("githubApiKeyHint");
   document.getElementById("generalSectionTitle").textContent = t("generalSectionTitle");
   document.getElementById("generalSectionTag").textContent = t("generalSectionTag");
   document.getElementById("localWorkFolderLabel").textContent = t("localWorkFolderLabel");
@@ -614,12 +682,151 @@ function applyTranslations() {
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
+  document.getElementById("customStartersLabel").textContent = t("customStartersLabel");
+  document.getElementById("customStartersInputLabel").textContent = t("customStartersInputLabel");
   document.getElementById("systemPromptHint").textContent = t("systemPromptHint");
   document.getElementById("multiPerspectiveProfilesHint").textContent = t("multiPerspectiveProfilesHint");
+  document.getElementById("customStartersHint").textContent = t("customStartersHint");
+  document.getElementById("customStartersInput").placeholder = t("customStartersInputPlaceholder");
+  document.getElementById("createStartersButton").textContent = t("createStarters");
+  document.getElementById("clearStartersButton").textContent = t("clearStarters");
   document.getElementById("saveButton").textContent = t("saveSettings");
   document.getElementById("testButton").textContent = t("testConnection");
   document.getElementById("installedModelsTitle").textContent = t("installedModels");
   document.getElementById("refreshButton").textContent = t("refresh");
+  renderCustomStartersPreview(currentCustomStarters);
+}
+
+function slugifyStarterId(value, fallback = "starter") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
+function normalizeStarterScopeToken(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^type:/, "")
+    .replace(/^adapter:/, "");
+  return STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
+}
+
+function normalizeStarterScopes(value) {
+  const rawScopes = Array.isArray(value) ? value : value ? [value] : ["all"];
+  const scopes = rawScopes
+    .map((item) => normalizeStarterScopeToken(item))
+    .filter(Boolean)
+    .filter((scope, index, list) => list.indexOf(scope) === index);
+  return scopes.length ? scopes : ["all"];
+}
+
+function normalizeImportedStarter(item, index) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error(t("customStarterImportFailed"));
+  }
+
+  const label = String(item.label || item.title || item.name || "").trim();
+  const prompt = String(item.prompt || item.instruction || item.text || "").trim();
+  if (!label || !prompt) {
+    throw new Error(t("customStarterImportFailed"));
+  }
+
+  const modeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
+  const mode = modeValue === "perspective" ? "perspective" : "chat";
+
+  return {
+    id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
+    label,
+    prompt,
+    scopes: normalizeStarterScopes(item.scopes ?? item.scope ?? item.pageTypes ?? item.pageType),
+    mode,
+  };
+}
+
+function parseImportedStarters(rawText) {
+  const parsed = JSON.parse(String(rawText || "").trim());
+  const starters = Array.isArray(parsed) ? parsed : parsed?.starters;
+  if (!Array.isArray(starters)) {
+    throw new Error(t("customStarterImportFailed"));
+  }
+
+  return starters.map((item, index) => normalizeImportedStarter(item, index));
+}
+
+function getScopeLabel(scope) {
+  if (scope === "all") {
+    return t("starterPreviewScopeAll");
+  }
+  return scope;
+}
+
+function getModeLabel(mode) {
+  return mode === "perspective" ? t("starterPreviewModePerspective") : t("starterPreviewModeChat");
+}
+
+function renderCustomStartersPreview(starters) {
+  const node = document.getElementById("customStartersPreview");
+  if (!node) {
+    return;
+  }
+
+  if (!starters.length) {
+    node.className = "starter-preview-list empty-state";
+    node.textContent = t("noCustomStarters");
+    return;
+  }
+
+  node.className = "starter-preview-list";
+  node.innerHTML = starters
+    .map((starter) => {
+      const orderedScopes = [...starter.scopes].sort((left, right) => {
+        const leftIndex = STARTER_SCOPE_ORDER.indexOf(left);
+        const rightIndex = STARTER_SCOPE_ORDER.indexOf(right);
+        if (leftIndex === -1 && rightIndex === -1) {
+          return left.localeCompare(right);
+        }
+        if (leftIndex === -1) {
+          return 1;
+        }
+        if (rightIndex === -1) {
+          return -1;
+        }
+        return leftIndex - rightIndex;
+      });
+      return `
+        <article class="starter-preview-card">
+          <div class="starter-preview-head">
+            <div class="starter-preview-name">${escapeHtml(starter.label)}</div>
+            <div class="starter-preview-actions">
+              <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
+              <button class="secondary-button danger-button starter-preview-delete" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
+            </div>
+          </div>
+          <div class="starter-preview-scopes">
+            ${orderedScopes.map((scope) => `<span class="starter-preview-scope">${escapeHtml(getScopeLabel(scope))}</span>`).join("")}
+          </div>
+          <div class="starter-preview-prompt">${escapeHtml(starter.prompt)}</div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function persistCustomStarters(starters) {
+  const saved = await sendMessage({
+    type: "ollama:set-config",
+    config: {
+      customStarters: starters,
+    },
+  });
+
+  if (!saved?.ok) {
+    throw new Error(saved?.error || t("saveFailed"));
+  }
 }
 
 function setActiveProviderTab(provider) {
@@ -712,6 +919,7 @@ async function loadConfig() {
     document.getElementById("lmStudioApiKey").value = result.config.lmStudioApiKey || "";
     document.getElementById("geminiModel").value = result.config.geminiModel || "";
     document.getElementById("geminiApiKey").value = result.config.geminiApiKey || "";
+    document.getElementById("githubApiKey").value = result.config.githubApiKey || "";
     document.getElementById("azureOpenAiEndpoint").value = result.config.azureOpenAiEndpoint || "";
     document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
     document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
@@ -720,6 +928,12 @@ async function loadConfig() {
     document.getElementById("replyLanguage").value = replyLanguage;
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
     document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
+    try {
+      currentCustomStarters = Array.isArray(result.config.customStarters) ? result.config.customStarters.map((item, index) => normalizeImportedStarter(item, index)) : [];
+    } catch (_error) {
+      currentCustomStarters = [];
+    }
+    renderCustomStartersPreview(currentCustomStarters);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     await loadWorkFolderStatus();
     setStatus(t("waiting"));
@@ -733,6 +947,7 @@ async function saveConfig() {
   const lmStudioApiKey = document.getElementById("lmStudioApiKey").value.trim();
   const geminiModel = document.getElementById("geminiModel").value.trim();
   const geminiApiKey = document.getElementById("geminiApiKey").value.trim();
+  const githubApiKey = document.getElementById("githubApiKey").value.trim();
   const azureOpenAiEndpoint = document.getElementById("azureOpenAiEndpoint").value.trim();
   const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
   const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
@@ -752,6 +967,7 @@ async function saveConfig() {
       lmStudioApiKey,
       geminiModel,
       geminiApiKey,
+      githubApiKey,
       azureOpenAiEndpoint,
       azureOpenAiDeployment,
       azureOpenAiApiVersion,
@@ -760,6 +976,7 @@ async function saveConfig() {
       replyLanguage,
       systemPrompt,
       multiPerspectiveProfiles,
+      customStarters: currentCustomStarters,
     },
   });
 
@@ -807,6 +1024,65 @@ document.getElementById("refreshButton").addEventListener("click", async () => {
   }
 });
 
+document.getElementById("createStartersButton").addEventListener("click", async () => {
+  try {
+    const rawText = document.getElementById("customStartersInput").value.trim();
+    if (!rawText) {
+      throw new Error(t("customStarterImportFailed"));
+    }
+    currentCustomStarters = parseImportedStarters(rawText);
+    renderCustomStartersPreview(currentCustomStarters);
+    await persistCustomStarters(currentCustomStarters);
+    setStatus(t("customStarterImported", { count: currentCustomStarters.length }));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("clearStartersButton").addEventListener("click", async () => {
+  try {
+    if (!window.confirm(t("confirmClearStarters"))) {
+      return;
+    }
+    currentCustomStarters = [];
+    renderCustomStartersPreview(currentCustomStarters);
+    await persistCustomStarters([]);
+    setStatus(t("customStarterCleared"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("customStartersPreview").addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const actionNode = target.closest("[data-action='delete-custom-starter']");
+  if (!(actionNode instanceof HTMLElement)) {
+    return;
+  }
+
+  const starterId = actionNode.dataset.starterId || "";
+  const starter = currentCustomStarters.find((item) => item.id === starterId);
+  if (!starter) {
+    return;
+  }
+
+  try {
+    if (!window.confirm(t("confirmDeleteStarter", { name: starter.label }))) {
+      return;
+    }
+    currentCustomStarters = currentCustomStarters.filter((item) => item.id !== starterId);
+    renderCustomStartersPreview(currentCustomStarters);
+    await persistCustomStarters(currentCustomStarters);
+    setStatus(t("customStarterDeleted", { name: starter.label }));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
 document.getElementById("pickFolderButton").addEventListener("click", async () => {
   try {
     if (typeof window.showDirectoryPicker !== "function") {
@@ -837,6 +1113,9 @@ document.getElementById("pickFolderButton").addEventListener("click", async () =
 
 document.getElementById("clearFolderButton").addEventListener("click", async () => {
   try {
+    if (!window.confirm(t("confirmClearFolder"))) {
+      return;
+    }
     const result = await sendMessage({ type: "ollama:clear-work-folder" });
     if (!result?.ok) {
       throw new Error(result?.error || t("folderSaveFailed"));
