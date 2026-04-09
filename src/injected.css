@@ -1,8 +1,10 @@
 #ollama-quick-chat-host {
   position: fixed;
-  top: 50%;
-  right: 14px;
-  transform: translateY(-50%);
+  top: var(--launcher-top, 50%);
+  right: var(--launcher-right, 14px);
+  bottom: var(--launcher-bottom, auto);
+  left: var(--launcher-left, auto);
+  transform: var(--launcher-transform, translateY(-50%));
   z-index: 2147483647;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
@@ -38,14 +40,14 @@
 .ollama-quick-launcher {
   position: relative;
   border: 1px solid rgba(167, 187, 255, 0.22);
-  border-radius: 20px;
+  border-radius: 18px;
   background:
     radial-gradient(circle at center, rgba(211, 220, 255, 0.28), rgba(151, 165, 221, 0.18) 58%, rgba(17, 24, 44, 0.1) 100%),
     rgba(15, 22, 41, 0.82);
   color: rgba(248, 251, 255, 0.9);
   cursor: pointer;
-  width: 46px;
-  height: 46px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   box-shadow:
     0 12px 30px rgba(16, 29, 69, 0.24),
@@ -56,19 +58,27 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
 }
 
 #ollama-quick-chat-host.is-panel-maximized .ollama-quick-launcher {
   display: none;
 }
 
+#ollama-quick-chat-host.is-dragging .ollama-quick-launcher {
+  cursor: grabbing;
+  opacity: 0.95;
+  transform: scale(0.97);
+}
+
 .ollama-quick-launcher::before {
   content: "";
   position: absolute;
-  left: 10px;
-  bottom: 6px;
-  width: 12px;
-  height: 12px;
+  left: 8px;
+  bottom: 5px;
+  width: 10px;
+  height: 10px;
   background: rgba(120, 132, 190, 0.72);
   clip-path: polygon(0 0, 100% 0, 24% 100%);
   transform: rotate(-8deg);
@@ -86,8 +96,8 @@
 
 .ollama-quick-launcher-core {
   position: relative;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   background: radial-gradient(circle at 38% 34%, #f2fbff 0%, #82efff 38%, #66d4ff 66%, #7782ff 100%);
   box-shadow:
@@ -113,9 +123,6 @@
 
 .ollama-quick-panel {
   position: absolute;
-  right: 50px;
-  top: 50%;
-  transform: translateY(-50%);
   display: none;
   width: min(420px, calc(100vw - 32px));
   max-height: min(78vh, 760px);
@@ -130,6 +137,34 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(14px) saturate(120%);
   overflow: hidden;
+}
+
+#ollama-quick-chat-host[data-panel-side="left"] .ollama-quick-panel {
+  right: 46px;
+  left: auto;
+}
+
+#ollama-quick-chat-host[data-panel-side="right"] .ollama-quick-panel {
+  right: auto;
+  left: 46px;
+}
+
+#ollama-quick-chat-host[data-panel-vertical="top"] .ollama-quick-panel {
+  top: 0;
+  bottom: auto;
+  transform: none;
+}
+
+#ollama-quick-chat-host[data-panel-vertical="center"] .ollama-quick-panel {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+#ollama-quick-chat-host[data-panel-vertical="bottom"] .ollama-quick-panel {
+  top: auto;
+  bottom: 0;
+  transform: none;
 }
 
 .ollama-quick-panel.is-open {

@@ -6,6 +6,11 @@ const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
 const MAX_RECENT_GITHUB_FILES = 10;
 const MAX_ATTACHED_DOCUMENTS = 5;
+const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
+const LAUNCHER_DRAG_THRESHOLD_PX = 6;
+const LAUNCHER_VIEWPORT_MARGIN_PX = 12;
+const LAUNCHER_DEFAULT_RIGHT_OFFSET_PX = 14;
+const LAUNCHER_DEFAULT_SIZE_PX = 38;
 const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 350;
 const FRAME_CONTEXT_MESSAGE_SOURCE = "edge-ai-chat-frame-context";
 const CONTEXT_TEXT_SELECTORS = [
@@ -85,6 +90,9 @@ let pendingSessionSaveTimer = 0;
 let areStartersExpanded = false;
 let isPanelOpen = false;
 let isPanelMaximized = false;
+let launcherPosition = null;
+let launcherDragState = null;
+let suppressLauncherToggle = false;
 let currentPageCopilot = null;
 let composeMode = "chat";
 let latestPerspectiveRun = null;
@@ -2914,6 +2922,41 @@ async function loadModels() {
   }
 }
 
+function sanitizeLauncherPosition(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const x = Number(value.x);
+  const y = Number(value.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  return { x, y };
+}
+
+async function loadLauncherPosition() {
+  try {
+    const result = await chrome.storage.local.get(LAUNCHER_POSITION_KEY);
+    launcherPosition = sanitizeLauncherPosition(result?.[LAUNCHER_POSITION_KEY]);
+  } catch (_error) {
+    launcherPosition = null;
+  }
+}
+
+async function saveLauncherPosition() {
+  if (!launcherPosition) {
+    return;
+  }
+
+  try {
+    await chrome.storage.local.set({ [LAUNCHER_POSITION_KEY]: launcherPosition });
+  } catch (_error) {
+    // Ignore storage failures and keep the current in-memory position.
+  }
+}
+
 function ensureHost() {
   let host = document.getElementById(HOST_ID);
   if (host) {
@@ -2929,6 +2972,153 @@ function ensureHost() {
 function syncHostState(host = ensureHost()) {
   host.classList.toggle("is-panel-open", isPanelOpen);
   host.classList.toggle("is-panel-maximized", isPanelOpen && isPanelMaximized);
+}
+
+function getLauncherSize(host = ensureHost()) {
+  const launcher = host.querySelector(".ollama-quick-launcher");
+  return {
+    width: launcher instanceof HTMLElement ? launcher.offsetWidth || LAUNCHER_DEFAULT_SIZE_PX : LAUNCHER_DEFAULT_SIZE_PX,
+    height: launcher instanceof HTMLElement ? launcher.offsetHeight || LAUNCHER_DEFAULT_SIZE_PX : LAUNCHER_DEFAULT_SIZE_PX,
+  };
+}
+
+function getDefaultLauncherPosition(host = ensureHost()) {
+  const { width, height } = getLauncherSize(host);
+  return {
+    x: Math.max(LAUNCHER_VIEWPORT_MARGIN_PX, window.innerWidth - width - LAUNCHER_DEFAULT_RIGHT_OFFSET_PX),
+    y: Math.max(LAUNCHER_VIEWPORT_MARGIN_PX, Math.round((window.innerHeight - height) / 2)),
+  };
+}
+
+function clampLauncherPosition(position, host = ensureHost()) {
+  const { width, height } = getLauncherSize(host);
+  const maxX = Math.max(LAUNCHER_VIEWPORT_MARGIN_PX, window.innerWidth - width - LAUNCHER_VIEWPORT_MARGIN_PX);
+  const maxY = Math.max(LAUNCHER_VIEWPORT_MARGIN_PX, window.innerHeight - height - LAUNCHER_VIEWPORT_MARGIN_PX);
+  return {
+    x: Math.min(Math.max(Math.round(position.x), LAUNCHER_VIEWPORT_MARGIN_PX), maxX),
+    y: Math.min(Math.max(Math.round(position.y), LAUNCHER_VIEWPORT_MARGIN_PX), maxY),
+  };
+}
+
+function getResolvedLauncherPosition(host = ensureHost()) {
+  return clampLauncherPosition(launcherPosition || getDefaultLauncherPosition(host), host);
+}
+
+function updateLauncherPlacement(host = ensureHost()) {
+  const position = getResolvedLauncherPosition(host);
+  const { width, height } = getLauncherSize(host);
+  const centerX = position.x + width / 2;
+  const centerY = position.y + height / 2;
+  host.style.setProperty("--launcher-top", `${position.y}px`);
+  host.style.setProperty("--launcher-right", "auto");
+  host.style.setProperty("--launcher-bottom", "auto");
+  host.style.setProperty("--launcher-left", `${position.x}px`);
+  host.style.setProperty("--launcher-transform", "none");
+  host.dataset.panelSide = centerX < window.innerWidth / 2 ? "right" : "left";
+  host.dataset.panelVertical = centerY < window.innerHeight * 0.3 ? "top" : centerY > window.innerHeight * 0.7 ? "bottom" : "center";
+}
+
+function handleViewportResize() {
+  const host = document.getElementById(HOST_ID);
+  if (!host) {
+    return;
+  }
+
+  if (launcherPosition) {
+    const nextPosition = clampLauncherPosition(launcherPosition, host);
+    if (nextPosition.x !== launcherPosition.x || nextPosition.y !== launcherPosition.y) {
+      launcherPosition = nextPosition;
+      saveLauncherPosition().catch(() => {});
+    }
+  }
+
+  updateLauncherPlacement(host);
+}
+
+function handleLauncherPointerDown(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  const host = ensureHost();
+  const currentPosition = getResolvedLauncherPosition(host);
+  launcherDragState = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    originX: currentPosition.x,
+    originY: currentPosition.y,
+    moved: false,
+  };
+  host.classList.add("is-dragging");
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function handleLauncherPointerMove(event) {
+  if (!launcherDragState || event.pointerId !== launcherDragState.pointerId) {
+    return;
+  }
+
+  const deltaX = event.clientX - launcherDragState.startClientX;
+  const deltaY = event.clientY - launcherDragState.startClientY;
+  if (!launcherDragState.moved && Math.hypot(deltaX, deltaY) < LAUNCHER_DRAG_THRESHOLD_PX) {
+    return;
+  }
+
+  launcherDragState.moved = true;
+  suppressLauncherToggle = true;
+  launcherPosition = clampLauncherPosition(
+    {
+      x: launcherDragState.originX + deltaX,
+      y: launcherDragState.originY + deltaY,
+    },
+    ensureHost()
+  );
+  updateLauncherPlacement();
+  event.preventDefault();
+}
+
+function finishLauncherDrag(event) {
+  if (!launcherDragState || event.pointerId !== launcherDragState.pointerId) {
+    return;
+  }
+
+  const host = ensureHost();
+  const didMove = launcherDragState.moved;
+  host.classList.remove("is-dragging");
+  launcherDragState = null;
+  try {
+    if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  } catch (_error) {
+    // Some browsers may already release capture before this handler runs.
+  }
+  if (didMove) {
+    updateLauncherPlacement(host);
+    saveLauncherPosition().catch(() => {});
+    window.setTimeout(() => {
+      suppressLauncherToggle = false;
+    }, 0);
+    event.preventDefault();
+    return;
+  }
+
+  suppressLauncherToggle = false;
+}
+
+function bindLauncherInteractions(host = ensureHost()) {
+  const launcher = host.querySelector(".ollama-quick-launcher");
+  if (!(launcher instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  launcher.onpointerdown = handleLauncherPointerDown;
+  launcher.onpointermove = handleLauncherPointerMove;
+  launcher.onpointerup = finishLauncherDrag;
+  launcher.onpointercancel = finishLauncherDrag;
+  launcher.onlostpointercapture = finishLauncherDrag;
 }
 
 function escapeHtml(value) {
@@ -4129,6 +4319,8 @@ function renderShell() {
   host.ondragover = handleDragOver;
   host.ondragleave = handleDragLeave;
   host.ondrop = handleDrop;
+  bindLauncherInteractions(host);
+  updateLauncherPlacement(host);
   renderMessages();
   renderAttachments();
   setDragState(isDragActive);
@@ -4507,6 +4699,10 @@ async function handleClick(event) {
 
   const action = actionNode.dataset.action;
   if (action === "toggle-panel") {
+    if (actionNode.classList.contains("ollama-quick-launcher") && suppressLauncherToggle) {
+      suppressLauncherToggle = false;
+      return;
+    }
     togglePanel();
     return;
   }
@@ -5322,6 +5518,7 @@ async function bootstrap() {
   try {
     await loadConfig();
     await loadModels();
+    await loadLauncherPosition();
     renderShell();
     setStatus(currentConfig?.selectedModel ? tl("usingModel", { model: currentConfig.selectedModel }) : tl("pickModelToStart"));
   } catch (error) {
@@ -5369,6 +5566,7 @@ if (IS_TOP_FRAME) {
   window.setTimeout(() => {
     bootstrap().catch(() => {});
   }, 250);
+  window.addEventListener("resize", handleViewportResize, { passive: true });
 
   window.addEventListener("keydown", (event) => {
     handleKeydown(event).catch?.(() => {});
