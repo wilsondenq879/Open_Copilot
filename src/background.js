@@ -1046,6 +1046,80 @@ async function fetchGithubRepository({ owner, repo, token }) {
   };
 }
 
+function getCommonsImageMimeRank(value) {
+  const mime = String(value || "").toLowerCase();
+  if (mime === "image/jpeg" || mime === "image/png" || mime === "image/webp") {
+    return 0;
+  }
+  if (mime === "image/gif") {
+    return 1;
+  }
+  if (mime === "image/svg+xml") {
+    return 2;
+  }
+  return 3;
+}
+
+async function searchCommonsImages({ query, limit = 6 } = {}) {
+  const normalizedQuery = String(query || "").trim();
+  const normalizedLimit = Math.max(1, Math.min(Number.parseInt(String(limit), 10) || 6, 8));
+
+  if (!normalizedQuery) {
+    throw new Error("Commons image search query is missing.");
+  }
+
+  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrsearch", normalizedQuery);
+  url.searchParams.set("gsrnamespace", "6");
+  url.searchParams.set("gsrlimit", String(normalizedLimit));
+  url.searchParams.set("prop", "imageinfo");
+  url.searchParams.set("iiprop", "url|mime|size");
+  url.searchParams.set("iiurlwidth", "1600");
+
+  const payload = await fetchJson(url.toString(), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const results = Object.values(payload?.query?.pages || {})
+    .map((page) => {
+      const imageInfo = Array.isArray(page?.imageinfo) ? page.imageinfo[0] || null : null;
+      const originalUrl = String(imageInfo?.url || "").trim();
+      const thumbUrl = String(imageInfo?.thumburl || "").trim();
+      if (!originalUrl && !thumbUrl) {
+        return null;
+      }
+
+      return {
+        title: String(page?.title || "").replace(/^File:/i, "").trim(),
+        descriptionUrl: String(imageInfo?.descriptionurl || "").trim(),
+        url: originalUrl,
+        thumbUrl,
+        mime: String(imageInfo?.mime || "").trim(),
+        width: Number(imageInfo?.width) || 0,
+        height: Number(imageInfo?.height) || 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const mimeRank = getCommonsImageMimeRank(left.mime) - getCommonsImageMimeRank(right.mime);
+      if (mimeRank !== 0) {
+        return mimeRank;
+      }
+      return (right.width || 0) - (left.width || 0);
+    });
+
+  return {
+    query: normalizedQuery,
+    results,
+  };
+}
+
 async function listModels() {
   const config = await getConfig();
   const baseUrl = normalizeBaseUrl(config.ollamaUrl);
@@ -1070,6 +1144,76 @@ async function listModels() {
     config: nextConfig,
     models,
   };
+}
+
+function isBrowserTabCandidate(tab, excludedTabId) {
+  if (!tab || !Number.isFinite(Number(tab.id))) {
+    return false;
+  }
+
+  if (Number(tab.id) === Number(excludedTabId)) {
+    return false;
+  }
+
+  return /^https?:\/\//i.test(String(tab.url || ""));
+}
+
+async function listBrowserTabs({ excludedTabId } = {}) {
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  return tabs
+    .filter((tab) => isBrowserTabCandidate(tab, excludedTabId))
+    .map((tab) => ({
+      id: Number(tab.id),
+      title: String(tab.title || tab.url || "Untitled tab"),
+      url: String(tab.url || ""),
+      active: Boolean(tab.active),
+    }));
+}
+
+async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(tabIds) ? tabIds : [tabIds])
+        .map((value) => Number.parseInt(String(value), 10))
+        .filter((value) => Number.isFinite(value) && value > 0 && value !== Number(excludedTabId))
+    )
+  );
+
+  const results = [];
+
+  for (const tabId of ids) {
+    let tab;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch (_error) {
+      continue;
+    }
+
+    if (!isBrowserTabCandidate(tab, excludedTabId)) {
+      continue;
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, { type: "edge-ai-chat:get-page-context" });
+      results.push({
+        id: tabId,
+        title: String(tab.title || response?.context?.title || tab.url || "Untitled tab"),
+        url: String(tab.url || response?.context?.url || ""),
+        context: response?.ok && response.context ? response.context : null,
+        contextAvailable: Boolean(response?.ok && response.context),
+      });
+    } catch (_error) {
+      results.push({
+        id: tabId,
+        title: String(tab.title || tab.url || "Untitled tab"),
+        url: String(tab.url || ""),
+        context: null,
+        contextAvailable: false,
+      });
+    }
+  }
+
+  return results;
 }
 
 async function generateWithOllama(prompt, model) {
@@ -1334,7 +1478,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "ollama:get-config": {
@@ -1356,6 +1500,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "ollama:generate": {
         sendResponse({ ok: true, ...(await generateWithOllama(message.prompt || "", message.model)) });
+        return;
+      }
+      case "browser:list-tabs": {
+        sendResponse({ ok: true, tabs: await listBrowserTabs({ excludedTabId: sender?.tab?.id }) });
+        return;
+      }
+      case "browser:get-tab-contexts": {
+        sendResponse({ ok: true, tabs: await getBrowserTabContexts({ tabIds: message.tabIds || [], excludedTabId: sender?.tab?.id }) });
+        return;
+      }
+      case "commons:search-image": {
+        sendResponse({ ok: true, ...(await searchCommonsImages(message || {})) });
         return;
       }
       case "ollama:open-options": {

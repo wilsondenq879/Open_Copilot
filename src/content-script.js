@@ -1,12 +1,15 @@
 const HOST_ID = "ollama-quick-chat-host";
 const MAX_PAGE_TEXT = 8000;
 const MAX_SELECTION_TEXT = 2000;
+const MAX_PAGE_IMAGE_CANDIDATES = 6;
 const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
+const MAX_ATTACHED_BROWSER_TABS = 5;
 const MAX_RECENT_GITHUB_FILES = 10;
 const MAX_GITHUB_VISIBLE_FILE_PATHS = 20;
 const MAX_ATTACHED_DOCUMENTS = 5;
+const MAX_CUSTOM_STARTERS = 20;
 const TASK_EXTRACTION_LIMIT = 8;
 const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
 const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
@@ -124,12 +127,60 @@ let localDocumentItems = [];
 let localDocumentLoading = false;
 let localDocumentSearch = "";
 let localDocumentSelections = [];
+let browserTabPickerOpen = false;
+let browserTabItems = [];
+let browserTabLoading = false;
+let browserTabSearch = "";
+let browserTabSelections = [];
+let attachedBrowserTabs = [];
+let customStarterBuilderOpen = false;
+let customStarterBuilderDraft = {
+  name: "",
+  purpose: "",
+  scopes: [],
+  output: "",
+  style: "",
+  images: "",
+  charts: "",
+  avoid: "",
+  notes: "",
+};
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
 let taskInboxExpanded = false;
 let taskInboxView = "candidates";
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
+const HTML_LAYOUT_GUARD_STYLE_ID = "edge-ai-chat-layout-guard";
+const HTML_MERMAID_RUNTIME_SCRIPT_ID = "edge-ai-chat-mermaid-runtime";
+const HTML_MERMAID_MODULE_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+const HTML_IMAGE_QUERY_ATTRIBUTE = "data-edge-ai-image-query";
+const MAX_HTML_IMAGE_SEARCHES = 4;
+const CUSTOM_STARTER_BUILDER_SCOPE_OPTIONS = ["article", "document", "generic", "code", "email", "github", "collaboration", "market", "entertainment"];
+const HTML_LAYOUT_GUARD_CSS = [
+  "html { overflow-x: hidden; }",
+  "body { max-width: 100%; overflow-x: hidden; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }",
+  "*, *::before, *::after { box-sizing: border-box; }",
+  "main, section, article, header, footer, aside, div { min-width: 0; }",
+  "img, picture, video, canvas, svg { display: block; max-width: 100%; }",
+  "img { height: auto; }",
+  "figure { margin: 0; max-width: 100%; }",
+  "figure img, picture img, [class*=\"media\"] img, [class*=\"image\"] img, [class*=\"visual\"] img, [class*=\"hero\"] img { width: 100%; max-width: 100%; }",
+  ".mermaid, pre.mermaid { display: block; max-width: 100%; overflow-x: auto; }",
+  ".mermaid svg, pre.mermaid svg { display: block; max-width: 100%; height: auto; }",
+  ".edge-ai-html-visual-fallback { display: grid; place-items: center; min-height: clamp(220px, 36vw, 420px); padding: clamp(24px, 4vw, 48px); border-radius: 32px; background: linear-gradient(135deg, rgba(238,244,255,0.96), rgba(226,239,255,0.88)); color: rgba(28,34,48,0.72); text-align: center; }",
+  ".edge-ai-html-visual-fallback strong { display: block; font-size: clamp(1.1rem, 1.8vw, 1.5rem); color: rgba(18,24,38,0.88); }",
+  ".edge-ai-html-visual-fallback span { display: block; margin-top: 0.75rem; font-size: clamp(0.92rem, 1.2vw, 1rem); line-height: 1.7; max-width: 34ch; }",
+  "h1, h2, h3, h4, p, li, blockquote { max-width: 100%; }",
+  ":lang(zh), :lang(ja), :lang(ko) { word-break: keep-all; line-break: loose; }",
+  "[class*=\"grid\"], [class*=\"split\"], [class*=\"hero\"], [class*=\"layout\"], [class*=\"panel\"], [class*=\"feature\"] { min-width: 0; }",
+  "@media (max-width: 1200px) {",
+  "  [class*=\"split\"], [class*=\"two-column\"], [class*=\"twoColumn\"], [class*=\"hero-grid\"], [class*=\"heroGrid\"], [class*=\"feature-grid\"], [class*=\"featureGrid\"], [class*=\"media-grid\"], [class*=\"mediaGrid\"], [class*=\"content-grid\"], [class*=\"contentGrid\"] {",
+  "    grid-template-columns: 1fr !important;",
+  "    flex-direction: column !important;",
+  "  }",
+  "}",
+].join("\n");
 const IS_TOP_FRAME = (() => {
   try {
     return window.top === window;
@@ -164,15 +215,15 @@ const CUSTOM_STARTER_SCOPE_ALIASES = {
   finance: "market",
 };
 const PAGE_COPILOT_STARTERS = {
-  article: ["pageSummary", "articleTimeline", "articleBiasCheck", "reflectionArticle", "multiPerspective"],
+  article: ["pageSummary", "landingHtml", "articleTimeline", "articleBiasCheck", "reflectionArticle", "multiPerspective"],
   code: ["codeExplain", "codeRiskReview", "codeTeachBack", "multiPerspective"],
   email: ["emailSummary", "translatePage"],
   github: ["githubRepoPurpose", "githubSummary", "githubReviewFocus", "githubNextSteps"],
   collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary"],
-  document: ["docExecutiveBrief", "docOutline", "pageSummary", "translatePage"],
+  document: ["docExecutiveBrief", "landingHtml", "docOutline", "pageSummary", "translatePage"],
   market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
   entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
-  generic: ["pageSummary", "translatePage", "multiPerspective"],
+  generic: ["pageSummary", "landingHtml", "translatePage", "multiPerspective"],
 };
 const CONTENT_I18N = {
   "zh-TW": {
@@ -199,16 +250,37 @@ const CONTENT_I18N = {
     confirmClearChat: "確定要清除目前對話嗎？",
     openSettings: "開啟設定",
     downloadMarkdown: "下載 MD",
+    downloadHtml: "下載 HTML",
     loadLatestChat: "載入最近",
     exportMarkdownSuccess: "已下載 Markdown：{file}",
     exportMarkdownFailed: "下載 Markdown 失敗。",
+    htmlDownloaded: "已下載 HTML：{file}",
+    exportHtmlFailed: "下載 HTML 失敗。",
     noConversationToExport: "目前沒有可匯出的對話內容。",
+    noHtmlToExport: "這則回覆沒有可下載的 HTML。",
     saveMarkdownToFolderSuccess: "已儲存對話 Markdown：{file}",
     workFolderNotConfigured: "尚未設定本機資料夾。",
     workFolderPermissionMissing: "本機資料夾權限失效，請到設定重新選擇一次。",
     addLocalDocument: "加入文件",
+    addBrowserTabs: "加入分頁",
+    changeBrowserTabs: "更換分頁",
     changeLocalDocument: "更換文件",
     noLocalDocument: "尚未加入文件。",
+    attachedTabsCount: "已加入 {count} 個分頁。",
+    attachedDocumentsCount: "已加入 {count} 份文件。",
+    attachedGithubSourcesCount: "已加入 {count} 個 GitHub 來源。",
+    noBrowserTabs: "尚未加入分頁。",
+    noAvailableBrowserTabs: "沒有可選的分頁。",
+    browserTabsLimitReached: "最多只能加入 5 個分頁。",
+    browserTabsSelectionEmpty: "請先選擇至少 1 個分頁。",
+    browserTabsSelectionSaved: "已更新加入分頁。",
+    browserTabsPartialContext: "已加入分頁，但部分分頁暫時抓不到完整內容。若要納入頁面正文，請先重新整理那些分頁後再加入一次。",
+    clearBrowserTabs: "清除分頁",
+    confirmClearBrowserTabs: "確定要清除目前加入的分頁嗎？",
+    selectBrowserTabs: "選擇分頁",
+    searchBrowserTabs: "搜尋分頁標題或網址",
+    loadingBrowserTabs: "正在載入已開啟分頁...",
+    browserTabBadge: "分頁",
     localDocumentLimitReached: "最多只能加入 5 份文件。",
     localDocumentSelectionEmpty: "請先選擇至少 1 份文件。",
     localDocumentAlreadyAdded: "這份文件已經加入了。",
@@ -244,11 +316,13 @@ const CONTENT_I18N = {
     collapsePerspective: "收合",
     copyFailed: "複製失敗，可能被瀏覽器權限擋住。",
     saveStarter: "儲存 Starter",
+    saveStarterToSettings: "存到 Settings",
     saveAllStarters: "全部儲存",
     starterSaved: "已儲存 starter：{name}",
     startersSaved: "已儲存 {count} 個 starters。",
     starterAlreadySaved: "這個 starter 已經存在。",
     starterSaveFailed: "儲存 starter 失敗。",
+    starterLimitReached: "最多只能儲存 20 組 starters。",
     starterDraftLabel: "Starter Draft",
     starterDraftScopes: "適用範圍",
     starterDraftMode: "模式",
@@ -256,6 +330,28 @@ const CONTENT_I18N = {
     starterDraftModePerspective: "多視角",
     starterDraftScopeAll: "所有頁面",
     starterDraftSaved: "已儲存",
+    customStarterBuilderTitle: "建立 Custom Starter",
+    customStarterBuilderHint: "先把想法填好，再帶給 AI 幫你整理成可儲存的 starter。",
+    customStarterBuilderName: "這個按鈕想叫什麼名字？",
+    customStarterBuilderPurpose: "想拿它來做什麼？",
+    customStarterBuilderScopes: "希望用在哪些頁面？",
+    customStarterBuilderOutput: "最後想產出什麼？",
+    customStarterBuilderStyle: "希望內容或風格長什麼樣子？",
+    customStarterBuilderImages: "有圖片時想怎麼處理？",
+    customStarterBuilderCharts: "有圖表時想怎麼處理？",
+    customStarterBuilderAvoid: "有沒有明確不能做的事？",
+    customStarterBuilderNotes: "其他補充",
+    customStarterBuilderPlaceholderName: "例如：轉成 HTML 投影片",
+    customStarterBuilderPlaceholderPurpose: "例如：把目前頁面整理成簡報風格的單頁網站",
+    customStarterBuilderPlaceholderOutput: "例如：完整 HTML、摘要、表格、社群貼文",
+    customStarterBuilderPlaceholderStyle: "例如：簡潔、像 keynote、偏商業簡報",
+    customStarterBuilderPlaceholderImages: "例如：有來源圖片就用來源圖片，沒有再找意象圖",
+    customStarterBuilderPlaceholderCharts: "例如：流程圖和趨勢圖優先用 Mermaid",
+    customStarterBuilderPlaceholderAvoid: "例如：不要亂補事實、不要寫太長",
+    customStarterBuilderPlaceholderNotes: "可填可不填",
+    customStarterBuilderSend: "帶給 AI 建立",
+    customStarterBuilderFillMore: "請至少填寫名稱和用途。",
+    customStarterBuilderPromptReady: "已整理好 starter 需求，接著可以送給 AI。",
     modelSelected: "目前模型：{model}",
     modelSelectFailed: "選擇模型失敗。",
     pageContextEnabled: "已啟用頁面脈絡。",
@@ -360,6 +456,7 @@ const CONTENT_I18N = {
     starter_chatActionItems: "抓待辦 / owner / deadline",
     starter_docExecutiveBrief: "文件高層摘要",
     starter_docOutline: "重建文件大綱",
+    starter_landingHtml: "轉成 HTML",
     starter_bullVsBear: "Bull vs Bear",
     starter_catalystMap: "Catalyst Map",
     starter_pricedIn: "Priced In?",
@@ -372,6 +469,9 @@ const CONTENT_I18N = {
     starter_multiPerspective: "多視角分析",
     starter_imageAnalysis: "圖片分析",
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
+    starter_createCustomStarter: "建立 Custom Starter",
+    createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
+    landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
     reflectionArticlePrompt: "請依照這個網頁內容生成一篇心得文。先簡短整理重點，再用自然、有觀點的語氣寫出閱讀心得、啟發與可延伸思考。請使用{language}輸出，避免只是逐段重述原文。",
     emailSummaryPrompt: "請摘要目前可見的 email 內容。若這是單封信，請整理：1. 主旨與背景 2. 關鍵重點 3. 需要回覆或跟進的事項 4. 重要的人名、時間、連結或附件線索。若這是信件串，請整理 thread 的最新狀態與待處理事項。若目前畫面其實是撰寫中的草稿，請改成摘要草稿目的、核心訊息與仍缺少的資訊。若頁面只顯示部分內容，請明確說明你是根據可見內容整理。請使用{language}回答。",
@@ -523,16 +623,37 @@ const CONTENT_I18N = {
     confirmClearChat: "Clear the current conversation?",
     openSettings: "Open settings",
     downloadMarkdown: "Download MD",
+    downloadHtml: "Download HTML",
     loadLatestChat: "Load latest",
     exportMarkdownSuccess: "Downloaded Markdown: {file}",
     exportMarkdownFailed: "Failed to download Markdown.",
+    htmlDownloaded: "Downloaded HTML: {file}",
+    exportHtmlFailed: "Failed to download HTML.",
     noConversationToExport: "There is no conversation to export yet.",
+    noHtmlToExport: "This response does not contain downloadable HTML.",
     saveMarkdownToFolderSuccess: "Saved chat Markdown: {file}",
     workFolderNotConfigured: "No local work folder is configured yet.",
     workFolderPermissionMissing: "Local work folder permission is unavailable. Please reselect the folder in Settings.",
     addLocalDocument: "Add Document",
+    addBrowserTabs: "Add Tabs",
+    changeBrowserTabs: "Change Tabs",
     changeLocalDocument: "Change Document",
     noLocalDocument: "No local documents added yet.",
+    attachedTabsCount: "{count} tab(s) added.",
+    attachedDocumentsCount: "{count} document(s) added.",
+    attachedGithubSourcesCount: "{count} GitHub source(s) added.",
+    noBrowserTabs: "No browser tabs added yet.",
+    noAvailableBrowserTabs: "No eligible tabs are available.",
+    browserTabsLimitReached: "You can add up to 5 tabs.",
+    browserTabsSelectionEmpty: "Select at least one tab first.",
+    browserTabsSelectionSaved: "Updated browser tabs.",
+    browserTabsPartialContext: "Added tabs, but some tabs could not provide full page content yet. Refresh those tabs and add them again if you want their full body text included.",
+    clearBrowserTabs: "Clear Tabs",
+    confirmClearBrowserTabs: "Clear the currently added tabs?",
+    selectBrowserTabs: "Select Browser Tabs",
+    searchBrowserTabs: "Search tab title or URL",
+    loadingBrowserTabs: "Loading open tabs...",
+    browserTabBadge: "TAB",
     localDocumentLimitReached: "You can add up to 5 documents.",
     localDocumentSelectionEmpty: "Select at least one document first.",
     localDocumentAlreadyAdded: "This document is already added.",
@@ -568,11 +689,13 @@ const CONTENT_I18N = {
     collapsePerspective: "Collapse",
     copyFailed: "Copy failed. Clipboard permission may be blocked.",
     saveStarter: "Save Starter",
+    saveStarterToSettings: "Save to Settings",
     saveAllStarters: "Save All",
     starterSaved: "Saved starter: {name}",
     startersSaved: "Saved {count} starter(s).",
     starterAlreadySaved: "This starter is already saved.",
     starterSaveFailed: "Failed to save starter.",
+    starterLimitReached: "You can store up to 20 starters.",
     starterDraftLabel: "Starter Draft",
     starterDraftScopes: "Scopes",
     starterDraftMode: "Mode",
@@ -580,6 +703,28 @@ const CONTENT_I18N = {
     starterDraftModePerspective: "Perspective",
     starterDraftScopeAll: "All Pages",
     starterDraftSaved: "Saved",
+    customStarterBuilderTitle: "Create Custom Starter",
+    customStarterBuilderHint: "Fill in the idea first, then pass it to AI to turn it into a starter you can save.",
+    customStarterBuilderName: "What should this button be called?",
+    customStarterBuilderPurpose: "What should it help with?",
+    customStarterBuilderScopes: "Which kinds of pages should it appear on?",
+    customStarterBuilderOutput: "What should it produce in the end?",
+    customStarterBuilderStyle: "What tone or style should it have?",
+    customStarterBuilderImages: "How should images be handled?",
+    customStarterBuilderCharts: "How should charts or diagrams be handled?",
+    customStarterBuilderAvoid: "Anything it must avoid?",
+    customStarterBuilderNotes: "Extra notes",
+    customStarterBuilderPlaceholderName: "For example: Turn Into HTML Slides",
+    customStarterBuilderPlaceholderPurpose: "For example: turn the current page into a slide-style one-page site",
+    customStarterBuilderPlaceholderOutput: "For example: full HTML, summary, table, social post",
+    customStarterBuilderPlaceholderStyle: "For example: clean, keynote-like, business presentation",
+    customStarterBuilderPlaceholderImages: "For example: use source images first, search symbolic images only if needed",
+    customStarterBuilderPlaceholderCharts: "For example: use Mermaid first for flows and trends",
+    customStarterBuilderPlaceholderAvoid: "For example: do not invent facts, do not make it too long",
+    customStarterBuilderPlaceholderNotes: "Optional",
+    customStarterBuilderSend: "Send To AI",
+    customStarterBuilderFillMore: "Please fill in at least the name and purpose.",
+    customStarterBuilderPromptReady: "Starter request prepared. You can send it to AI now.",
     modelSelected: "Using model: {model}",
     modelSelectFailed: "Failed to select model.",
     pageContextEnabled: "Page context enabled.",
@@ -684,6 +829,7 @@ const CONTENT_I18N = {
     starter_chatActionItems: "Action Items / Owners",
     starter_docExecutiveBrief: "Executive Brief",
     starter_docOutline: "Rebuild Document Outline",
+    starter_landingHtml: "Make HTML",
     starter_bullVsBear: "Bull vs Bear",
     starter_catalystMap: "Catalyst Map",
     starter_pricedIn: "Priced In?",
@@ -696,6 +842,9 @@ const CONTENT_I18N = {
     starter_multiPerspective: "Multi-View Answer",
     starter_imageAnalysis: "Analyze Image",
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
+    starter_createCustomStarter: "Create Custom Starter",
+    createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
+    landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
     translationPrompt: "Translate this page into {language}.",
     reflectionArticlePrompt: "Write a reflection article based on this page. Start with a brief recap of the key points, then write thoughtful takeaways, insights, and possible follow-up ideas in a natural voice. Respond in {language}, and do not just restate the page section by section.",
     emailSummaryPrompt: "Summarize the currently visible email content. If this is a single email, cover: 1. Subject and background 2. Key points 3. Needed replies or follow-ups 4. Important people, dates, links, or attachment clues. If this is a thread, summarize the latest state of the conversation and outstanding actions. If the visible page is actually a draft email, summarize the draft's purpose, main message, and what information is still missing. If only part of the email is visible, say clearly that the summary is based only on visible content. Respond in {language}.",
@@ -1148,21 +1297,7 @@ async function persistRecentGithubFile(source) {
 
 function getIncludedSourceSummary() {
   if (includedGithubSources.length) {
-    return includedGithubSources
-      .map((source) => {
-        if (source.type === "file" && source.repoFullName && source.path) {
-          return `
-            <span class="ollama-quick-include-badge is-file">${escapeHtml(tl("includedFileBadge"))}</span>
-            <span class="ollama-quick-include-text">${escapeHtml(tl("includedFile", { name: `${source.repoFullName}/${source.path}` }))}</span>
-          `;
-        }
-
-        return `
-          <span class="ollama-quick-include-badge">${escapeHtml(tl("includedRepoBadge"))}</span>
-          <span class="ollama-quick-include-text">${escapeHtml(tl("includedRepo", { name: source.repoFullName }))}</span>
-        `;
-      })
-      .join("");
+    return `<span class="ollama-quick-include-text">${escapeHtml(tl("attachedGithubSourcesCount", { count: includedGithubSources.length }))}</span>`;
   }
   return `<span class="ollama-quick-include-text">${escapeHtml(tl("noIncludedSource"))}</span>`;
 }
@@ -1665,6 +1800,104 @@ function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = tru
     : normalized.slice(0, maxLength);
 }
 
+function toAbsolutePageUrl(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    return new URL(normalized, window.location.href).href;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function isLikelyDecorativeImage(element, src) {
+  const value = [
+    src,
+    element?.getAttribute?.("alt") || "",
+    element?.getAttribute?.("class") || "",
+    element?.getAttribute?.("id") || "",
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return /(sprite|icon|logo|avatar|emoji|badge|tracking|pixel|spacer|blank)/i.test(value);
+}
+
+function collectPageImageCandidatesFromDocument(doc, maxItems = MAX_PAGE_IMAGE_CANDIDATES) {
+  const items = [];
+  const seen = new Set();
+  const addCandidate = (src, description = "") => {
+    const normalizedSrc = toAbsolutePageUrl(src);
+    if (!normalizedSrc || normalizedSrc.startsWith("data:")) {
+      return;
+    }
+
+    const key = normalizedSrc.toLowerCase();
+    if (seen.has(key) || items.length >= maxItems) {
+      return;
+    }
+
+    seen.add(key);
+    items.push({
+      src: normalizedSrc,
+      alt: normalizeExtractedText(description).slice(0, 180),
+    });
+  };
+
+  const metaImage = doc
+    .querySelector('meta[property="og:image"], meta[name="og:image"], meta[property="twitter:image"], meta[name="twitter:image"]')
+    ?.getAttribute("content");
+  addCandidate(metaImage, doc.title || "");
+
+  queryAllIncludingShadow(doc, ["main img", "article img", "[role='main'] img", "figure img", "img"], maxItems * 8).forEach((node) => {
+    if (!(node instanceof HTMLImageElement) || items.length >= maxItems) {
+      return;
+    }
+
+    const src = toAbsolutePageUrl(node.currentSrc || node.src || node.getAttribute("src"));
+    if (!src || src.startsWith("data:") || isLikelyDecorativeImage(node, src) || !isElementVisible(node)) {
+      return;
+    }
+
+    const width = node.clientWidth || Number(node.getAttribute("width")) || node.naturalWidth || 0;
+    const height = node.clientHeight || Number(node.getAttribute("height")) || node.naturalHeight || 0;
+    if (width < 120 || height < 80) {
+      return;
+    }
+
+    const figureCaption = normalizeExtractedText(node.closest("figure")?.querySelector("figcaption")?.textContent || "");
+    const label = normalizeExtractedText(
+      node.getAttribute("alt") || node.getAttribute("title") || node.getAttribute("aria-label") || figureCaption
+    );
+    addCandidate(src, label);
+  });
+
+  return items;
+}
+
+function getPageImageSnapshot(maxItems = MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames = true) {
+  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+  const items = [];
+  const seen = new Set();
+
+  documents.forEach((doc) => {
+    collectPageImageCandidatesFromDocument(doc, maxItems).forEach((item) => {
+      const key = String(item?.src || "").toLowerCase();
+      if (!key || seen.has(key) || items.length >= maxItems) {
+        return;
+      }
+
+      seen.add(key);
+      items.push(item);
+    });
+  });
+
+  return items;
+}
+
 function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true) {
   const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
   const headings = [];
@@ -2062,7 +2295,7 @@ function isGithubAdapterActive(pageCopilot = currentPageCopilot) {
 
 function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
   const baseKeys = Array.isArray(pageCopilot?.starterKeys) ? pageCopilot.starterKeys : DEFAULT_STARTER_KEYS;
-  let nextKeys = [...baseKeys];
+  let nextKeys = [...baseKeys, "createCustomStarter"];
 
   if (isGithubAdapterActive(pageCopilot)) {
     if (includedGithubSources.length) {
@@ -2239,6 +2472,347 @@ function collectLikelyJsonCandidates(rawText) {
   }
 
   return candidates.filter((candidate, index, list) => list.indexOf(candidate) === index);
+}
+
+function stripHtmlFenceDecorators(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^(?:html|htm|xml)\s*/i, "")
+    .trim();
+}
+
+function collectLikelyHtmlCandidates(rawText) {
+  const candidates = [];
+  const addCandidate = (value) => {
+    const normalized = stripHtmlFenceDecorators(value);
+    if (normalized) {
+      candidates.push(normalized);
+    }
+  };
+
+  const fencePatterns = [
+    /```([\s\S]*?)```/g,
+    /~~~([\s\S]*?)~~~/g,
+    /'''([\s\S]*?)'''/g,
+  ];
+
+  fencePatterns.forEach((pattern) => {
+    let match;
+    while ((match = pattern.exec(rawText))) {
+      addCandidate(match[1]);
+    }
+  });
+
+  const normalizedText = String(rawText || "").trim();
+  if (/^<(?:!doctype html|html|head|body|main|section|div)\b/i.test(normalizedText)) {
+    addCandidate(normalizedText);
+  }
+
+  const firstHtmlStart = rawText.search(/<!doctype html|<html[\s>]/i);
+  const lastHtmlEnd = rawText.toLowerCase().lastIndexOf("</html>");
+  if (firstHtmlStart >= 0) {
+    addCandidate(rawText.slice(firstHtmlStart, lastHtmlEnd > firstHtmlStart ? lastHtmlEnd + "</html>".length : rawText.length));
+  }
+
+  return candidates.filter((candidate, index, list) => list.indexOf(candidate) === index);
+}
+
+function normalizeHtmlDocument(value) {
+  const normalized = stripHtmlFenceDecorators(value);
+  if (!normalized || !/<[a-z!/][\s\S]*>/i.test(normalized)) {
+    return "";
+  }
+
+  const looksLikeFullDocument = /<!doctype html|<html[\s>]|<body[\s>]/i.test(normalized);
+  const looksLikeStructuredPage = /<(main|section|header|footer|article|style)\b/i.test(normalized) && normalized.length >= 200;
+  if (!looksLikeFullDocument && !looksLikeStructuredPage) {
+    return "";
+  }
+
+  if (/<html[\s>]/i.test(normalized)) {
+    return /^<!doctype html>/i.test(normalized) ? normalized : `<!doctype html>\n${normalized}`;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${escapeHtml(String(getUiLanguage() || "en"))}">`,
+    "<head>",
+    '  <meta charset="utf-8" />',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+    `  <title>${escapeHtml(String(document.title || "Landing Page"))}</title>`,
+    "</head>",
+    "<body>",
+    normalized,
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
+function injectHtmlLayoutGuardStyles(html) {
+  const documentHtml = String(html || "");
+  if (!documentHtml || documentHtml.includes(`id="${HTML_LAYOUT_GUARD_STYLE_ID}"`)) {
+    return documentHtml;
+  }
+
+  const styleTag = `<style id="${HTML_LAYOUT_GUARD_STYLE_ID}">\n${HTML_LAYOUT_GUARD_CSS}\n</style>`;
+  if (/<\/head>/i.test(documentHtml)) {
+    return documentHtml.replace(/<\/head>/i, `${styleTag}\n</head>`);
+  }
+
+  if (/<body[^>]*>/i.test(documentHtml)) {
+    return documentHtml.replace(/<body[^>]*>/i, (match) => `${match}\n${styleTag}`);
+  }
+
+  return `${styleTag}\n${documentHtml}`;
+}
+
+function htmlContainsMermaidBlocks(html) {
+  return /<(?:pre|div)\b[^>]*class=(["'])[^"']*\bmermaid\b[^"']*\1/i.test(String(html || ""));
+}
+
+function injectHtmlMermaidRuntime(html) {
+  const documentHtml = String(html || "");
+  if (!documentHtml || !htmlContainsMermaidBlocks(documentHtml) || documentHtml.includes(`id="${HTML_MERMAID_RUNTIME_SCRIPT_ID}"`)) {
+    return documentHtml;
+  }
+
+  const scriptTag = [
+    `<script type="module" id="${HTML_MERMAID_RUNTIME_SCRIPT_ID}">`,
+    `import mermaid from "${HTML_MERMAID_MODULE_URL}";`,
+    "mermaid.initialize({ startOnLoad: false });",
+    "mermaid.run({ querySelector: \".mermaid\" }).catch(() => {});",
+    "</script>",
+  ].join("\n");
+
+  if (/<\/body>/i.test(documentHtml)) {
+    return documentHtml.replace(/<\/body>/i, `${scriptTag}\n</body>`);
+  }
+
+  if (/<\/html>/i.test(documentHtml)) {
+    return documentHtml.replace(/<\/html>/i, `${scriptTag}\n</html>`);
+  }
+
+  return `${documentHtml}\n${scriptTag}`;
+}
+
+function parseHtmlDocument(html) {
+  return new DOMParser().parseFromString(String(html || ""), "text/html");
+}
+
+function serializeHtmlDocument(doc) {
+  const documentElement = doc?.documentElement;
+  return documentElement ? `<!doctype html>\n${documentElement.outerHTML}` : "";
+}
+
+function getHtmlImageQueryNodes(doc) {
+  if (!(doc instanceof Document)) {
+    return [];
+  }
+
+  return Array.from(doc.querySelectorAll(`img[${HTML_IMAGE_QUERY_ATTRIBUTE}]`))
+    .map((img) => ({
+      img,
+      query: String(img.getAttribute(HTML_IMAGE_QUERY_ATTRIBUTE) || "").trim(),
+    }))
+    .filter((item) => item.query)
+    .slice(0, MAX_HTML_IMAGE_SEARCHES);
+}
+
+function looksLikeInvalidHtmlImageSrc(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return true;
+  }
+
+  return /^(#|about:blank|javascript:|undefined|null|none|n\/a)$/i.test(normalized) || /^\[[^\]]+\]$/.test(normalized);
+}
+
+function absolutizeHtmlImageSrc(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized || /^(?:https?:|data:|blob:|file:)/i.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("//")) {
+    return `${window.location.protocol}${normalized}`;
+  }
+
+  try {
+    return new URL(normalized, window.location.href).href;
+  } catch (_error) {
+    return normalized;
+  }
+}
+
+function looksLikeDiagramImageRequest(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return /(chart|graph|diagram|timeline|trend|flow|process|risk|matrix|map|stock|market reaction|visualization|mermaid|圖表|圖示|圖解|趨勢|流程|時間線|風險|市場股價|市場反應)/i.test(normalized);
+}
+
+function getHtmlImageLabel(img) {
+  if (!(img instanceof HTMLImageElement)) {
+    return "";
+  }
+
+  const figureCaption = normalizeExtractedText(img.closest("figure")?.querySelector("figcaption")?.textContent || "");
+  return normalizeExtractedText(img.getAttribute("alt") || img.getAttribute("title") || img.getAttribute("aria-label") || figureCaption);
+}
+
+function applyCommonHtmlImageAttributes(img) {
+  if (!(img instanceof HTMLImageElement)) {
+    return;
+  }
+
+  const currentSrc = String(img.getAttribute("src") || "").trim();
+  const normalizedSrc = absolutizeHtmlImageSrc(currentSrc);
+  if (normalizedSrc && normalizedSrc !== currentSrc) {
+    img.setAttribute("src", normalizedSrc);
+  }
+
+  if (!img.hasAttribute("loading")) {
+    img.setAttribute("loading", "lazy");
+  }
+  if (!img.hasAttribute("decoding")) {
+    img.setAttribute("decoding", "async");
+  }
+  if (!img.hasAttribute("referrerpolicy")) {
+    img.setAttribute("referrerpolicy", "no-referrer");
+  }
+}
+
+function replaceHtmlImageWithFallback(img, label, kind = "visual") {
+  if (!(img instanceof HTMLImageElement)) {
+    return false;
+  }
+
+  const fallback = document.createElement("div");
+  fallback.className = "edge-ai-html-visual-fallback";
+  const title = document.createElement("strong");
+  title.textContent = label || (kind === "diagram" ? "圖表未產生" : "圖片暫時無法載入");
+  const detail = document.createElement("span");
+  detail.textContent = kind === "diagram"
+    ? "這個區塊更適合用 Mermaid 圖表呈現。重新生成後，系統會優先要求模型改用 Mermaid。"
+    : "原始圖片沒有成功帶出，所以先用安全的視覺卡片取代，避免整頁出現破圖。";
+  fallback.append(title, detail);
+  img.replaceWith(fallback);
+  return true;
+}
+
+async function lookupCommonsImage(query) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "commons:search-image",
+      query,
+      limit: 6,
+    });
+    return response?.ok && Array.isArray(response.results) ? response.results[0] || null : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function applyResolvedHtmlImage(img, result, query) {
+  const resolvedSrc = String(result?.thumbUrl || result?.url || "").trim();
+  if (!resolvedSrc || !(img instanceof HTMLImageElement)) {
+    return false;
+  }
+
+  img.setAttribute("src", resolvedSrc);
+  img.removeAttribute(HTML_IMAGE_QUERY_ATTRIBUTE);
+
+  if (!img.getAttribute("alt")) {
+    img.setAttribute("alt", String(result?.title || query || "Reference image").trim());
+  }
+  if (!img.hasAttribute("loading")) {
+    img.setAttribute("loading", "lazy");
+  }
+  if (!img.hasAttribute("decoding")) {
+    img.setAttribute("decoding", "async");
+  }
+  if (!img.hasAttribute("referrerpolicy")) {
+    img.setAttribute("referrerpolicy", "no-referrer");
+  }
+  if (result?.width && !img.hasAttribute("width")) {
+    img.setAttribute("width", String(result.width));
+  }
+  if (result?.height && !img.hasAttribute("height")) {
+    img.setAttribute("height", String(result.height));
+  }
+  if (result?.url) {
+    img.setAttribute("data-edge-ai-source-image-url", String(result.url));
+  }
+  if (result?.descriptionUrl) {
+    img.setAttribute("data-edge-ai-source-page-url", String(result.descriptionUrl));
+  }
+
+  return true;
+}
+
+async function repairHtmlImagesForDownload(html) {
+  const documentHtml = String(html || "");
+  if (!documentHtml || !/<img\b/i.test(documentHtml)) {
+    return documentHtml;
+  }
+
+  const doc = parseHtmlDocument(documentHtml);
+  const lookupCache = new Map();
+  let lookupsUsed = 0;
+  const images = Array.from(doc.querySelectorAll("img"));
+
+  for (const img of images) {
+    applyCommonHtmlImageAttributes(img);
+
+    const currentSrc = String(img.getAttribute("src") || "").trim();
+    const queryAttr = String(img.getAttribute(HTML_IMAGE_QUERY_ATTRIBUTE) || "").trim();
+    const label = getHtmlImageLabel(img);
+    const canSearch = lookupsUsed < MAX_HTML_IMAGE_SEARCHES;
+
+    if (queryAttr && canSearch) {
+      if (!lookupCache.has(queryAttr)) {
+        lookupCache.set(queryAttr, await lookupCommonsImage(queryAttr));
+        lookupsUsed += 1;
+      }
+      const result = lookupCache.get(queryAttr);
+      if (applyResolvedHtmlImage(img, result, queryAttr)) {
+        continue;
+      }
+    }
+
+    if (!looksLikeInvalidHtmlImageSrc(currentSrc)) {
+      continue;
+    }
+
+    if (label && !looksLikeDiagramImageRequest(label) && canSearch) {
+      if (!lookupCache.has(label)) {
+        lookupCache.set(label, await lookupCommonsImage(label));
+        lookupsUsed += 1;
+      }
+      const result = lookupCache.get(label);
+      if (applyResolvedHtmlImage(img, result, label)) {
+        continue;
+      }
+    }
+
+    replaceHtmlImageWithFallback(img, label, looksLikeDiagramImageRequest(label) ? "diagram" : "visual");
+  }
+
+  return serializeHtmlDocument(doc) || documentHtml;
+}
+
+function extractHtmlDocumentFromText(rawText) {
+  const candidates = collectLikelyHtmlCandidates(String(rawText || ""));
+  for (const candidate of candidates) {
+    const normalized = normalizeHtmlDocument(candidate);
+    if (normalized) {
+      return injectHtmlMermaidRuntime(injectHtmlLayoutGuardStyles(normalized));
+    }
+  }
+
+  return "";
 }
 
 function escapeJsonStringLineBreaks(value) {
@@ -2482,6 +3056,56 @@ function getStarterDraftsForMessage(message) {
   return normalizedFallback;
 }
 
+function extractMarkdownCodeBlocks(markdown) {
+  const source = String(markdown || "");
+  const blocks = [];
+  const pattern = /```([\s\S]*?)```/g;
+  let match;
+
+  while ((match = pattern.exec(source))) {
+    const inner = String(match[1] || "").replace(/^\n/, "");
+    const firstNewlineIndex = inner.indexOf("\n");
+    let language = "";
+    let code = inner;
+
+    if (firstNewlineIndex >= 0) {
+      const firstLine = inner.slice(0, firstNewlineIndex).trim();
+      if (/^[a-z0-9_+-]{1,20}$/i.test(firstLine)) {
+        language = firstLine.toLowerCase();
+        code = inner.slice(firstNewlineIndex + 1);
+      }
+    }
+
+    blocks.push({
+      language,
+      code: code.replace(/^\n+|\n+$/g, ""),
+    });
+  }
+
+  return blocks;
+}
+
+function getStarterDraftsForCodeBlock(message, codeBlockIndex) {
+  if (!message || message.role !== "assistant") {
+    return [];
+  }
+
+  const codeBlock = extractMarkdownCodeBlocks(message.content)[codeBlockIndex];
+  if (!codeBlock?.code) {
+    return [];
+  }
+
+  return extractStarterDraftsFromText(codeBlock.code);
+}
+
+function hasStarterDraftCodeBlock(message) {
+  if (!message || message.role !== "assistant") {
+    return false;
+  }
+
+  return extractMarkdownCodeBlocks(message.content).some((block) => extractStarterDraftsFromText(block.code).length);
+}
+
 function extractStarterDraftsFromText(text) {
   const rawText = String(text || "").trim();
   if (!rawText) {
@@ -2619,6 +3243,10 @@ async function persistGeneratedStarters(starters) {
     nextById.set(starter.id, starter);
   });
 
+  if (nextById.size > MAX_CUSTOM_STARTERS) {
+    throw new Error(tl("starterLimitReached"));
+  }
+
   const result = await runtimeMessage({
     type: "ollama:set-config",
     config: {
@@ -2646,6 +3274,14 @@ function getStarterText(starterKey) {
 function getStarterPrompt(starterKey) {
   if (starterKey === "translatePage") {
     return tl("translationPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "landingHtml") {
+    return tl("landingHtmlPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "createCustomStarter") {
+    return tl("createCustomStarterPrompt");
   }
 
   if (starterKey === "emailSummary") {
@@ -2837,6 +3473,57 @@ function getStarterPrompt(starterKey) {
   }
 
   return getStarterText(starterKey);
+}
+
+function createDefaultCustomStarterBuilderDraft() {
+  const recommendedScopes = getRecommendedStarterScopes(currentPageCopilot);
+  return {
+    name: "",
+    purpose: "",
+    scopes: recommendedScopes.length ? recommendedScopes : ["generic"],
+    output: "",
+    style: "",
+    images: "",
+    charts: "",
+    avoid: "",
+    notes: "",
+  };
+}
+
+function ensureCustomStarterBuilderDraft() {
+  if (!customStarterBuilderDraft || typeof customStarterBuilderDraft !== "object") {
+    customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
+  }
+  if (!Array.isArray(customStarterBuilderDraft.scopes)) {
+    customStarterBuilderDraft.scopes = [];
+  }
+  return customStarterBuilderDraft;
+}
+
+function getCustomStarterBuilderScopeLabel(scope) {
+  return scope === "generic" ? "generic" : getStarterDraftScopeLabel(scope);
+}
+
+function buildCustomStarterBuilderPrompt() {
+  const draft = ensureCustomStarterBuilderDraft();
+  const scopes = draft.scopes.length ? draft.scopes : ["generic"];
+  const scopeSummary = scopes.join(" / ");
+  return [
+    "幫我做一個 starter。",
+    "",
+    "請根據下面需求，產生可直接儲存的 starter JSON。",
+    "請只回我可儲存的 starter JSON，不要加其他解釋。",
+    "",
+    `按鈕名稱：${draft.name.trim()}`,
+    `用途：${draft.purpose.trim()}`,
+    `適用頁面：${scopeSummary}`,
+    `最後輸出：${draft.output.trim() || "請根據需求判斷最適合的輸出形式"}`,
+    `風格或內容方向：${draft.style.trim() || "請依照需求判斷"}`,
+    `圖片處理：${draft.images.trim() || "如有需要請自行判斷"}`,
+    `圖表處理：${draft.charts.trim() || "如有圖表需求請自行判斷"}`,
+    `不能做的事：${draft.avoid.trim() || "請避免捏造事實或超出需求"}`,
+    `其他補充：${draft.notes.trim() || "無"}`,
+  ].join("\n");
 }
 
 function formatAttachmentSummary(parts) {
@@ -3069,6 +3756,58 @@ function ensureHost() {
   return host;
 }
 
+function getTransformScale(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "none") {
+    return 1;
+  }
+
+  const matrix3dMatch = raw.match(/^matrix3d\((.+)\)$/);
+  if (matrix3dMatch) {
+    const values = matrix3dMatch[1].split(",").map((item) => Number.parseFloat(item.trim()));
+    const scaleX = Math.hypot(values[0] || 0, values[1] || 0, values[2] || 0);
+    return Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1;
+  }
+
+  const matrixMatch = raw.match(/^matrix\((.+)\)$/);
+  if (matrixMatch) {
+    const values = matrixMatch[1].split(",").map((item) => Number.parseFloat(item.trim()));
+    const scaleX = Math.hypot(values[0] || 0, values[1] || 0);
+    return Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1;
+  }
+
+  return 1;
+}
+
+function getHostScaleCompensation() {
+  let pageScale = 1;
+
+  [document.documentElement, document.body].forEach((element) => {
+    if (!(element instanceof HTMLElement)) {
+      return;
+    }
+    const style = window.getComputedStyle(element);
+    const zoom = Number.parseFloat(style.zoom);
+    if (Number.isFinite(zoom) && zoom > 0) {
+      pageScale *= zoom;
+    }
+    const transformScale = getTransformScale(style.transform);
+    if (transformScale > 0 && Math.abs(transformScale - 1) > 0.01) {
+      pageScale *= transformScale;
+    }
+  });
+
+  if (!Number.isFinite(pageScale) || pageScale <= 1.01) {
+    return 1;
+  }
+
+  return Math.max(0.58, Math.min(1, 1 / pageScale));
+}
+
+function syncHostScale(host = ensureHost()) {
+  host.style.setProperty("--ollama-host-scale", String(getHostScaleCompensation()));
+}
+
 function syncHostState(host = ensureHost()) {
   host.classList.toggle("is-panel-open", isPanelOpen);
   host.classList.toggle("is-panel-maximized", isPanelOpen && isPanelMaximized);
@@ -3139,6 +3878,7 @@ function handleViewportResize() {
     }
   }
 
+  syncHostScale(host);
   updateLauncherPlacement(host);
 }
 
@@ -3288,16 +4028,20 @@ function isMarkdownTableSeparator(line) {
     .every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
 }
 
-function renderMarkdown(markdown) {
-  const escaped = escapeHtml(markdown || "");
+function renderMarkdown(markdown, options = {}) {
+  const messageId = String(options.messageId || "").trim();
+  const extractedCodeBlocks = extractMarkdownCodeBlocks(markdown);
+  let codeBlockCursor = 0;
   const codeBlocks = [];
-  let working = escaped.replace(/```([\s\S]*?)```/g, (_match, code) => {
+  const workingWithTokens = String(markdown || "").replace(/```([\s\S]*?)```/g, () => {
     const token = `__CODE_BLOCK_${codeBlocks.length}__`;
-    codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+    codeBlocks.push(extractedCodeBlocks[codeBlockCursor] || { language: "", code: "" });
+    codeBlockCursor += 1;
     return token;
   });
+  const escaped = escapeHtml(workingWithTokens);
 
-  const blocks = working
+  const blocks = escaped
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean)
@@ -3351,12 +4095,33 @@ function renderMarkdown(markdown) {
     })
     .join("");
 
-  return codeBlocks.reduce((html, block, index) => html.replace(`__CODE_BLOCK_${index}__`, block), blocks);
+  return codeBlocks.reduce((html, block, index) => {
+    const message = messageId ? chatMessages.find((item) => String(item.id) === messageId) : null;
+    const starterDrafts = message ? getStarterDraftsForCodeBlock(message, index) : [];
+    const savedIds = getSavedCustomStarterIds();
+    const allSaved = starterDrafts.length && starterDrafts.every((draft) => savedIds.has(draft.id));
+    const languageBadge = block.language
+      ? `<span class="ollama-quick-code-block-language">${escapeHtml(block.language)}</span>`
+      : "";
+    const saveButton = starterDrafts.length
+      ? allSaved
+        ? `<span class="ollama-quick-starter-draft-badge">${escapeHtml(tl("starterDraftSaved"))}</span>`
+        : `<button class="ollama-quick-copy" type="button" data-action="save-generated-starter-code-block" data-message-id="${escapeHtml(messageId)}" data-code-block-index="${index}">${escapeHtml(tl("saveStarterToSettings"))}</button>`
+      : "";
+    const codeMarkup = `
+      <div class="ollama-quick-code-block">
+        ${(languageBadge || saveButton) ? `<div class="ollama-quick-code-block-top">${languageBadge}${saveButton}</div>` : ""}
+        <pre><code>${escapeHtml(block.code)}</code></pre>
+      </div>
+    `;
+    return html.replace(`__CODE_BLOCK_${index}__`, codeMarkup);
+  }, blocks);
 }
 
 function getPageContext(includeChildFrames = true) {
   const selection = getSelectionText();
   const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames);
+  const imageCandidates = getPageImageSnapshot(MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
   const headings = getPageHeadingsSnapshot(12, includeChildFrames)
     .slice(0, 12)
     .join(" | ");
@@ -3369,8 +4134,41 @@ function getPageContext(includeChildFrames = true) {
     selection: selection.slice(0, MAX_SELECTION_TEXT),
     headings,
     metaDescription,
+    imageCandidates,
     pageText,
   };
+}
+
+function summarizeBrowserTabContext(item) {
+  const context = item?.context || {};
+  if (item?.contextAvailable === false) {
+    return [
+      "BROWSER TAB CONTEXT",
+      `Title: ${item.title || "Untitled tab"}`,
+      `URL: ${item.url || ""}`,
+      "Note: Full page content was unavailable when this tab was added. Use the tab title and URL only unless the user refreshes and re-adds it.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  const visibleText = normalizeExtractedText(String(context.pageText || ""));
+  const trimmedText = visibleText.length > 3200 ? `${visibleText.slice(0, 3200)}\n[...]` : visibleText;
+  return [
+    "BROWSER TAB CONTEXT",
+    `Title: ${context.title || item.title || "Untitled tab"}`,
+    `URL: ${context.url || item.url || ""}`,
+    context.metaDescription ? `Description: ${context.metaDescription}` : "",
+    context.headings ? `Headings: ${context.headings}` : "",
+    Array.isArray(context.imageCandidates) && context.imageCandidates.length
+      ? `Image candidates:\n${context.imageCandidates
+          .map((image, index) => `${index + 1}. ${image.alt ? `${image.alt} | ` : ""}${image.src}`)
+          .join("\n")}`
+      : "",
+    trimmedText ? `Visible page text:\n${trimmedText}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function getGithubBlobDescriptor() {
@@ -3620,6 +4418,8 @@ function mergePageContexts(contexts) {
   const headingSeen = new Set();
   const textBlocks = [];
   const textSeen = new Set();
+  const imageCandidates = [];
+  const imageSeen = new Set();
 
   contexts.forEach((context) => {
     String(context?.headings || "")
@@ -3645,6 +4445,24 @@ function mergePageContexts(contexts) {
           textBlocks.push(block);
         }
       });
+
+    (Array.isArray(context?.imageCandidates) ? context.imageCandidates : []).forEach((image) => {
+      const src = String(image?.src || "").trim();
+      if (!src) {
+        return;
+      }
+
+      const key = src.toLowerCase();
+      if (imageSeen.has(key) || imageCandidates.length >= MAX_PAGE_IMAGE_CANDIDATES) {
+        return;
+      }
+
+      imageSeen.add(key);
+      imageCandidates.push({
+        src,
+        alt: String(image?.alt || "").trim(),
+      });
+    });
   });
 
   const primaryContext = contexts[0] || {};
@@ -3656,6 +4474,7 @@ function mergePageContexts(contexts) {
     metaDescription: primaryContext.metaDescription || "",
     selection: selectionContext,
     headings: headings.join(" | "),
+    imageCandidates,
     pageText: (() => {
       const normalized = normalizeExtractedText(textBlocks.join("\n\n"));
       if (normalized.length <= MAX_PAGE_TEXT) {
@@ -3730,6 +4549,7 @@ async function buildPrompt(userMessage) {
   const context = includePageContext ? await getAggregatedPageContext() : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubContext = await getSelectedGithubContext();
+  const browserTabsContext = attachedBrowserTabs.map((item) => summarizeBrowserTabContext(item)).filter(Boolean).join("\n\n---\n\n");
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const recommendedStarterScopes = getRecommendedStarterScopes(currentPageCopilot);
   const recommendedStarterScopesJson = JSON.stringify(recommendedStarterScopes);
@@ -3745,6 +4565,11 @@ async function buildPrompt(userMessage) {
         `URL: ${context.url}`,
         context.metaDescription ? `Description: ${context.metaDescription}` : "",
         context.headings ? `Headings: ${context.headings}` : "",
+        context.imageCandidates?.length
+          ? `Image candidates:\n${context.imageCandidates
+              .map((image, index) => `${index + 1}. ${image.alt ? `${image.alt} | ` : ""}${image.src}`)
+              .join("\n")}`
+          : "",
         context.selection ? `Selected text:\n${context.selection}` : "",
         context.pageText ? `Visible page text:\n${context.pageText}` : "",
       ]
@@ -3790,6 +4615,7 @@ async function buildPrompt(userMessage) {
     contextBlock,
     githubPageContext,
     githubContext,
+    browserTabsContext,
     history ? `CHAT HISTORY\n\n${history}` : "",
     starterBuilderInstruction,
     `USER MESSAGE\n${userMessage}`,
@@ -3921,6 +4747,20 @@ function buildConversationExportFilename(session = {}, extension = "md") {
   return `${timestampForFile(savedAt)}-${pageTitle}.${extension}`;
 }
 
+function downloadTextBlob(filename, contents, mimeType = "text/plain;charset=utf-8") {
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 async function persistConversationSnapshot(snapshot) {
   const result = await runtimeMessage({
     type: "ollama:save-chat-session",
@@ -3947,6 +4787,85 @@ async function persistConversationNow() {
     ...buildConversationSnapshot(),
     saveToFolder: false,
   });
+}
+
+function getBrowserTabSummary() {
+  if (!attachedBrowserTabs.length) {
+    return `<span class="ollama-quick-include-text">${escapeHtml(tl("noBrowserTabs"))}</span>`;
+  }
+
+  return `<span class="ollama-quick-include-text">${escapeHtml(tl("attachedTabsCount", { count: attachedBrowserTabs.length }))}</span>`;
+}
+
+function getFilteredBrowserTabs() {
+  const query = browserTabSearch.trim().toLowerCase();
+  if (!query) {
+    return browserTabItems;
+  }
+
+  return browserTabItems.filter((item) => {
+    const title = String(item.title || "").toLowerCase();
+    const url = String(item.url || "").toLowerCase();
+    return title.includes(query) || url.includes(query);
+  });
+}
+
+async function loadBrowserTabs() {
+  browserTabLoading = true;
+  browserTabPickerOpen = true;
+  renderShell();
+
+  try {
+    const result = await runtimeMessage({ type: "browser:list-tabs" });
+    if (!result?.ok) {
+      throw new Error(result?.error || tl("loadingBrowserTabs"));
+    }
+
+    browserTabItems = Array.isArray(result.tabs) ? result.tabs : [];
+  } finally {
+    browserTabLoading = false;
+    renderShell();
+  }
+}
+
+async function applySelectedBrowserTabs() {
+  if (!browserTabSelections.length) {
+    setStatus(tl("browserTabsSelectionEmpty"));
+    return;
+  }
+
+  if (browserTabSelections.length > MAX_ATTACHED_BROWSER_TABS) {
+    setStatus(tl("browserTabsLimitReached"));
+    return;
+  }
+
+  const result = await runtimeMessage({
+    type: "browser:get-tab-contexts",
+    tabIds: browserTabSelections,
+  });
+
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("browserTabsSelectionEmpty"));
+  }
+
+  attachedBrowserTabs = (Array.isArray(result.tabs) ? result.tabs : [])
+    .slice(0, MAX_ATTACHED_BROWSER_TABS)
+    .map((item) => ({
+      id: Number(item.id),
+      title: String(item.title || item.context?.title || item.url || "Untitled tab"),
+      url: String(item.url || item.context?.url || ""),
+      context: item.context || {},
+      contextAvailable: item.contextAvailable !== false,
+    }));
+
+  if (!attachedBrowserTabs.length) {
+    throw new Error(tl("noAvailableBrowserTabs"));
+  }
+
+  browserTabSelections = attachedBrowserTabs.map((item) => item.id);
+  browserTabPickerOpen = false;
+  renderShell();
+  setStatus(attachedBrowserTabs.some((item) => item.contextAvailable === false) ? tl("browserTabsPartialContext") : tl("browserTabsSelectionSaved"));
 }
 
 async function downloadConversationMarkdown() {
@@ -3983,6 +4902,29 @@ async function downloadConversationMarkdown() {
   }
 
   throw new Error(result?.error || tl("exportMarkdownFailed"));
+}
+
+async function downloadMessageHtml(messageId) {
+  const message = chatMessages.find((item) => String(item.id) === String(messageId));
+  if (!message) {
+    throw new Error(tl("messageNotFound"));
+  }
+
+  const html = await repairHtmlImagesForDownload(extractHtmlDocumentFromText(message.content));
+  if (!html) {
+    throw new Error(tl("noHtmlToExport"));
+  }
+
+  const snapshot = buildConversationSnapshot();
+  const filename = buildConversationExportFilename(
+    {
+      ...snapshot,
+      savedAt: new Date().toISOString(),
+    },
+    "html"
+  );
+  downloadTextBlob(filename, html, "text/html;charset=utf-8");
+  setStatus(tl("htmlDownloaded", { file: filename }));
 }
 
 function scheduleConversationSave() {
@@ -4149,12 +5091,7 @@ function getLocalDocumentSummary() {
     return `<span class="ollama-quick-include-text">${escapeHtml(tl("noLocalDocument"))}</span>`;
   }
 
-  return docs
-    .map((item) => `
-      <span class="ollama-quick-include-badge is-file">${escapeHtml(tl("localFolderBadge"))}</span>
-      <span class="ollama-quick-include-text">${escapeHtml(item.name)}</span>
-    `)
-    .join("");
+  return `<span class="ollama-quick-include-text">${escapeHtml(tl("attachedDocumentsCount", { count: docs.length }))}</span>`;
 }
 
 async function loadLocalDocumentFiles(pathOverride = localDocumentBrowsePath) {
@@ -4777,16 +5714,20 @@ function renderMessages() {
               </div>
             `
             : message.role === "assistant"
-            ? renderMarkdown(message.content)
+            ? renderMarkdown(message.content, { messageId: message.id })
             : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>`;
         const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
+        const hasDraftCodeBlock = message.role === "assistant" && !isTypingAssistant ? hasStarterDraftCodeBlock(message) : false;
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
-        const showSaveStarterButton = parsedStarterDrafts.length || (
-          message.role === "assistant" &&
-          !isTypingAssistant &&
-          (
-            looksLikeStarterDraftText(message.content) ||
-            (previousUserMessage && isStarterBuilderRequest(previousUserMessage.content))
+        const downloadableHtml = message.role === "assistant" && !isTypingAssistant ? extractHtmlDocumentFromText(message.content) : "";
+        const showSaveStarterButton = !hasDraftCodeBlock && (
+          parsedStarterDrafts.length || (
+            message.role === "assistant" &&
+            !isTypingAssistant &&
+            (
+              looksLikeStarterDraftText(message.content) ||
+              (previousUserMessage && isStarterBuilderRequest(previousUserMessage.content))
+            )
           )
         );
         const actionButtons = [];
@@ -4797,6 +5738,11 @@ function renderMessages() {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
+          if (downloadableHtml) {
+            actionButtons.unshift(
+              `<button class="ollama-quick-message-action-icon is-text-label" type="button" data-action="download-message-html" data-message-id="${message.id}" title="${escapeHtml(tl("downloadHtml"))}" aria-label="${escapeHtml(tl("downloadHtml"))}">HTML</button>`
+            );
+          }
           if (isLatestAssistantMessage) {
             actionButtons.unshift(
               `<button class="ollama-quick-message-action-icon" type="button" data-action="download-chat-markdown" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>`
@@ -4877,7 +5823,9 @@ function renderShell() {
   const existingPrompt = host.querySelector("[data-role='prompt']");
   const promptDraft = existingPrompt instanceof HTMLTextAreaElement ? existingPrompt.value : "";
   syncHostState(host);
+  syncHostScale(host);
   currentPageCopilot = detectPageCopilot();
+  const startersExpanded = areStartersExpanded || isPanelMaximized;
   const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
   const showTaskInbox = isTaskInboxVisible(currentPageCopilot);
   const showDetachedTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
@@ -4896,10 +5844,11 @@ function renderShell() {
     : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`;
 
   host.innerHTML = `
-    <button class="ollama-quick-launcher" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("openQuickChat"))}" title="${escapeHtml(tl("openQuickChat"))}">
-      <span class="ollama-quick-launcher-core"></span>
-    </button>
-    <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""} ${isPanelMaximized ? "is-maximized" : ""} ${showDetachedTaskRail ? "has-task-rail" : ""}" data-role="panel">
+    <div class="ollama-quick-shell">
+      <button class="ollama-quick-launcher" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("openQuickChat"))}" title="${escapeHtml(tl("openQuickChat"))}">
+        <span class="ollama-quick-launcher-core"></span>
+      </button>
+      <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""} ${isPanelMaximized ? "is-maximized" : ""} ${showDetachedTaskRail ? "has-task-rail" : ""}" data-role="panel">
       <header class="ollama-quick-header">
         <div class="ollama-quick-header-main">
           <div class="ollama-quick-eyebrow">${escapeHtml(tl("quickAccess"))}</div>
@@ -4958,6 +5907,11 @@ function renderShell() {
             </label>
           </div>
           <div class="ollama-quick-include-panel">
+            <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-browser-tab-picker">${escapeHtml(attachedBrowserTabs.length ? tl("changeBrowserTabs") : tl("addBrowserTabs"))}</button>
+            <div class="ollama-quick-include-summary">${getBrowserTabSummary()}</div>
+            ${attachedBrowserTabs.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-browser-tabs" aria-label="${escapeHtml(tl("clearBrowserTabs"))}" title="${escapeHtml(tl("clearBrowserTabs"))}">×</button>` : ""}
+          </div>
+          <div class="ollama-quick-include-panel">
             <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
             <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
             ${localDocuments.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-local-documents" aria-label="${escapeHtml(tl("clearLocalDocuments"))}" title="${escapeHtml(tl("clearLocalDocuments"))}">×</button>` : ""}
@@ -4969,7 +5923,7 @@ function renderShell() {
               ${includedGithubSources.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-include-source" aria-label="${escapeHtml(tl("clearIncludedSource"))}" title="${escapeHtml(tl("clearIncludedSource"))}">×</button>` : ""}
             </div>
           ` : ""}
-          <div class="ollama-quick-starters-panel ${areStartersExpanded ? "is-expanded" : ""}">
+          <div class="ollama-quick-starters-panel ${startersExpanded ? "is-expanded" : ""}">
             <div class="ollama-quick-starters-head">
               <div class="ollama-quick-starters-meta">
                 <div class="ollama-quick-starters-label">${escapeHtml(tl("starterTools"))}</div>
@@ -4984,7 +5938,7 @@ function renderShell() {
                   </span>
                 </div>
               </div>
-              <button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${areStartersExpanded ? "true" : "false"}">${escapeHtml(areStartersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>
+              ${isPanelMaximized ? "" : `<button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${startersExpanded ? "true" : "false"}">${escapeHtml(startersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>`}
             </div>
             <div class="ollama-quick-starters">
             ${activeStarterEntries.map((starter) => `<button class="ollama-quick-starter" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(starter.label)}</button>`).join("")}
@@ -4993,8 +5947,11 @@ function renderShell() {
         </aside>
       </div>
       ${showGithubIncludePanel ? renderIncludePicker() : ""}
+      ${renderBrowserTabPicker()}
       ${renderLocalDocumentPicker()}
-    </section>
+      ${renderCustomStarterBuilder()}
+      </section>
+    </div>
   `;
 
   host.onclick = handleClick;
@@ -5023,6 +5980,15 @@ function renderShell() {
   const prompt = host.querySelector("[data-role='prompt']");
   if (prompt instanceof HTMLTextAreaElement && promptDraft) {
     prompt.value = promptDraft;
+  }
+
+  if (customStarterBuilderOpen) {
+    const firstField = host.querySelector('[data-role="custom-starter-name"]');
+    if (firstField instanceof HTMLInputElement) {
+      window.requestAnimationFrame(() => {
+        firstField.focus();
+      });
+    }
   }
 }
 
@@ -5231,6 +6197,127 @@ function renderLocalDocumentPicker() {
           <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: localDocumentSelections.length }))}</div>
           <button class="ollama-quick-secondary" type="button" data-action="close-local-document-picker">${escapeHtml(tl("cancelSelection"))}</button>
           <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="local-picker-apply-selection">${escapeHtml(tl("addSelection"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderBrowserTabPicker() {
+  if (!browserTabPickerOpen) {
+    return "";
+  }
+
+  const tabs = getFilteredBrowserTabs();
+  const rows = tabs
+    .map((item) => {
+      const isSelected = browserTabSelections.includes(item.id);
+      return `
+        <button class="ollama-quick-picker-row ${isSelected ? "is-selected" : ""}" type="button" data-action="browser-tab-toggle" data-tab-id="${item.id}">
+          <span class="ollama-quick-picker-check ${isSelected ? "is-active" : ""}">${isSelected ? "✓" : ""}</span>
+          <span class="ollama-quick-picker-stack">
+            <span class="ollama-quick-picker-name">${escapeHtml(item.title || item.url || "Untitled tab")}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(item.url || "")}</span>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("addBrowserTabs"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("selectBrowserTabs"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-browser-tab-picker" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <input class="ollama-quick-picker-search" type="text" data-role="browser-tab-search" value="${escapeHtml(browserTabSearch)}" placeholder="${escapeHtml(tl("searchBrowserTabs"))}" />
+        <div class="ollama-quick-picker-list">
+          ${browserTabLoading ? `<div class="ollama-quick-github-empty">${escapeHtml(tl("loadingBrowserTabs"))}</div>` : rows || `<div class="ollama-quick-github-empty">${escapeHtml(tl("noAvailableBrowserTabs"))}</div>`}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: browserTabSelections.length }))}</div>
+          <button class="ollama-quick-secondary" type="button" data-action="close-browser-tab-picker">${escapeHtml(tl("cancelSelection"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="browser-tab-apply-selection">${escapeHtml(tl("addSelection"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderCustomStarterBuilder() {
+  if (!customStarterBuilderOpen) {
+    return "";
+  }
+
+  const draft = ensureCustomStarterBuilderDraft();
+  const scopeOptions = CUSTOM_STARTER_BUILDER_SCOPE_OPTIONS
+    .map((scope) => {
+      const checked = draft.scopes.includes(scope) ? "checked" : "";
+      return `
+        <label class="ollama-quick-custom-starter-scope">
+          <input type="checkbox" data-role="custom-starter-scope" value="${escapeHtml(scope)}" ${checked} />
+          <span>${escapeHtml(getCustomStarterBuilderScopeLabel(scope))}</span>
+        </label>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-custom-starter-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("customStarterBuilderTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("customStarterBuilderHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-custom-starter-builder" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form">
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderName"))}</span>
+            <input class="ollama-quick-picker-search" type="text" data-role="custom-starter-name" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderName"))}" />
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderPurpose"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-purpose" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderPurpose"))}">${escapeHtml(draft.purpose)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderScopes"))}</span>
+            <div class="ollama-quick-custom-starter-scopes">${scopeOptions}</div>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderOutput"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-output" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderOutput"))}">${escapeHtml(draft.output)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderStyle"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-style" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderStyle"))}">${escapeHtml(draft.style)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderImages"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-images" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderImages"))}">${escapeHtml(draft.images)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderCharts"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-charts" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderCharts"))}">${escapeHtml(draft.charts)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderAvoid"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-avoid" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderAvoid"))}">${escapeHtml(draft.avoid)}</textarea>
+          </label>
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("customStarterBuilderNotes"))}</span>
+            <textarea class="ollama-quick-custom-starter-textarea" data-role="custom-starter-notes" placeholder="${escapeHtml(tl("customStarterBuilderPlaceholderNotes"))}">${escapeHtml(draft.notes)}</textarea>
+          </label>
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-custom-starter-builder">${escapeHtml(tl("cancelSelection"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="send-custom-starter-to-ai">${escapeHtml(tl("customStarterBuilderSend"))}</button>
         </div>
       </section>
     </div>
@@ -5556,6 +6643,7 @@ async function handleClick(event) {
     localDocumentSearch = "";
     localDocumentSelections = getLocalWorkFolderAttachedDocuments().map((item) => item.path).filter(Boolean);
     includePickerOpen = false;
+    browserTabPickerOpen = false;
     try {
       await loadLocalDocumentFiles("");
     } catch (error) {
@@ -5584,11 +6672,51 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "open-browser-tab-picker") {
+    includePickerOpen = false;
+    localDocumentPickerOpen = false;
+    browserTabPickerOpen = true;
+    browserTabSearch = "";
+    browserTabSelections = attachedBrowserTabs.map((item) => item.id).filter((value) => Number.isFinite(Number(value)));
+    loadBrowserTabs().catch((error) => {
+      browserTabPickerOpen = false;
+      renderShell();
+      setStatus(error instanceof Error ? error.message : String(error));
+    });
+    return;
+  }
+
+  if (action === "close-browser-tab-picker") {
+    browserTabPickerOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "clear-browser-tabs") {
+    if (!window.confirm(tl("confirmClearBrowserTabs"))) {
+      return;
+    }
+    attachedBrowserTabs = [];
+    browserTabSelections = [];
+    renderShell();
+    setStatus(tl("browserTabsSelectionSaved"));
+    return;
+  }
+
   if (action === "download-chat-markdown") {
     try {
       await downloadConversationMarkdown();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : tl("exportMarkdownFailed"));
+    }
+    return;
+  }
+
+  if (action === "download-message-html") {
+    try {
+      await downloadMessageHtml(actionNode.dataset.messageId || "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : tl("exportHtmlFailed"));
     }
     return;
   }
@@ -5603,6 +6731,7 @@ async function handleClick(event) {
     if (!isGithubAdapterActive()) {
       return;
     }
+    browserTabPickerOpen = false;
     localDocumentPickerOpen = false;
     includePickerOpen = true;
     includePickerStep = "repos";
@@ -5621,6 +6750,37 @@ async function handleClick(event) {
   if (action === "close-include-picker") {
     includePickerOpen = false;
     renderShell();
+    return;
+  }
+
+  if (action === "browser-tab-toggle") {
+    const tabId = Number.parseInt(String(actionNode.dataset.tabId || ""), 10);
+    if (!Number.isFinite(tabId)) {
+      return;
+    }
+
+    if (browserTabSelections.includes(tabId)) {
+      browserTabSelections = browserTabSelections.filter((value) => value !== tabId);
+      renderShell();
+      return;
+    }
+
+    if (browserTabSelections.length >= MAX_ATTACHED_BROWSER_TABS) {
+      setStatus(tl("browserTabsLimitReached"));
+      return;
+    }
+
+    browserTabSelections = [...browserTabSelections, tabId];
+    renderShell();
+    return;
+  }
+
+  if (action === "browser-tab-apply-selection") {
+    try {
+      await applySelectedBrowserTabs();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
     return;
   }
 
@@ -5861,10 +7021,54 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.id === "builtin:createCustomStarter") {
+      customStarterBuilderOpen = true;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      if (!customStarterBuilderDraft.name && !customStarterBuilderDraft.purpose) {
+        customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
+      }
+      renderShell();
+      return;
+    }
+
     composeMode = starter.composeMode;
     prompt.value = starter.prompt;
     prompt.focus();
     setStatus(starter.composeMode === "perspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter: starter.label }));
+    return;
+  }
+
+  if (action === "close-custom-starter-builder") {
+    customStarterBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "send-custom-starter-to-ai") {
+    const draft = ensureCustomStarterBuilderDraft();
+    if (!draft.name.trim() || !draft.purpose.trim()) {
+      setStatus(tl("customStarterBuilderFillMore"));
+      return;
+    }
+
+    const prompt = ensureHost().querySelector("[data-role='prompt']");
+    if (!(prompt instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    composeMode = "chat";
+    prompt.value = buildCustomStarterBuilderPrompt();
+    customStarterBuilderOpen = false;
+    prompt.focus();
+    renderShell();
+    const nextPrompt = ensureHost().querySelector("[data-role='prompt']");
+    if (nextPrompt instanceof HTMLTextAreaElement) {
+      nextPrompt.value = buildCustomStarterBuilderPrompt();
+      nextPrompt.focus();
+    }
+    setStatus(tl("customStarterBuilderPromptReady"));
     return;
   }
 
@@ -5937,6 +7141,36 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "save-generated-starter-code-block") {
+    const messageId = actionNode.dataset.messageId || "";
+    const codeBlockIndex = Number.parseInt(actionNode.dataset.codeBlockIndex || "-1", 10);
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const startersToSave = Number.isInteger(codeBlockIndex) && codeBlockIndex >= 0
+      ? getStarterDraftsForCodeBlock(message, codeBlockIndex)
+      : [];
+    if (!startersToSave.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    try {
+      await persistGeneratedStarters(startersToSave);
+      setStatus(
+        startersToSave.length === 1
+          ? tl("starterSaved", { name: startersToSave[0].label })
+          : tl("startersSaved", { count: startersToSave.length })
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
   if (action === "clear-chat") {
     if (!window.confirm(tl("confirmClearChat"))) {
       return;
@@ -5978,6 +7212,19 @@ async function handleClick(event) {
 
 async function handleChange(event) {
   const target = event.target;
+  if (target instanceof HTMLInputElement && target.dataset.role === "custom-starter-scope") {
+    const scope = String(target.value || "").trim();
+    const draft = ensureCustomStarterBuilderDraft();
+    if (!scope) {
+      return;
+    }
+
+    draft.scopes = target.checked
+      ? [...new Set([...draft.scopes, scope])]
+      : draft.scopes.filter((item) => item !== scope);
+    return;
+  }
+
   if (target instanceof HTMLSelectElement && target.dataset.role === "model-select") {
     const result = await runtimeMessage({ type: "ollama:select-model", model: target.value });
     if (result?.ok) {
@@ -6013,6 +7260,52 @@ async function handleChange(event) {
 
 function handleInput(event) {
   const target = event.target;
+  if (target instanceof HTMLInputElement && target.dataset.role === "custom-starter-name") {
+    ensureCustomStarterBuilderDraft().name = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-purpose") {
+    ensureCustomStarterBuilderDraft().purpose = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-output") {
+    ensureCustomStarterBuilderDraft().output = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-style") {
+    ensureCustomStarterBuilderDraft().style = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-images") {
+    ensureCustomStarterBuilderDraft().images = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-charts") {
+    ensureCustomStarterBuilderDraft().charts = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-avoid") {
+    ensureCustomStarterBuilderDraft().avoid = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-notes") {
+    ensureCustomStarterBuilderDraft().notes = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "browser-tab-search") {
+    browserTabSearch = target.value;
+    renderShell();
+    return;
+  }
+
   if (target instanceof HTMLInputElement && target.dataset.role === "local-document-search") {
     localDocumentSearch = target.value;
     renderShell();
@@ -6412,6 +7705,20 @@ window.addEventListener("message", (event) => {
   } catch (_error) {
     // Ignore frames that cannot reply to the top window.
   }
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "edge-ai-chat:get-page-context") {
+    return false;
+  }
+
+  if (!IS_TOP_FRAME) {
+    sendResponse({ ok: false, error: "Context is only available from the top frame." });
+    return false;
+  }
+
+  sendResponse({ ok: true, context: getPageContext(true) });
+  return false;
 });
 
 if (IS_TOP_FRAME) {

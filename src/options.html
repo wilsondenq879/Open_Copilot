@@ -214,33 +214,77 @@
             </div>
             <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
           </div>
-          <div class="side-stack">
-            <label class="field">
-              <span id="systemPromptLabel">System Prompt</span>
-              <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
-            </label>
-            <label class="field">
-              <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
-              <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
+          <div class="utility-tabs" role="tablist" aria-label="Settings workspace tabs">
+            <button id="tabExperience" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-experience" data-utility-tab="experience">Experience</button>
+            <button id="tabStarterSkills" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-starter-skills" data-utility-tab="starterSkills">Starter Skills</button>
+          </div>
+
+          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
+            <div class="side-stack">
+              <label class="field">
+                <span id="systemPromptLabel">System Prompt</span>
+                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
+              </label>
+              <label class="field">
+                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
+                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
 Skeptic|Challenge assumptions, missing evidence, and weak points.
 Action Advisor|Recommend practical next steps and decisions."></textarea>
-            </label>
-            <div class="field">
-              <span id="customStartersLabel">Custom Starters</span>
-              <label class="field starter-json-field">
-                <span id="customStartersInputLabel">Paste Starter JSON</span>
-                <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
               </label>
-              <div class="actions settings-inline-actions">
-                <button id="createStartersButton" class="secondary-button" type="button">Create</button>
-                <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
-              </div>
-              <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
             </div>
-          </div>
-          <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
-          <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
-          <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
+            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
+          </section>
+
+          <section id="panel-starter-skills" class="utility-panel starter-library-panel" role="tabpanel" hidden>
+            <div class="starter-library-hero">
+              <div class="starter-library-copy">
+                <span id="starterLibraryKicker" class="section-kicker">Starter Skills</span>
+                <h3 id="starterLibraryTitle">Starter Skill Library</h3>
+                <p id="starterLibraryDescription">Store reusable custom starter skills here. Import new JSON, update an existing skill by ID, and keep a strong library ready for the in-page chat panel.</p>
+              </div>
+              <div class="starter-library-metrics" aria-hidden="true">
+                <article class="starter-library-metric">
+                  <span id="starterLibraryStoredLabel" class="starter-library-metric-label">Stored</span>
+                  <strong id="customStartersCount" class="starter-library-metric-value">0 / 20</strong>
+                </article>
+                <article class="starter-library-metric">
+                  <span id="starterLibraryCapacityLabel" class="starter-library-metric-label">Capacity</span>
+                  <strong id="starterLibraryCapacityValue" class="starter-library-metric-value">20</strong>
+                </article>
+              </div>
+            </div>
+
+            <div class="starter-studio-shell">
+              <section class="starter-studio-intake">
+                <div class="starter-studio-head">
+                  <div>
+                    <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
+                    <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+                  </div>
+                  <span id="starterLibraryLimitHint" class="starter-library-limit">Up to 20 starter skills</span>
+                </div>
+                <label class="field starter-json-field">
+                  <span id="customStartersInputLabel">Paste Starter JSON</span>
+                  <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+                </label>
+                <div class="actions settings-inline-actions starter-studio-actions">
+                  <button id="createStartersButton" class="primary-button" type="button">Create</button>
+                  <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
+                </div>
+              </section>
+
+              <section class="starter-studio-library">
+                <div class="starter-studio-library-head">
+                  <div>
+                    <div id="starterLibraryGridTitle" class="starter-studio-title">Starter Skill Collection</div>
+                    <p id="starterLibraryGridDescription" class="field-hint">Each skill stays available to the quick chat panel and can be updated or removed here.</p>
+                  </div>
+                </div>
+                <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
+              </section>
+            </div>
+          </section>
         </section>
       </section>
 

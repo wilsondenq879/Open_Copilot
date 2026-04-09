@@ -6,11 +6,13 @@
   "permissions": [
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "tabs"
   ],
   "host_permissions": [
     "http://127.0.0.1:11434/*",
-    "https://api.github.com/*"
+    "https://api.github.com/*",
+    "https://commons.wikimedia.org/*"
   ],
   "background": {
     "service_worker": "src/background.js"
