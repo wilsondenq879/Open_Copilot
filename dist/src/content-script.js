@@ -5,6 +5,7 @@ const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
 const MAX_RECENT_GITHUB_FILES = 10;
+const MAX_GITHUB_VISIBLE_FILE_PATHS = 20;
 const MAX_ATTACHED_DOCUMENTS = 5;
 const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
 const LAUNCHER_DRAG_THRESHOLD_PX = 6;
@@ -3309,6 +3310,105 @@ function getGithubBlobDescriptor() {
   };
 }
 
+function extractGithubPathCandidates(value) {
+  const normalized = normalizeExtractedText(String(value || "").replace(/\u2192/g, " "));
+  if (!normalized) {
+    return [];
+  }
+
+  const matches = normalized.match(/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g) || [];
+  return matches
+    .map((item) => item.replace(/^\/+|\/+$/g, "").trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function getGithubVisibleFilePaths() {
+  const { hostname } = window.location;
+  if (hostname !== "github.com") {
+    return [];
+  }
+
+  const selectors = [
+    "[data-path]",
+    ".file-header",
+    ".js-file-header",
+    ".file-info",
+    "[data-testid='diff-view-file-header']",
+    "[data-testid='commit-file-header']",
+    "a[href*='#diff-']",
+  ];
+  const nodes = queryAllIncludingShadow(document, selectors, 120);
+  const visiblePaths = [];
+  const seen = new Set();
+
+  const appendCandidates = (value) => {
+    extractGithubPathCandidates(value).forEach((candidate) => {
+      const dedupeKey = candidate.toLowerCase();
+      if (seen.has(dedupeKey) || visiblePaths.length >= MAX_GITHUB_VISIBLE_FILE_PATHS) {
+        return;
+      }
+      seen.add(dedupeKey);
+      visiblePaths.push(candidate);
+    });
+  };
+
+  const blobDescriptor = getGithubBlobDescriptor();
+  if (blobDescriptor?.path) {
+    appendCandidates(blobDescriptor.path);
+  }
+
+  nodes.forEach((node) => {
+    if (!(node instanceof Element) || !isElementVisible(node) || visiblePaths.length >= MAX_GITHUB_VISIBLE_FILE_PATHS) {
+      return;
+    }
+
+    appendCandidates(node.getAttribute("data-path"));
+    appendCandidates(node.getAttribute("title"));
+    appendCandidates(node.getAttribute("aria-label"));
+    appendCandidates(getNodeVisibleText(node));
+  });
+
+  return visiblePaths;
+}
+
+function getGithubPageMetadataContext() {
+  if (!isGithubAdapterActive()) {
+    return "";
+  }
+
+  const repoDescriptor = getCurrentGithubRepoDescriptor();
+  const blobDescriptor = getGithubBlobDescriptor();
+  const visiblePaths = getGithubVisibleFilePaths();
+  const pathname = window.location.pathname;
+  let pageView = "Repository page";
+
+  if (/\/pull\/\d+\/files(?:$|[/?#])/.test(pathname)) {
+    pageView = "Pull request files changed";
+  } else if (/\/pull\/\d+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Pull request";
+  } else if (/\/commit\/[^/]+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Commit";
+  } else if (/\/compare\/[^/]+/.test(pathname)) {
+    pageView = "Compare";
+  } else if (/\/blob\/[^/]+/.test(pathname)) {
+    pageView = "Repository file";
+  } else if (/\/issues\/\d+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Issue";
+  }
+
+  return [
+    "CURRENT GITHUB PAGE",
+    repoDescriptor?.fullName ? `Repository: ${repoDescriptor.fullName}` : "",
+    `View: ${pageView}`,
+    blobDescriptor?.ref ? `Ref: ${blobDescriptor.ref}` : "",
+    blobDescriptor?.path ? `Current file: ${blobDescriptor.path}` : "",
+    visiblePaths.length ? `Visible file paths:\n${visiblePaths.map((path) => `- ${path}`).join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 async function getGithubFileContext() {
   const descriptor = getGithubBlobDescriptor();
   if (!descriptor) {
@@ -3523,6 +3623,7 @@ async function getAggregatedPageContext() {
 async function buildPrompt(userMessage) {
   const starterRequest = isStarterBuilderRequest(userMessage);
   const context = includePageContext ? await getAggregatedPageContext() : null;
+  const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubContext = await getSelectedGithubContext();
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const recommendedStarterScopes = getRecommendedStarterScopes(currentPageCopilot);
@@ -3582,6 +3683,7 @@ async function buildPrompt(userMessage) {
   return [
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
     contextBlock,
+    githubPageContext,
     githubContext,
     history ? `CHAT HISTORY\n\n${history}` : "",
     starterBuilderInstruction,

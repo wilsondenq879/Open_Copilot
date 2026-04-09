@@ -187,8 +187,21 @@
                     <option value="hi">हिन्दी</option>
                   </select>
                 </label>
+                <label class="field">
+                  <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
+                  <select id="taskExtractionWindowDays">
+                    <option value="1">1 day</option>
+                    <option value="2">2 days</option>
+                    <option value="3">3 days</option>
+                    <option value="4">4 days</option>
+                    <option value="5">5 days</option>
+                    <option value="6">6 days</option>
+                    <option value="7">7 days</option>
+                  </select>
+                </label>
               </div>
               <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
+              <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
             </div>
           </div>
         </article>

@@ -5,7 +5,11 @@ const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
 const MAX_RECENT_GITHUB_FILES = 10;
+const MAX_GITHUB_VISIBLE_FILE_PATHS = 20;
 const MAX_ATTACHED_DOCUMENTS = 5;
+const TASK_EXTRACTION_LIMIT = 8;
+const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
+const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
 const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
 const LAUNCHER_DRAG_THRESHOLD_PX = 6;
 const LAUNCHER_VIEWPORT_MARGIN_PX = 12;
@@ -120,6 +124,11 @@ let localDocumentItems = [];
 let localDocumentLoading = false;
 let localDocumentSearch = "";
 let localDocumentSelections = [];
+let extractedTaskCandidates = [];
+let savedTaskReminders = [];
+let isExtractingTasks = false;
+let taskInboxExpanded = false;
+let taskInboxView = "candidates";
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const IS_TOP_FRAME = (() => {
   try {
@@ -444,6 +453,51 @@ const CONTENT_I18N = {
     pageType_market: "股市頁",
     pageType_entertainment: "娛樂頁",
     pageType_generic: "一般頁",
+    taskInbox: "Task Inbox",
+    extractChatTasks: "抓取待辦",
+    extractingChatTasks: "正在從目前可見內容抓待辦...",
+    taskCandidates: "候選待辦",
+    savedTaskReminders: "已存提醒",
+    noTaskCandidates: "還沒有候選待辦。到支援的頁面後按「抓取待辦」。",
+    noSavedTaskReminders: "還沒有已儲存的提醒。",
+    taskInboxHint: "先從目前可見內容整理任務，再決定哪些要提醒。",
+    taskOwnerLabel: "Owner",
+    taskDueLabel: "Due",
+    taskReminderLabel: "提醒",
+    taskConfidenceLabel: "Confidence",
+    taskEvidenceLabel: "依據",
+    taskUnknown: "未明",
+    taskNotSet: "未設定",
+    taskSave: "儲存",
+    taskUpdate: "更新",
+    taskDelete: "刪除",
+    taskDone: "完成",
+    taskReopen: "重開",
+    taskDismiss: "略過",
+    taskSaved: "任務已儲存。",
+    taskUpdated: "任務提醒已更新。",
+    taskDeleted: "任務已刪除。",
+    taskExtractedCount: "已整理出 {count} 筆候選待辦。",
+    taskExtractModelRequired: "請先選擇 Ollama 模型，才能抓取待辦。",
+    taskExtractNoContext: "目前頁面沒有足夠的可見內容可供整理。",
+    taskExtractUnavailable: "這個頁面目前只能查看 task list。抓取待辦僅支援 Email、對談聊天、文件與 GitHub 協作頁。",
+    taskExtractDisabledHint: "此頁面暫不支援抓取",
+    taskExtractFailed: "抓取待辦失敗。",
+    taskConfirmDelete: "確定要刪除這筆任務提醒嗎？",
+    taskSourceTeams: "Teams",
+    taskSourceSlack: "Slack",
+    taskSourceDiscord: "Discord",
+    taskSourceChat: "聊天頁",
+    taskStatusOpen: "進行中",
+    taskStatusCompleted: "已完成",
+    taskInboxExpand: "查看",
+    taskInboxCollapse: "收合",
+    taskLoading: "正在整理目前可見內容，請稍候...",
+    taskReminderDate: "日期",
+    taskReminderTime: "時間",
+    taskViewCandidates: "新抓到",
+    taskViewSaved: "已存提醒",
+    openTaskInbox: "Task",
   },
   en: {
     quickAccess: "Quick Access",
@@ -723,6 +777,51 @@ const CONTENT_I18N = {
     pageType_market: "Market",
     pageType_entertainment: "Entertainment",
     pageType_generic: "General",
+    taskInbox: "Task Inbox",
+    extractChatTasks: "Extract Tasks",
+    extractingChatTasks: "Extracting tasks from the visible page...",
+    taskCandidates: "Candidates",
+    savedTaskReminders: "Saved reminders",
+    noTaskCandidates: "No task candidates yet. Open a supported page and extract tasks.",
+    noSavedTaskReminders: "No saved reminders yet.",
+    taskInboxHint: "Turn visible page content into tasks, then choose which ones should remind you.",
+    taskOwnerLabel: "Owner",
+    taskDueLabel: "Due",
+    taskReminderLabel: "Reminder",
+    taskConfidenceLabel: "Confidence",
+    taskEvidenceLabel: "Evidence",
+    taskUnknown: "Unknown",
+    taskNotSet: "Not set",
+    taskSave: "Save",
+    taskUpdate: "Update",
+    taskDelete: "Delete",
+    taskDone: "Done",
+    taskReopen: "Reopen",
+    taskDismiss: "Dismiss",
+    taskSaved: "Task saved.",
+    taskUpdated: "Task reminder updated.",
+    taskDeleted: "Task deleted.",
+    taskExtractedCount: "Extracted {count} task candidate(s).",
+    taskExtractModelRequired: "Select an Ollama model before extracting tasks.",
+    taskExtractNoContext: "There is not enough visible page content on this page.",
+    taskExtractUnavailable: "This page can still show the task list, but extraction is only enabled on email, chat, document, and GitHub collaboration pages.",
+    taskExtractDisabledHint: "Extraction is unavailable on this page",
+    taskExtractFailed: "Task extraction failed.",
+    taskConfirmDelete: "Delete this task reminder?",
+    taskSourceTeams: "Teams",
+    taskSourceSlack: "Slack",
+    taskSourceDiscord: "Discord",
+    taskSourceChat: "Chat page",
+    taskStatusOpen: "Open",
+    taskStatusCompleted: "Completed",
+    taskInboxExpand: "Open",
+    taskInboxCollapse: "Collapse",
+    taskLoading: "Extracting tasks from the visible page...",
+    taskReminderDate: "Date",
+    taskReminderTime: "Time",
+    taskViewCandidates: "New",
+    taskViewSaved: "Saved",
+    openTaskInbox: "Tasks",
   },
 };
 CONTENT_I18N.ja = { ...CONTENT_I18N.en, quickAccess: "クイックアクセス", liveChat: "Ollama ライブチャット", clear: "クリア", context: "このページをコンテキストとして使う", ready: "準備完了。", empty: "このページや選択テキスト、または他の内容について質問してください。", copy: "コピー", dropzone: "画像またはテキストファイルをここにドロップして添付", uploadFile: "ファイルをアップロード", promptPlaceholder: "このページについて Ollama に質問...", openQuickChat: "Ollama クイックチャットを開く", collapse: "折りたたむ", useSelection: "選択内容を使用", clearChat: "チャットをクリア", openSettings: "設定を開く", noSelectedText: "このページで選択されたテキストがありません。", insertedSelection: "現在の選択内容を入力欄に入れました。", removedAttachment: "添付を削除しました。", starterReady: "テンプレートを入力しました: {starter}", chatCleared: "チャットをクリアしました。", messageNotFound: "メッセージが見つかりません。", copiedResponse: "回答をコピーしました。", copyFailed: "コピーに失敗しました。クリップボード権限がブロックされている可能性があります。", modelSelected: "使用中のモデル: {model}", modelSelectFailed: "モデルの選択に失敗しました。", pageContextEnabled: "ページコンテキストを有効にしました。", pageContextDisabled: "ページコンテキストを無効にしました。", filesUnsupported: "画像とテキストファイル（.txt、.md、.json、.csv）のみ対応しています。", imagesOnly: "画像ファイルのみ対応しています。", attachedImagesVisionWarning: "{count} 枚の画像を添付しました。現在のモデルは視覚に対応していない可能性があります。", attachedImages: "{count} 枚の画像を添付しました。", attachedFiles: "{items} を添付しました。", pastedImage: "クリップボードから画像を貼り付けました。", typePromptOrAttach: "質問を入力するか、画像 / テキストファイルを添付してください。", pickModelFirst: "先に Ollama モデルを選択してください。", sendingVisionWarning: "{model} で {count} 枚の画像を送信します。画像を拒否する場合は視覚対応モデルに切り替えてください。", preparingRequest: "{model} のリクエストを準備中...", waitingForModel: "{model}{details} を待機中...", waitingWith: "（{items} 付き）", doneWithModel: "{model} が完了しました。", analyzeTextFile: "添付されたテキストファイルを分析してください。", analyzeImage: "添付された画像を分析してください。", attachedFileLabel: "FILE", runningModel: "{model} を実行中...", usingModel: "使用中のモデル: {model}", pickModelToStart: "開始するにはモデルを選択してください。", starter_pageSummary: "ページ内容を要約", starter_translatePage: "ページを{language}に翻訳", starter_reflectionArticle: "ページ内容をもとに感想文を作成", starter_codeExplain: "code 内容をわかりやすく解説", starter_imageAnalysis: "画像を分析", starter_imageAnalysisMarkdown: "画像分析を md/mermaid で出力", translationPrompt: "このページを{language}に翻訳してください。", reflectionArticlePrompt: "このページの内容をもとに感想文を書いてください。最初に要点を短く整理し、その後に自然で自分の視点がある語り口で、学び、気づき、広げられる考えを書いてください。回答は{language}で、原文の言い換えだけにはしないでください。"};
@@ -3025,6 +3124,13 @@ function handleViewportResize() {
     return;
   }
 
+  if (isPanelMaximized && window.innerWidth < TASK_RAIL_MIN_VIEWPORT_WIDTH_PX) {
+    isPanelMaximized = false;
+    taskInboxExpanded = false;
+    renderShell();
+    return;
+  }
+
   if (launcherPosition) {
     const nextPosition = clampLauncherPosition(launcherPosition, host);
     if (nextPosition.x !== launcherPosition.x || nextPosition.y !== launcherPosition.y) {
@@ -3309,6 +3415,105 @@ function getGithubBlobDescriptor() {
   };
 }
 
+function extractGithubPathCandidates(value) {
+  const normalized = normalizeExtractedText(String(value || "").replace(/\u2192/g, " "));
+  if (!normalized) {
+    return [];
+  }
+
+  const matches = normalized.match(/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g) || [];
+  return matches
+    .map((item) => item.replace(/^\/+|\/+$/g, "").trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function getGithubVisibleFilePaths() {
+  const { hostname } = window.location;
+  if (hostname !== "github.com") {
+    return [];
+  }
+
+  const selectors = [
+    "[data-path]",
+    ".file-header",
+    ".js-file-header",
+    ".file-info",
+    "[data-testid='diff-view-file-header']",
+    "[data-testid='commit-file-header']",
+    "a[href*='#diff-']",
+  ];
+  const nodes = queryAllIncludingShadow(document, selectors, 120);
+  const visiblePaths = [];
+  const seen = new Set();
+
+  const appendCandidates = (value) => {
+    extractGithubPathCandidates(value).forEach((candidate) => {
+      const dedupeKey = candidate.toLowerCase();
+      if (seen.has(dedupeKey) || visiblePaths.length >= MAX_GITHUB_VISIBLE_FILE_PATHS) {
+        return;
+      }
+      seen.add(dedupeKey);
+      visiblePaths.push(candidate);
+    });
+  };
+
+  const blobDescriptor = getGithubBlobDescriptor();
+  if (blobDescriptor?.path) {
+    appendCandidates(blobDescriptor.path);
+  }
+
+  nodes.forEach((node) => {
+    if (!(node instanceof Element) || !isElementVisible(node) || visiblePaths.length >= MAX_GITHUB_VISIBLE_FILE_PATHS) {
+      return;
+    }
+
+    appendCandidates(node.getAttribute("data-path"));
+    appendCandidates(node.getAttribute("title"));
+    appendCandidates(node.getAttribute("aria-label"));
+    appendCandidates(getNodeVisibleText(node));
+  });
+
+  return visiblePaths;
+}
+
+function getGithubPageMetadataContext() {
+  if (!isGithubAdapterActive()) {
+    return "";
+  }
+
+  const repoDescriptor = getCurrentGithubRepoDescriptor();
+  const blobDescriptor = getGithubBlobDescriptor();
+  const visiblePaths = getGithubVisibleFilePaths();
+  const pathname = window.location.pathname;
+  let pageView = "Repository page";
+
+  if (/\/pull\/\d+\/files(?:$|[/?#])/.test(pathname)) {
+    pageView = "Pull request files changed";
+  } else if (/\/pull\/\d+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Pull request";
+  } else if (/\/commit\/[^/]+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Commit";
+  } else if (/\/compare\/[^/]+/.test(pathname)) {
+    pageView = "Compare";
+  } else if (/\/blob\/[^/]+/.test(pathname)) {
+    pageView = "Repository file";
+  } else if (/\/issues\/\d+(?:$|[/?#])/.test(pathname)) {
+    pageView = "Issue";
+  }
+
+  return [
+    "CURRENT GITHUB PAGE",
+    repoDescriptor?.fullName ? `Repository: ${repoDescriptor.fullName}` : "",
+    `View: ${pageView}`,
+    blobDescriptor?.ref ? `Ref: ${blobDescriptor.ref}` : "",
+    blobDescriptor?.path ? `Current file: ${blobDescriptor.path}` : "",
+    visiblePaths.length ? `Visible file paths:\n${visiblePaths.map((path) => `- ${path}`).join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 async function getGithubFileContext() {
   const descriptor = getGithubBlobDescriptor();
   if (!descriptor) {
@@ -3523,6 +3728,7 @@ async function getAggregatedPageContext() {
 async function buildPrompt(userMessage) {
   const starterRequest = isStarterBuilderRequest(userMessage);
   const context = includePageContext ? await getAggregatedPageContext() : null;
+  const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubContext = await getSelectedGithubContext();
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const recommendedStarterScopes = getRecommendedStarterScopes(currentPageCopilot);
@@ -3582,6 +3788,7 @@ async function buildPrompt(userMessage) {
   return [
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
     contextBlock,
+    githubPageContext,
     githubContext,
     history ? `CHAT HISTORY\n\n${history}` : "",
     starterBuilderInstruction,
@@ -4060,6 +4267,476 @@ async function attachClipboardItems(items) {
   return true;
 }
 
+function isTaskInboxVisible() {
+  return true;
+}
+
+function canExtractTasksFromCurrentPage(pageCopilot = currentPageCopilot) {
+  const adapterId = String(pageCopilot?.adapterId || "").trim().toLowerCase();
+  if (["collaboration", "email", "document", "github"].includes(adapterId)) {
+    return true;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  return isLikelyCollaborationHost() || isLikelyEmailHost(hostname) || hostname === "github.com";
+}
+
+function getTaskSourceAppLabel() {
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname.includes("teams.microsoft.com")) {
+    return tl("taskSourceTeams");
+  }
+  if (hostname.includes("slack.com")) {
+    return tl("taskSourceSlack");
+  }
+  if (hostname.includes("discord.com")) {
+    return tl("taskSourceDiscord");
+  }
+  return tl("taskSourceChat");
+}
+
+function normalizeTaskConfidence(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.includes("high") || normalized.includes("高")) {
+    return "high";
+  }
+  if (normalized.includes("medium") || normalized.includes("mid") || normalized.includes("中")) {
+    return "medium";
+  }
+  if (normalized.includes("low") || normalized.includes("低")) {
+    return "low";
+  }
+  return normalized;
+}
+
+function normalizeTaskIsoDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  const timestamp = Date.parse(raw);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+}
+
+function computeDefaultTaskReminderAt(dueAt) {
+  const dueTimestamp = Date.parse(dueAt || "");
+  if (!Number.isFinite(dueTimestamp) || dueTimestamp <= Date.now()) {
+    return "";
+  }
+
+  const reminderTimestamp = dueTimestamp - TASK_REMINDER_LEAD_TIME_MS;
+  return new Date(Math.max(reminderTimestamp, Date.now() + 5 * 60 * 1000)).toISOString();
+}
+
+function normalizeTaskCandidate(item, index = 0) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+
+  const title = normalizeExtractedText(item.title || item.issue || item.topic || item.task || "").slice(0, 180);
+  if (!title) {
+    return null;
+  }
+
+  const dueAt = normalizeTaskIsoDate(item.dueAt || item.due_at_iso || "");
+  const reminderAt = normalizeTaskIsoDate(item.reminderAt || item.reminder_at_iso || "") || computeDefaultTaskReminderAt(dueAt);
+
+  return {
+    id: String(item.id || `candidate-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`),
+    title,
+    summary: normalizeExtractedText(item.summary || item.details || item.task || "").slice(0, 500),
+    owner: normalizeExtractedText(item.owner || "").slice(0, 120),
+    dueAt,
+    dueText: normalizeExtractedText(item.dueText || item.due_text || "").slice(0, 160),
+    reminderAt,
+    confidence: normalizeTaskConfidence(item.confidence),
+    evidence: normalizeExtractedText(item.evidence || item.messageEvidence || item.status || "").slice(0, 400),
+    sourceUrl: window.location.href,
+    sourceTitle: document.title || "",
+    sourceApp: getTaskSourceAppLabel(),
+    status: "open",
+  };
+}
+
+function extractJsonPayload(text) {
+  const raw = String(text || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch ? fencedMatch[1].trim() : raw;
+
+  const parseAttempts = [candidate];
+  const arrayStart = candidate.indexOf("[");
+  const objectStart = candidate.indexOf("{");
+  const startIndex = [arrayStart, objectStart].filter((value) => value >= 0).sort((left, right) => left - right)[0];
+  if (startIndex >= 0) {
+    const firstChar = candidate[startIndex];
+    const endIndex = firstChar === "[" ? candidate.lastIndexOf("]") : candidate.lastIndexOf("}");
+    if (endIndex > startIndex) {
+      parseAttempts.push(candidate.slice(startIndex, endIndex + 1));
+    }
+  }
+
+  for (const attempt of parseAttempts) {
+    try {
+      return JSON.parse(attempt);
+    } catch (_error) {
+      // Try the next extraction window.
+    }
+  }
+
+  return null;
+}
+
+function parseTaskCandidatesFromResponse(text) {
+  const payload = extractJsonPayload(text);
+  const rawItems = Array.isArray(payload) ? payload : Array.isArray(payload?.tasks) ? payload.tasks : Array.isArray(payload?.items) ? payload.items : [];
+  return rawItems
+    .map((item, index) => normalizeTaskCandidate(item, index))
+    .filter(Boolean)
+    .slice(0, TASK_EXTRACTION_LIMIT);
+}
+
+function normalizeTaskDedupeValue(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getTaskDedupeKeys(task) {
+  const keys = [
+    normalizeTaskDedupeValue(task?.title),
+    normalizeTaskDedupeValue([task?.title, task?.summary].filter(Boolean).join(" ")),
+  ].filter(Boolean);
+  return keys.filter((key, index) => keys.indexOf(key) === index);
+}
+
+function filterOutSavedTaskDuplicates(tasks) {
+  const savedKeys = new Set(
+    savedTaskReminders
+      .flatMap((task) => getTaskDedupeKeys(task))
+      .filter(Boolean)
+  );
+
+  return tasks.filter((task) => {
+    const taskKeys = getTaskDedupeKeys(task);
+    return !taskKeys.some((key) => savedKeys.has(key));
+  });
+}
+
+function formatTaskDateTime(value) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) {
+    return tl("taskNotSet");
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
+}
+
+function formatTaskDueLabel(task) {
+  if (task?.dueAt) {
+    return formatTaskDateTime(task.dueAt);
+  }
+  if (task?.dueText) {
+    return task.dueText;
+  }
+  return tl("taskNotSet");
+}
+
+function toDateTimeLocalValue(value) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function toDateInputValue(value) {
+  const dateTime = toDateTimeLocalValue(value);
+  return dateTime ? dateTime.slice(0, 10) : "";
+}
+
+function toTimeInputValue(value) {
+  const dateTime = toDateTimeLocalValue(value);
+  return dateTime ? dateTime.slice(11, 16) : "";
+}
+
+function getTaskReminderInputIso(actionNode) {
+  const card = actionNode.closest("[data-task-card]");
+  const dateInput = card?.querySelector("[data-role='task-reminder-date']");
+  const timeInput = card?.querySelector("[data-role='task-reminder-time']");
+  if (!(dateInput instanceof HTMLInputElement) || !(timeInput instanceof HTMLInputElement)) {
+    return "";
+  }
+
+  const dateValue = dateInput.value.trim();
+  if (!dateValue) {
+    return "";
+  }
+
+  const timeValue = timeInput.value.trim() || "09:00";
+  const composed = `${dateValue}T${timeValue}`;
+  const timestamp = Date.parse(composed);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+}
+
+async function loadSavedTaskReminders() {
+  const result = await runtimeMessage({ type: "task:list" });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("taskExtractFailed"));
+  }
+
+  savedTaskReminders = Array.isArray(result.tasks) ? result.tasks : [];
+  return savedTaskReminders;
+}
+
+async function saveTaskReminderRecord(task) {
+  const result = await runtimeMessage({ type: "task:save", task });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("taskExtractFailed"));
+  }
+
+  savedTaskReminders = Array.isArray(result.tasks) ? result.tasks : savedTaskReminders;
+  return result.task;
+}
+
+async function deleteTaskReminderRecord(taskId) {
+  const result = await runtimeMessage({ type: "task:delete", taskId });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("taskExtractFailed"));
+  }
+
+  savedTaskReminders = Array.isArray(result.tasks) ? result.tasks : savedTaskReminders;
+}
+
+async function buildTaskExtractionPrompt() {
+  const context = await getAggregatedPageContext();
+  const visibleText = normalizeExtractedText(context?.pageText || "");
+  if (!visibleText) {
+    throw new Error(tl("taskExtractNoContext"));
+  }
+
+  const currentTime = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
+  const extractionWindowDays = Math.min(Math.max(Number.parseInt(String(currentConfig?.taskExtractionWindowDays || 3), 10) || 3, 1), 7);
+
+  return [
+    "You extract actionable follow-up tasks from visible page content such as email threads, collaboration chats, shared documents, and GitHub collaboration pages.",
+    "Return JSON only. Do not wrap the answer in Markdown code fences.",
+    `Current local datetime: ${currentTime.toISOString()}`,
+    `Current timezone: ${timezone}`,
+    `Configured extraction window: last ${extractionWindowDays} day(s), maximum 7 day(s).`,
+    `Response language target: ${getUiLanguage()}`,
+    "Focus on tasks that are assigned to me, delegated to me, or clearly need my follow-up.",
+    `Prioritize visible content from the last ${extractionWindowDays} day(s). If older content is visible, exclude it unless it is clearly still active and directly tied to a recent follow-up.`,
+    "Merge duplicate mentions from the same topic into one task.",
+    "Use due_at_iso only when the visible content makes the date/time explicit or strongly inferable from the current datetime. Otherwise leave due_at_iso empty and keep the human phrasing in due_text.",
+    "Use reminder_at_iso only if there is a clear reminder time. Otherwise leave it empty.",
+    `Limit the response to at most ${TASK_EXTRACTION_LIMIT} tasks.`,
+    'JSON schema: {"tasks":[{"title":"","summary":"","owner":"","due_text":"","due_at_iso":"","reminder_at_iso":"","confidence":"high|medium|low","evidence":""}]}',
+    `Page title: ${context.title || document.title || ""}`,
+    `Page URL: ${context.url || window.location.href}`,
+    context.selection ? `Selected text:\n${context.selection}` : "",
+    `Visible page text:\n${visibleText}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+async function extractTaskCandidatesFromChat() {
+  if (!currentConfig?.selectedModel) {
+    setStatus(tl("taskExtractModelRequired"));
+    return;
+  }
+
+  if (!canExtractTasksFromCurrentPage(currentPageCopilot)) {
+    setStatus(tl("taskExtractUnavailable"));
+    return;
+  }
+
+  if (isExtractingTasks) {
+    return;
+  }
+
+  isExtractingTasks = true;
+  taskInboxExpanded = false;
+  renderShell();
+  setStatus(tl("extractingChatTasks"));
+
+  try {
+    const prompt = await buildTaskExtractionPrompt();
+    const response = await runGenerate(prompt, currentConfig.selectedModel);
+    extractedTaskCandidates = filterOutSavedTaskDuplicates(parseTaskCandidatesFromResponse(response));
+    taskInboxView = "candidates";
+    taskInboxExpanded = false;
+    renderShell();
+    setStatus(tl("taskExtractedCount", { count: extractedTaskCandidates.length }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : tl("taskExtractFailed");
+    setStatus(message || tl("taskExtractFailed"));
+  } finally {
+    isExtractingTasks = false;
+    renderShell();
+  }
+}
+
+function renderTaskMetaRow(label, value) {
+  const content = value ? escapeHtml(value) : `<span class="ollama-quick-task-muted">${escapeHtml(tl("taskNotSet"))}</span>`;
+  return `
+    <div class="ollama-quick-task-meta-item">
+      <span class="ollama-quick-task-meta-label">${escapeHtml(label)}</span>
+      <span class="ollama-quick-task-meta-value">${content}</span>
+    </div>
+  `;
+}
+
+function renderTaskCandidateCard(task) {
+  return `
+    <article class="ollama-quick-task-card" data-task-card data-task-id="${escapeHtml(String(task.id))}">
+      <div class="ollama-quick-task-card-head">
+        <div class="ollama-quick-task-card-title">${escapeHtml(task.title)}</div>
+        ${task.confidence ? `<span class="ollama-quick-task-chip">${escapeHtml(task.confidence)}</span>` : ""}
+      </div>
+      ${task.summary ? `<div class="ollama-quick-task-card-summary">${escapeHtml(task.summary)}</div>` : ""}
+      <div class="ollama-quick-task-meta-grid">
+        ${renderTaskMetaRow(tl("taskOwnerLabel"), task.owner || tl("taskUnknown"))}
+        ${renderTaskMetaRow(tl("taskDueLabel"), formatTaskDueLabel(task))}
+      </div>
+      ${task.evidence ? `<div class="ollama-quick-task-evidence"><span class="ollama-quick-task-meta-label">${escapeHtml(tl("taskEvidenceLabel"))}</span><p>${escapeHtml(task.evidence)}</p></div>` : ""}
+      <div class="ollama-quick-task-reminder-field">
+        <span>${escapeHtml(tl("taskReminderLabel"))}</span>
+        <div class="ollama-quick-task-reminder-row">
+          <label class="ollama-quick-task-reminder-split">
+            <span>${escapeHtml(tl("taskReminderDate"))}</span>
+            <input class="ollama-quick-task-datetime" type="date" data-role="task-reminder-date" value="${escapeHtml(toDateInputValue(task.reminderAt))}" />
+          </label>
+          <label class="ollama-quick-task-reminder-split">
+            <span>${escapeHtml(tl("taskReminderTime"))}</span>
+            <input class="ollama-quick-task-datetime" type="time" step="300" data-role="task-reminder-time" value="${escapeHtml(toTimeInputValue(task.reminderAt) || "09:00")}" />
+          </label>
+        </div>
+      </div>
+      <div class="ollama-quick-task-actions-row">
+        <button class="ollama-quick-secondary" type="button" data-action="save-task-candidate" data-task-id="${escapeHtml(String(task.id))}">${escapeHtml(tl("taskSave"))}</button>
+        <button class="ollama-quick-icon-button" type="button" data-action="dismiss-task-candidate" data-task-id="${escapeHtml(String(task.id))}" aria-label="${escapeHtml(tl("taskDismiss"))}" title="${escapeHtml(tl("taskDismiss"))}">×</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderSavedTaskCard(task) {
+  const isCompleted = task.status === "completed";
+  return `
+    <article class="ollama-quick-task-card ${isCompleted ? "is-completed" : ""}" data-task-card data-task-id="${escapeHtml(String(task.id))}">
+      <div class="ollama-quick-task-card-head">
+        <div class="ollama-quick-task-card-title">${escapeHtml(task.title)}</div>
+        <span class="ollama-quick-task-chip ${isCompleted ? "is-completed" : ""}">${escapeHtml(tl(isCompleted ? "taskStatusCompleted" : "taskStatusOpen"))}</span>
+      </div>
+      ${task.summary ? `<div class="ollama-quick-task-card-summary">${escapeHtml(task.summary)}</div>` : ""}
+      <div class="ollama-quick-task-meta-grid">
+        ${renderTaskMetaRow(tl("taskOwnerLabel"), task.owner || tl("taskUnknown"))}
+        ${renderTaskMetaRow(tl("taskDueLabel"), formatTaskDueLabel(task))}
+      </div>
+      <div class="ollama-quick-task-reminder-field">
+        <span>${escapeHtml(tl("taskReminderLabel"))}</span>
+        <div class="ollama-quick-task-reminder-row">
+          <label class="ollama-quick-task-reminder-split">
+            <span>${escapeHtml(tl("taskReminderDate"))}</span>
+            <input class="ollama-quick-task-datetime" type="date" data-role="task-reminder-date" value="${escapeHtml(toDateInputValue(task.reminderAt))}" />
+          </label>
+          <label class="ollama-quick-task-reminder-split">
+            <span>${escapeHtml(tl("taskReminderTime"))}</span>
+            <input class="ollama-quick-task-datetime" type="time" step="300" data-role="task-reminder-time" value="${escapeHtml(toTimeInputValue(task.reminderAt) || "09:00")}" />
+          </label>
+        </div>
+      </div>
+      ${task.evidence ? `<div class="ollama-quick-task-evidence"><span class="ollama-quick-task-meta-label">${escapeHtml(tl("taskEvidenceLabel"))}</span><p>${escapeHtml(task.evidence)}</p></div>` : ""}
+      <div class="ollama-quick-task-actions-row">
+        <button class="ollama-quick-secondary" type="button" data-action="update-task-reminder" data-task-id="${escapeHtml(String(task.id))}">${escapeHtml(tl("taskUpdate"))}</button>
+        <button class="ollama-quick-secondary" type="button" data-action="toggle-task-complete" data-task-id="${escapeHtml(String(task.id))}">${escapeHtml(tl(isCompleted ? "taskReopen" : "taskDone"))}</button>
+        <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="delete-task-reminder" data-task-id="${escapeHtml(String(task.id))}" aria-label="${escapeHtml(tl("taskDelete"))}" title="${escapeHtml(tl("taskDelete"))}">×</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderTaskInbox() {
+  const canExtractTasks = canExtractTasksFromCurrentPage(currentPageCopilot);
+  const candidateCards = isExtractingTasks
+    ? `
+      <div class="ollama-quick-task-empty is-loading">
+        <span class="ollama-quick-task-spinner" aria-hidden="true"></span>
+        <span>${escapeHtml(tl("taskLoading"))}</span>
+      </div>
+    `
+    : extractedTaskCandidates.length
+      ? extractedTaskCandidates.map((task) => renderTaskCandidateCard(task)).join("")
+      : `<div class="ollama-quick-task-empty">${escapeHtml(tl("noTaskCandidates"))}</div>`;
+  const savedCards = savedTaskReminders.length
+    ? savedTaskReminders.map((task) => renderSavedTaskCard(task)).join("")
+    : `<div class="ollama-quick-task-empty">${escapeHtml(tl("noSavedTaskReminders"))}</div>`;
+  const activeView = taskInboxView === "saved" ? "saved" : "candidates";
+  const activeCards = activeView === "saved" ? savedCards : candidateCards;
+  const totalCount = extractedTaskCandidates.length + savedTaskReminders.length;
+  const totalCountLabel = totalCount ? ` (${totalCount})` : "";
+  const candidateCountLabel = extractedTaskCandidates.length ? ` (${extractedTaskCandidates.length})` : "";
+  const savedCountLabel = savedTaskReminders.length ? ` (${savedTaskReminders.length})` : "";
+
+  return `
+    <section class="ollama-quick-task-panel">
+      <div class="ollama-quick-task-panel-head">
+        <div>
+          <div class="ollama-quick-starters-label">${escapeHtml(tl("taskInbox"))}</div>
+          <div class="ollama-quick-task-panel-hint">${escapeHtml(tl("taskInboxHint"))}</div>
+        </div>
+        <button class="ollama-quick-secondary ollama-quick-task-extract" type="button" data-action="extract-chat-tasks" title="${escapeHtml(canExtractTasks ? tl("extractChatTasks") : tl("taskExtractDisabledHint"))}" ${isExtractingTasks || !canExtractTasks ? "disabled" : ""}>
+          ${isExtractingTasks ? `<span class="ollama-quick-task-spinner" aria-hidden="true"></span>` : ""}
+          <span>${escapeHtml(tl("extractChatTasks"))}</span>
+        </button>
+      </div>
+      ${!canExtractTasks ? `<div class="ollama-quick-task-disabled-hint">${escapeHtml(tl("taskExtractUnavailable"))}</div>` : ""}
+      <button class="ollama-quick-task-section-toggle" type="button" data-action="toggle-task-inbox" aria-expanded="${taskInboxExpanded ? "true" : "false"}">
+        <span class="ollama-quick-task-section-title">${escapeHtml(tl("taskInbox"))}${escapeHtml(totalCountLabel)}</span>
+        <span class="ollama-quick-task-section-toggle-text">${escapeHtml(tl(taskInboxExpanded ? "taskInboxCollapse" : "taskInboxExpand"))}</span>
+      </button>
+      ${taskInboxExpanded || isExtractingTasks ? `
+        <div class="ollama-quick-task-stack">
+          <div class="ollama-quick-task-tabs" role="tablist" aria-label="${escapeHtml(tl("taskInbox"))}">
+            <button class="ollama-quick-task-tab ${activeView === "candidates" ? "is-active" : ""}" type="button" data-action="switch-task-view" data-task-view="candidates" role="tab" aria-selected="${activeView === "candidates" ? "true" : "false"}">
+              ${escapeHtml(tl("taskViewCandidates"))}${escapeHtml(candidateCountLabel)}
+            </button>
+            <button class="ollama-quick-task-tab ${activeView === "saved" ? "is-active" : ""}" type="button" data-action="switch-task-view" data-task-view="saved" role="tab" aria-selected="${activeView === "saved" ? "true" : "false"}">
+              ${escapeHtml(tl("taskViewSaved"))}${escapeHtml(savedCountLabel)}
+            </button>
+          </div>
+          <div class="ollama-quick-task-section is-${activeView}">
+            <div class="ollama-quick-task-section-title">${escapeHtml(activeView === "saved" ? tl("savedTaskReminders") : tl("taskCandidates"))}</div>
+            <div class="ollama-quick-task-list">${activeCards}</div>
+          </div>
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
 function renderMessages() {
   pendingMessageRenderFrame = 0;
   const list = ensureHost().querySelector("[data-role='messages']");
@@ -4183,7 +4860,7 @@ function setStatus(text) {
 
   const indicator = ensureHost().querySelector("[data-role='status-indicator']");
   if (indicator) {
-    indicator.classList.toggle("is-busy", isGenerating);
+    indicator.classList.toggle("is-busy", isGenerating || isExtractingTasks);
   }
 }
 
@@ -4202,6 +4879,8 @@ function renderShell() {
   syncHostState(host);
   currentPageCopilot = detectPageCopilot();
   const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
+  const showTaskInbox = isTaskInboxVisible(currentPageCopilot);
+  const showDetachedTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
   const localDocuments = getLocalWorkFolderAttachedDocuments();
   if (!showGithubIncludePanel) {
     includePickerOpen = false;
@@ -4220,13 +4899,14 @@ function renderShell() {
     <button class="ollama-quick-launcher" type="button" data-action="toggle-panel" aria-label="${escapeHtml(tl("openQuickChat"))}" title="${escapeHtml(tl("openQuickChat"))}">
       <span class="ollama-quick-launcher-core"></span>
     </button>
-    <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""} ${isPanelMaximized ? "is-maximized" : ""}" data-role="panel">
+    <section class="ollama-quick-panel ${isPanelOpen ? "is-open" : ""} ${isPanelMaximized ? "is-maximized" : ""} ${showDetachedTaskRail ? "has-task-rail" : ""}" data-role="panel">
       <header class="ollama-quick-header">
         <div class="ollama-quick-header-main">
           <div class="ollama-quick-eyebrow">${escapeHtml(tl("quickAccess"))}</div>
           <h2>${escapeHtml(tl("liveChat"))}</h2>
         </div>
         <div class="ollama-quick-header-actions">
+          ${showTaskInbox ? `<button class="ollama-quick-icon-button" type="button" data-action="open-task-inbox" title="${escapeHtml(tl("openTaskInbox"))}" aria-label="${escapeHtml(tl("openTaskInbox"))}">☰</button>` : ""}
           <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
             <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -4264,6 +4944,11 @@ function renderShell() {
             <button class="ollama-quick-primary" type="button" data-action="send-message">➤</button>
           </div>
         </div>
+        ${showDetachedTaskRail ? `
+          <aside class="ollama-quick-task-rail">
+            ${renderTaskInbox()}
+          </aside>
+        ` : ""}
         <aside class="ollama-quick-sidebar">
           <div class="ollama-quick-controls">
             <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
@@ -4350,6 +5035,9 @@ function togglePanel(force) {
 
   const next = typeof force === "boolean" ? force : !panel.classList.contains("is-open");
   isPanelOpen = next;
+  if (!next) {
+    taskInboxExpanded = false;
+  }
   panel.classList.toggle("is-open", next);
   syncHostState(host);
 }
@@ -4363,6 +5051,9 @@ function togglePanelMaximize(force) {
 
   const next = typeof force === "boolean" ? force : !panel.classList.contains("is-maximized");
   isPanelMaximized = next;
+  if (!next) {
+    taskInboxExpanded = false;
+  }
   panel.classList.toggle("is-maximized", next);
   syncHostState(host);
 }
@@ -4717,10 +5408,20 @@ async function handleClick(event) {
 
   if (action === "toggle-maximize") {
     togglePanelMaximize();
-    const buttonLabel = isPanelMaximized ? tl("restore") : tl("maximize");
-    actionNode.setAttribute("title", buttonLabel);
-    actionNode.setAttribute("aria-label", buttonLabel);
-    actionNode.textContent = isPanelMaximized ? "❐" : "□";
+    renderShell();
+    return;
+  }
+
+  if (action === "open-task-inbox") {
+    taskInboxExpanded = true;
+    if (!extractedTaskCandidates.length && savedTaskReminders.length) {
+      taskInboxView = "saved";
+    } else {
+      taskInboxView = "candidates";
+    }
+    togglePanel(true);
+    togglePanelMaximize(true);
+    renderShell();
     return;
   }
 
@@ -4728,6 +5429,124 @@ async function handleClick(event) {
     const result = await runtimeMessage({ type: "ollama:open-options" });
     if (!result?.ok) {
       setStatus(result?.error || tl("openSettingsFailed"));
+    }
+    return;
+  }
+
+  if (action === "extract-chat-tasks") {
+    await extractTaskCandidatesFromChat();
+    return;
+  }
+
+  if (action === "toggle-task-inbox") {
+    taskInboxExpanded = !taskInboxExpanded;
+    if (taskInboxExpanded) {
+      if (!extractedTaskCandidates.length && savedTaskReminders.length) {
+        taskInboxView = "saved";
+      }
+      togglePanel(true);
+      togglePanelMaximize(true);
+    }
+    renderShell();
+    return;
+  }
+
+  if (action === "switch-task-view") {
+    const nextView = actionNode.dataset.taskView === "saved" ? "saved" : "candidates";
+    taskInboxView = nextView;
+    taskInboxExpanded = true;
+    togglePanel(true);
+    togglePanelMaximize(true);
+    renderShell();
+    return;
+  }
+
+  if (action === "dismiss-task-candidate") {
+    const taskId = actionNode.dataset.taskId || "";
+    extractedTaskCandidates = extractedTaskCandidates.filter((item) => item.id !== taskId);
+    renderShell();
+    return;
+  }
+
+  if (action === "save-task-candidate") {
+    const taskId = actionNode.dataset.taskId || "";
+    const task = extractedTaskCandidates.find((item) => item.id === taskId);
+    if (!task) {
+      return;
+    }
+
+    try {
+      const reminderAt = getTaskReminderInputIso(actionNode);
+      await saveTaskReminderRecord({
+        ...task,
+        reminderAt,
+        sourceUrl: window.location.href,
+        sourceTitle: document.title || "",
+        sourceApp: getTaskSourceAppLabel(),
+      });
+      extractedTaskCandidates = extractedTaskCandidates.filter((item) => item.id !== taskId);
+      taskInboxView = "saved";
+      renderShell();
+      setStatus(tl("taskSaved"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "update-task-reminder") {
+    const taskId = actionNode.dataset.taskId || "";
+    const task = savedTaskReminders.find((item) => item.id === taskId);
+    if (!task) {
+      return;
+    }
+
+    try {
+      const reminderAt = getTaskReminderInputIso(actionNode);
+      await saveTaskReminderRecord({
+        ...task,
+        reminderAt,
+      });
+      renderShell();
+      setStatus(tl("taskUpdated"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "toggle-task-complete") {
+    const taskId = actionNode.dataset.taskId || "";
+    const task = savedTaskReminders.find((item) => item.id === taskId);
+    if (!task) {
+      return;
+    }
+
+    try {
+      await saveTaskReminderRecord({
+        ...task,
+        status: task.status === "completed" ? "open" : "completed",
+      });
+      renderShell();
+      setStatus(tl("taskUpdated"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+
+  if (action === "delete-task-reminder") {
+    const taskId = actionNode.dataset.taskId || "";
+    if (!taskId || !window.confirm(tl("taskConfirmDelete"))) {
+      return;
+    }
+
+    try {
+      await deleteTaskReminderRecord(taskId);
+      renderShell();
+      setStatus(tl("taskDeleted"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
     }
     return;
   }
@@ -5539,6 +6358,7 @@ async function bootstrap() {
   try {
     await loadConfig();
     await loadModels();
+    await loadSavedTaskReminders().catch(() => {});
     await loadLauncherPosition();
     renderShell();
     setStatus(currentConfig?.selectedModel ? tl("usingModel", { model: currentConfig.selectedModel }) : tl("pickModelToStart"));
@@ -5550,6 +6370,17 @@ async function bootstrap() {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (!IS_TOP_FRAME) {
+    return;
+  }
+
+  if (areaName === "local" && changes.taskReminderItems) {
+    loadSavedTaskReminders()
+      .then(() => {
+        if (document.getElementById(HOST_ID)) {
+          renderShell();
+        }
+      })
+      .catch(() => {});
     return;
   }
 

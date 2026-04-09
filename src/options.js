@@ -53,6 +53,8 @@ const OPTION_I18N = {
     defaultProviderLabel: "預設 Provider",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
+    taskExtractionWindowDaysLabel: "Task自動抓取區間",
+    taskExtractionWindowDaysHint: "待辦抓取會根據目前可見的聊天內容整理，預設優先近 3 天，最多可調到 7 天。",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "多視角角色",
     customStartersLabel: "自訂 Starters",
@@ -141,6 +143,8 @@ const OPTION_I18N = {
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
+    taskExtractionWindowDaysLabel: "Task Auto Extraction Window",
+    taskExtractionWindowDaysHint: "Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
     customStartersLabel: "Custom Starters",
@@ -747,6 +751,9 @@ function applyTranslations() {
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
+  document.getElementById("taskExtractionWindowDaysLabel").textContent = t("taskExtractionWindowDaysLabel");
+  document.getElementById("taskExtractionWindowDaysHint").textContent = t("taskExtractionWindowDaysHint");
+  renderTaskExtractionWindowChoices();
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
   document.getElementById("customStartersLabel").textContent = t("customStartersLabel");
@@ -780,6 +787,27 @@ function normalizeStarterScopeToken(value) {
     .replace(/^type:/, "")
     .replace(/^adapter:/, "");
   return STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
+}
+
+function normalizeTaskExtractionWindowDays(value) {
+  const parsed = Number.parseInt(String(value || "3"), 10);
+  if (!Number.isFinite(parsed)) {
+    return 3;
+  }
+  return Math.min(Math.max(parsed, 1), 7);
+}
+
+function renderTaskExtractionWindowChoices() {
+  const select = document.getElementById("taskExtractionWindowDays");
+  if (!(select instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const isZh = currentLocale === OPTION_I18N["zh-TW"];
+  Array.from(select.options).forEach((option) => {
+    const days = normalizeTaskExtractionWindowDays(option.value);
+    option.textContent = isZh ? `${days} 天` : `${days} day${days > 1 ? "s" : ""}`;
+  });
 }
 
 function normalizeStarterScopes(value) {
@@ -997,6 +1025,7 @@ async function loadConfig() {
     document.getElementById("azureOpenAiApiKey").value = result.config.azureOpenAiApiKey || "";
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
+    document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
     document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
     try {
@@ -1025,6 +1054,7 @@ async function saveConfig() {
   const azureOpenAiApiKey = document.getElementById("azureOpenAiApiKey").value.trim();
   const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
+  const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
@@ -1045,6 +1075,7 @@ async function saveConfig() {
       azureOpenAiApiKey,
       defaultProvider,
       replyLanguage,
+      taskExtractionWindowDays,
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,

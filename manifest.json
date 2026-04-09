@@ -4,7 +4,9 @@
   "description": "Floating browser-side AI chat with current-page context and local Ollama routing.",
   "version": "0.1.0",
   "permissions": [
-    "storage"
+    "storage",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "http://127.0.0.1:11434/*",
