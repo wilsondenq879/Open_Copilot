@@ -27,85 +27,209 @@
         </div>
       </div>
 
-      <section class="settings-grid">
-        <article class="setting-card">
-          <div class="setting-card-head">
-            <div>
-              <span class="section-kicker">Engine 01</span>
-              <h2 id="ollamaSectionTitle">Ollama Control</h2>
-            </div>
-            <span id="ollamaSectionTag" class="section-tag">Live Model Scan</span>
-          </div>
-          <label class="field">
-            <span id="ollamaUrlLabel">Ollama URL</span>
-            <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" />
-          </label>
-        </article>
-
-        <article class="setting-card accent-card">
-          <div class="setting-card-head">
-            <div>
-              <span class="section-kicker">Engine 02</span>
-              <h2 id="lmStudioSectionTitle">LM Studio Bridge</h2>
-            </div>
-            <span id="lmStudioSectionTag" class="section-tag">OpenAI Compatible</span>
-          </div>
-          <label class="field">
-            <span id="lmStudioUrlLabel">LM Studio URL</span>
-            <input id="lmStudioUrl" type="url" placeholder="http://127.0.0.1:1234" />
-          </label>
-          <div class="split-fields">
-            <label class="field">
-              <span id="lmStudioModelLabel">Default Model ID</span>
-              <input id="lmStudioModel" type="text" placeholder="qwen2.5-coder-7b-instruct" />
-            </label>
-            <label class="field">
-              <span id="lmStudioApiKeyLabel">API Key</span>
-              <input id="lmStudioApiKey" type="text" placeholder="lm-studio" />
-            </label>
-          </div>
-          <p id="lmStudioHint" class="field-hint">Use this section to keep LM Studio server information ready for future routing or OpenAI-compatible calls.</p>
-        </article>
-      </section>
-
-      <section class="setting-card utility-card">
-        <div class="setting-card-head">
-          <div>
-            <span class="section-kicker">System</span>
-            <h2 id="generalSectionTitle">Experience</h2>
-          </div>
-        </div>
-        <label class="field">
-          <span id="replyLanguageLabel">Reply Language</span>
-          <select id="replyLanguage">
-            <option value="en">English</option>
-            <option value="zh-TW">繁體中文</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-            <option value="zh-CN">简体中文</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="pt-BR">Português (Brasil)</option>
-            <option value="hi">हिन्दी</option>
-          </select>
-        </label>
-      </section>
-
-      <section class="setting-card">
-        <div class="setting-card-head">
-          <div>
-            <span class="section-kicker">Project</span>
-            <h2 id="authorSectionTitle">Author</h2>
-          </div>
-        </div>
-        <p id="authorInfo" class="field-hint">Author: wilsondenq879</p>
-      </section>
-
-      <div class="actions">
-        <button id="saveButton" class="primary-button" type="button">Save Settings</button>
+      <div class="actions settings-toolbar">
         <button id="testButton" class="secondary-button" type="button">Test Connection</button>
+        <button id="saveButton" class="primary-button" type="button">Save Settings</button>
       </div>
+
+      <section class="settings-layout">
+        <article class="setting-card provider-card">
+          <div class="setting-card-head">
+            <div>
+              <span id="connectionKicker" class="section-kicker">Connection</span>
+              <h2 id="providerSectionTitle">AI Providers</h2>
+            </div>
+            <span id="providerSectionTag" class="section-tag">Tabbed Setup</span>
+          </div>
+
+          <div class="provider-tabs" role="tablist" aria-label="AI provider settings">
+            <button id="tabOllama" class="provider-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-ollama" data-provider-tab="ollama">Ollama</button>
+            <button id="tabLmStudio" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-lmStudio" data-provider-tab="lmStudio">LM Studio</button>
+            <button id="tabGemini" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-gemini" data-provider-tab="gemini">Gemini</button>
+            <button id="tabAzure" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-azureOpenAi" data-provider-tab="azureOpenAi">Azure OpenAI</button>
+          </div>
+
+          <section id="panel-ollama" class="provider-panel is-active" role="tabpanel">
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span id="ollamaKicker" class="section-kicker">Local</span>
+                <h2 id="ollamaSectionTitle">Ollama Control</h2>
+              </div>
+              <span id="ollamaSectionTag" class="section-tag">Live Model Scan</span>
+            </div>
+            <label class="field">
+              <span id="ollamaUrlLabel">Ollama URL</span>
+              <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" />
+            </label>
+          </section>
+
+          <section id="panel-lmStudio" class="provider-panel" role="tabpanel" hidden>
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span id="bridgeKicker" class="section-kicker">Bridge</span>
+                <h2 id="lmStudioSectionTitle">LM Studio Bridge</h2>
+              </div>
+              <span id="lmStudioSectionTag" class="section-tag">OpenAI Compatible</span>
+            </div>
+            <label class="field">
+              <span id="lmStudioUrlLabel">LM Studio URL</span>
+              <input id="lmStudioUrl" type="url" placeholder="http://127.0.0.1:1234" />
+            </label>
+            <div class="split-fields">
+              <label class="field">
+                <span id="lmStudioModelLabel">Default Model ID</span>
+                <input id="lmStudioModel" type="text" placeholder="qwen2.5-coder-7b-instruct" />
+              </label>
+              <label class="field">
+                <span id="lmStudioApiKeyLabel">API Key</span>
+                <input id="lmStudioApiKey" type="text" placeholder="lm-studio" />
+              </label>
+            </div>
+            <p id="lmStudioHint" class="field-hint">Use this section to keep LM Studio server information ready for future routing or OpenAI-compatible calls.</p>
+          </section>
+
+          <section id="panel-gemini" class="provider-panel" role="tabpanel" hidden>
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span id="geminiKicker" class="section-kicker">Cloud</span>
+                <h2 id="geminiSectionTitle">Gemini</h2>
+              </div>
+              <span id="geminiSectionTag" class="section-tag">Google AI</span>
+            </div>
+            <div class="split-fields">
+              <label class="field">
+                <span id="geminiModelLabel">Model</span>
+                <input id="geminiModel" type="text" placeholder="gemini-2.5-flash" />
+              </label>
+              <label class="field">
+                <span id="geminiApiKeyLabel">API Key</span>
+                <input id="geminiApiKey" type="password" placeholder="AIza..." />
+              </label>
+            </div>
+            <p id="geminiHint" class="field-hint">Store your Gemini model and API key here so we can route future cloud requests without re-entering credentials.</p>
+          </section>
+
+          <section id="panel-azureOpenAi" class="provider-panel" role="tabpanel" hidden>
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span id="azureKicker" class="section-kicker">Enterprise</span>
+                <h2 id="azureSectionTitle">Azure OpenAI</h2>
+              </div>
+              <span id="azureSectionTag" class="section-tag">OpenAI on Azure</span>
+            </div>
+            <label class="field">
+              <span id="azureEndpointLabel">Endpoint</span>
+              <input id="azureOpenAiEndpoint" type="url" placeholder="https://your-resource.openai.azure.com" />
+            </label>
+            <div class="split-fields">
+              <label class="field">
+                <span id="azureDeploymentLabel">Deployment</span>
+                <input id="azureOpenAiDeployment" type="text" placeholder="gpt-4.1-mini" />
+              </label>
+              <label class="field">
+                <span id="azureApiVersionLabel">API Version</span>
+                <input id="azureOpenAiApiVersion" type="text" placeholder="2024-10-21" />
+              </label>
+            </div>
+            <label class="field">
+              <span id="azureApiKeyLabel">API Key</span>
+              <input id="azureOpenAiApiKey" type="password" placeholder="Azure API key" />
+            </label>
+            <p id="azureHint" class="field-hint">Save your Azure OpenAI resource endpoint, deployment name, API version, and key for future hosted routing.</p>
+          </section>
+
+          <div class="provider-support-grid">
+            <div class="provider-support-card">
+              <label class="field">
+                <span id="githubApiKeyLabel">GitHub API Key</span>
+                <input id="githubApiKey" type="password" placeholder="ghp_..." />
+              </label>
+              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <div class="field">
+                <span id="localWorkFolderLabel">Local Work Folder</span>
+                <div class="actions">
+                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
+                </div>
+                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
+                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
+              </div>
+            </div>
+
+            <div class="provider-support-card provider-support-wide">
+              <div class="split-fields settings-compact-fields">
+                <label class="field">
+                  <span id="defaultProviderLabel">Default Provider</span>
+                  <select id="defaultProvider">
+                    <option value="ollama">Ollama</option>
+                    <option value="lmStudio">LM Studio</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="azureOpenAi">Azure OpenAI</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span id="replyLanguageLabel">Reply Language</span>
+                  <select id="replyLanguage">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="pt-BR">Português (Brasil)</option>
+                    <option value="hi">हिन्दी</option>
+                  </select>
+                </label>
+              </div>
+              <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
+            </div>
+          </div>
+        </article>
+
+        <section class="setting-card utility-card behavior-card side-card">
+          <div class="setting-card-head">
+            <div>
+              <span id="behaviorKicker" class="section-kicker">Behavior</span>
+              <h2 id="generalSectionTitle">Experience</h2>
+            </div>
+            <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
+          </div>
+          <div class="side-stack">
+            <label class="field">
+              <span id="systemPromptLabel">System Prompt</span>
+              <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
+            </label>
+            <label class="field">
+              <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
+              <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
+Skeptic|Challenge assumptions, missing evidence, and weak points.
+Action Advisor|Recommend practical next steps and decisions."></textarea>
+            </label>
+            <div class="field">
+              <span id="customStartersLabel">Custom Starters</span>
+              <label class="field starter-json-field">
+                <span id="customStartersInputLabel">Paste Starter JSON</span>
+                <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="createStartersButton" class="secondary-button" type="button">Create</button>
+                <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
+              </div>
+              <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
+            </div>
+          </div>
+          <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
+          <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
+          <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+        </section>
+      </section>
 
       <section class="status-card">
         <div class="status-header">

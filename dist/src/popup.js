@@ -161,7 +161,7 @@ const POPUP_I18N = {
   },
 };
 
-let popupLocale = POPUP_I18N.en;
+let popupLocale = POPUP_I18N["zh-TW"];
 
 function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -191,7 +191,7 @@ function setMessage(message, isError = false) {
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
-    popupLocale = POPUP_I18N[result.config.replyLanguage || "en"] || POPUP_I18N.en;
+    popupLocale = POPUP_I18N[result.config.replyLanguage || "zh-TW"] || POPUP_I18N.en;
     applyPopupTranslations();
     document.getElementById("endpointValue").textContent = result.config.ollamaUrl || tp("notConfigured");
   }
@@ -207,7 +207,7 @@ async function selectModel(model) {
 }
 
 async function refreshModels() {
-  const config = await loadConfig();
+  let config = await loadConfig();
   const result = await sendMessage({ type: "ollama:list-models" });
   const list = document.getElementById("popupModels");
   list.innerHTML = "";
@@ -215,6 +215,10 @@ async function refreshModels() {
   if (!result?.ok) {
     setMessage(result?.error || tp("fetchFailed"), true);
     return;
+  }
+
+  if (result.config) {
+    config = result.config;
   }
 
   (result.models || []).forEach((model) => {
