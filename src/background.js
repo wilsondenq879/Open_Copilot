@@ -44,6 +44,7 @@ const DEFAULT_CONFIG = {
   selectedModel: "",
   replyLanguage: "zh-TW",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
+  starterHoverTipsEnabled: true,
   googleDriveClientId: "",
   googleDriveSyncEnabled: false,
   googleDriveAutoSync: true,

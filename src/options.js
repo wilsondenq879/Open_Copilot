@@ -52,8 +52,8 @@ const OPTION_I18N = {
     folderSaveSuccess: "已儲存本機資料夾設定。",
     folderSaveFailed: "儲存本機資料夾失敗。",
     folderClearSuccess: "已清除本機資料夾設定。",
-    workFolderPullSuccess: "已從工作資料夾拉回並合併。",
-    workFolderPushSuccess: "已推送到工作資料夾。",
+    workFolderPullSuccess: "已從工作資料夾拉回並合併：starters {starters}、tasks {tasks}、chat {chat}、documents {documents}。",
+    workFolderPushSuccess: "已推送到工作資料夾：starters {starters}、tasks {tasks}、chat {chat}、documents {documents}。",
     googleDriveSyncLabel: "Google Drive 同步",
     googleDriveClientIdLabel: "OAuth Client ID",
     googleDriveSyncEnabledLabel: "啟用 Drive 同步",
@@ -78,6 +78,8 @@ const OPTION_I18N = {
     replyLanguageLabel: "回覆語言",
     taskExtractionWindowDaysLabel: "Task自動抓取區間",
     taskExtractionWindowDaysHint: "待辦抓取會根據目前可見的聊天內容整理，預設優先近 3 天，最多可調到 7 天。",
+    starterHoverTipsEnabledLabel: "顯示 Starter hover 提示",
+    starterHoverTipsEnabledHint: "滑過聊天面板中的 starter 時，顯示這個 starter 會做什麼的簡短說明。",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "多視角角色",
     utilityTabExperience: "Experience",
@@ -176,8 +178,8 @@ const OPTION_I18N = {
     folderSaveSuccess: "Local work folder saved.",
     folderSaveFailed: "Failed to save local work folder.",
     folderClearSuccess: "Local work folder cleared.",
-    workFolderPullSuccess: "Pulled from the work folder and merged.",
-    workFolderPushSuccess: "Pushed to the work folder.",
+    workFolderPullSuccess: "Pulled and merged from the work folder: {starters} starter(s), {tasks} task(s), {chat} chat session(s), {documents} document(s).",
+    workFolderPushSuccess: "Pushed to the work folder: {starters} starter(s), {tasks} task(s), {chat} chat session(s), {documents} document(s).",
     googleDriveSyncLabel: "Google Drive Sync",
     googleDriveClientIdLabel: "OAuth Client ID",
     googleDriveSyncEnabledLabel: "Enable Drive sync",
@@ -202,6 +204,8 @@ const OPTION_I18N = {
     replyLanguageLabel: "Reply Language",
     taskExtractionWindowDaysLabel: "Task Auto Extraction Window",
     taskExtractionWindowDaysHint: "Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.",
+    starterHoverTipsEnabledLabel: "Show starter hover tips",
+    starterHoverTipsEnabledHint: "Show a short description of what the starter does when you hover over it in the chat panel.",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
     utilityTabExperience: "Experience",
@@ -835,6 +839,8 @@ function applyTranslations() {
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
   document.getElementById("taskExtractionWindowDaysLabel").textContent = t("taskExtractionWindowDaysLabel");
   document.getElementById("taskExtractionWindowDaysHint").textContent = t("taskExtractionWindowDaysHint");
+  document.getElementById("starterHoverTipsEnabledLabel").textContent = t("starterHoverTipsEnabledLabel");
+  document.getElementById("starterHoverTipsEnabledHint").textContent = t("starterHoverTipsEnabledHint");
   renderTaskExtractionWindowChoices();
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
@@ -904,6 +910,15 @@ function renderTaskExtractionWindowChoices() {
   });
 }
 
+function summarizeSyncPayload(payload = {}) {
+  return {
+    starters: Array.isArray(payload.customStarters) ? payload.customStarters.length : 0,
+    tasks: Array.isArray(payload.tasks) ? payload.tasks.length : 0,
+    chat: payload.latestChatSession ? 1 : 0,
+    documents: Array.isArray(payload.documents) ? payload.documents.length : 0,
+  };
+}
+
 function normalizeStarterScopes(value) {
   const rawScopes = Array.isArray(value) ? value : value ? [value] : ["all"];
   const scopes = rawScopes
@@ -926,11 +941,13 @@ function normalizeImportedStarter(item, index) {
 
   const modeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
   const mode = modeValue === "perspective" ? "perspective" : "chat";
+  const description = String(item.description || item.summary || item.hint || "").trim();
 
   return {
     id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
     label,
     prompt,
+    description,
     scopes: normalizeStarterScopes(item.scopes ?? item.scope ?? item.pageTypes ?? item.pageType),
     mode,
   };
@@ -1193,6 +1210,7 @@ async function loadConfig() {
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
+    document.getElementById("starterHoverTipsEnabled").checked = result.config.starterHoverTipsEnabled !== false;
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
     document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
     try {
@@ -1226,6 +1244,7 @@ async function saveConfig() {
   const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
+  const starterHoverTipsEnabled = document.getElementById("starterHoverTipsEnabled").checked;
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
@@ -1250,6 +1269,7 @@ async function saveConfig() {
       defaultProvider,
       replyLanguage,
       taskExtractionWindowDays,
+      starterHoverTipsEnabled,
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,
@@ -1406,7 +1426,7 @@ document.getElementById("workFolderPushButton").addEventListener("click", async 
       throw new Error(result?.error || t("folderSaveFailed"));
     }
     renderWorkFolderStatus(result.status);
-    setStatus(t("workFolderPushSuccess"));
+    setStatus(t("workFolderPushSuccess", summarizeSyncPayload(result?.result?.payload)));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
@@ -1420,7 +1440,7 @@ document.getElementById("workFolderPullButton").addEventListener("click", async 
     }
     renderWorkFolderStatus(result.status);
     await loadConfig();
-    setStatus(t("workFolderPullSuccess"));
+    setStatus(t("workFolderPullSuccess", summarizeSyncPayload(result?.result?.payload)));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }

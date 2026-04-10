@@ -73,6 +73,7 @@ body {
   justify-content: space-between;
   align-items: start;
   gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
 }
 
@@ -197,6 +198,7 @@ textarea:focus {
   top: 16px;
   z-index: 4;
   justify-content: flex-end;
+  flex-wrap: wrap;
   margin-top: 0;
   margin-bottom: 18px;
   padding: 14px 16px;
@@ -340,6 +342,14 @@ textarea:focus {
 .settings-header {
   position: relative;
   z-index: 1;
+}
+
+.settings-header > *,
+.setting-card-head > *,
+.starter-library-hero > *,
+.starter-studio-head > *,
+.starter-studio-library-head > * {
+  min-width: 0;
 }
 
 .hero-metrics {
@@ -562,6 +572,7 @@ textarea:focus {
   justify-content: space-between;
   gap: 12px;
   align-items: start;
+  flex-wrap: wrap;
   margin-bottom: 18px;
 }
 
@@ -585,6 +596,7 @@ textarea:focus {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: normal;
 }
 
 .split-fields {
