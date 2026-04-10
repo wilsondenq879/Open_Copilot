@@ -34,7 +34,7 @@ const OPTION_I18N = {
     azureApiKeyLabel: "API Key",
     azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
     githubApiKeyLabel: "GitHub API Key",
-    githubApiKeyHint: "儲存 GitHub personal access token，之後 extension 就能抓 GitHub 檔案內容，也可讀取你有權限的 private repository。",
+    githubApiKeyHint: "建議使用 fine-grained、read-only 的 GitHub personal access token。設定後 extension 就能抓 GitHub 檔案內容，也可讀取你有權限的 private repository。",
     generalSectionTitle: "互動體驗",
     generalSectionTag: "Prompt 路由",
     localWorkFolderLabel: "Local Work Folder",
@@ -76,6 +76,11 @@ const OPTION_I18N = {
     defaultProviderLabel: "預設 Provider",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
+    settingsThemeLabel: "設定頁主題",
+    settingsThemeHint: "只影響這個 settings 頁面；預設會跟隨系統外觀。",
+    settingsThemeSystem: "跟隨系統",
+    settingsThemeDark: "深色",
+    settingsThemeLight: "淺色",
     taskExtractionWindowDaysLabel: "Task自動抓取區間",
     taskExtractionWindowDaysHint: "待辦抓取會根據目前可見的聊天內容整理，預設優先近 3 天，最多可調到 7 天。",
     starterHoverTipsEnabledLabel: "顯示 Starter hover 提示",
@@ -160,7 +165,7 @@ const OPTION_I18N = {
     azureApiKeyLabel: "API Key",
     azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
     githubApiKeyLabel: "GitHub API Key",
-    githubApiKeyHint: "Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.",
+    githubApiKeyHint: "Use a fine-grained, read-only GitHub personal access token when possible. The extension can then fetch GitHub file contents, including private repositories you can access.",
     generalSectionTitle: "Experience",
     generalSectionTag: "Prompt Routing",
     localWorkFolderLabel: "Local Work Folder",
@@ -202,6 +207,11 @@ const OPTION_I18N = {
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
+    settingsThemeLabel: "Settings Theme",
+    settingsThemeHint: "Only changes this settings page. System follows your OS appearance.",
+    settingsThemeSystem: "Follow System",
+    settingsThemeDark: "Dark",
+    settingsThemeLight: "Light",
     taskExtractionWindowDaysLabel: "Task Auto Extraction Window",
     taskExtractionWindowDaysHint: "Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.",
     starterHoverTipsEnabledLabel: "Show starter hover tips",
@@ -688,6 +698,10 @@ let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
 let activeUtilityTab = "experience";
 let currentCustomStarters = [];
+const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
+const SYSTEM_THEME_MEDIA_QUERY = typeof window.matchMedia === "function"
+  ? window.matchMedia("(prefers-color-scheme: light)")
+  : null;
 
 function openLocalDb() {
   return new Promise((resolve, reject) => {
@@ -837,6 +851,10 @@ function applyTranslations() {
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
+  document.getElementById("settingsThemeToolbarLabel").textContent = t("settingsThemeLabel");
+  document.getElementById("settingsThemeToolbarSystemOption").textContent = t("settingsThemeSystem");
+  document.getElementById("settingsThemeToolbarDarkOption").textContent = t("settingsThemeDark");
+  document.getElementById("settingsThemeToolbarLightOption").textContent = t("settingsThemeLight");
   document.getElementById("taskExtractionWindowDaysLabel").textContent = t("taskExtractionWindowDaysLabel");
   document.getElementById("taskExtractionWindowDaysHint").textContent = t("taskExtractionWindowDaysHint");
   document.getElementById("starterHoverTipsEnabledLabel").textContent = t("starterHoverTipsEnabledLabel");
@@ -895,6 +913,29 @@ function normalizeTaskExtractionWindowDays(value) {
     return 3;
   }
   return Math.min(Math.max(parsed, 1), 7);
+}
+
+function normalizeSettingsTheme(value) {
+  const normalized = String(value || "system").trim().toLowerCase();
+  return SETTINGS_THEME_OPTIONS.has(normalized) ? normalized : "system";
+}
+
+function resolveSettingsTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  if (normalized === "system") {
+    return SYSTEM_THEME_MEDIA_QUERY?.matches ? "light" : "dark";
+  }
+  return normalized;
+}
+
+function applySettingsTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  document.body.dataset.themePreference = normalized;
+  document.body.dataset.theme = resolveSettingsTheme(normalized);
+  const toolbarSelect = document.getElementById("settingsThemeToolbar");
+  if (toolbarSelect && toolbarSelect.value !== normalized) {
+    toolbarSelect.value = normalized;
+  }
 }
 
 function renderTaskExtractionWindowChoices() {
@@ -1141,7 +1182,15 @@ function formatSize(size) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-function renderModels(models) {
+async function selectModel(model) {
+  const result = await sendMessage({ type: "ollama:select-model", model });
+  if (!result?.ok) {
+    throw new Error(result?.error || t("saveFailed"));
+  }
+  await refreshModels();
+}
+
+function renderModels(models, config = {}) {
   const list = document.getElementById("modelsList");
   list.innerHTML = "";
 
@@ -1151,13 +1200,26 @@ function renderModels(models) {
   }
 
   models.forEach((model) => {
-    const card = document.createElement("article");
-    card.className = "model-card";
-    card.innerHTML = `
+    const button = document.createElement("button");
+    const isSelected = config.selectedModel === model.name;
+    button.type = "button";
+    button.className = "model-card button-card is-detected";
+    if (isSelected) {
+      button.classList.add("is-selected");
+    }
+    button.setAttribute("aria-pressed", String(isSelected));
+    button.innerHTML = `
       <div class="model-card-name">${model.name}</div>
       <div class="model-card-meta">${formatSize(model.size)}</div>
     `;
-    list.appendChild(card);
+    button.addEventListener("click", async () => {
+      try {
+        await selectModel(model.name);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error), true);
+      }
+    });
+    list.appendChild(button);
   });
 }
 
@@ -1220,6 +1282,7 @@ async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
     const replyLanguage = result.config.replyLanguage || "zh-TW";
+    const settingsTheme = normalizeSettingsTheme(result.config.settingsTheme);
     currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
     applyTranslations();
     document.getElementById("ollamaUrl").value = result.config.ollamaUrl || "";
@@ -1238,6 +1301,7 @@ async function loadConfig() {
     document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
+    document.getElementById("settingsThemeToolbar").value = settingsTheme;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
     document.getElementById("starterHoverTipsEnabled").checked = result.config.starterHoverTipsEnabled !== false;
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
@@ -1248,6 +1312,7 @@ async function loadConfig() {
       currentCustomStarters = [];
     }
     renderCustomStartersPreview(currentCustomStarters);
+    applySettingsTheme(settingsTheme);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     await loadWorkFolderStatus();
     await loadGoogleDriveStatus();
@@ -1272,12 +1337,14 @@ async function saveConfig() {
   const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
+  const settingsTheme = normalizeSettingsTheme(document.getElementById("settingsThemeToolbar").value);
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
   const starterHoverTipsEnabled = document.getElementById("starterHoverTipsEnabled").checked;
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
   applyTranslations();
+  applySettingsTheme(settingsTheme);
   const saved = await sendMessage({
     type: "ollama:set-config",
     config: {
@@ -1297,6 +1364,7 @@ async function saveConfig() {
       googleDriveAutoSync,
       defaultProvider,
       replyLanguage,
+      settingsTheme,
       taskExtractionWindowDays,
       starterHoverTipsEnabled,
       systemPrompt,
@@ -1316,11 +1384,11 @@ async function refreshModels() {
   setStatus(t("loadingModels"));
   const result = await sendMessage({ type: "ollama:list-models" });
   if (!result?.ok) {
-    renderModels([]);
+    renderModels([], result?.config || {});
     throw new Error(result?.error || t("fetchModelsFailed"));
   }
 
-  renderModels(result.models || []);
+  renderModels(result.models || [], result.config || {});
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
 
@@ -1331,6 +1399,20 @@ document.getElementById("saveButton").addEventListener("click", async () => {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
 });
+
+document.getElementById("settingsThemeToolbar").addEventListener("change", (event) => {
+  applySettingsTheme(event.target.value);
+});
+
+if (typeof SYSTEM_THEME_MEDIA_QUERY?.addEventListener === "function") {
+  SYSTEM_THEME_MEDIA_QUERY.addEventListener("change", () => {
+    applySettingsTheme(document.getElementById("settingsThemeToolbar").value);
+  });
+} else if (typeof SYSTEM_THEME_MEDIA_QUERY?.addListener === "function") {
+  SYSTEM_THEME_MEDIA_QUERY.addListener(() => {
+    applySettingsTheme(document.getElementById("settingsThemeToolbar").value);
+  });
+}
 
 document.getElementById("testButton").addEventListener("click", async () => {
   try {
@@ -1554,4 +1636,13 @@ document.getElementById("defaultProvider").addEventListener("change", (event) =>
   }
 });
 
-loadConfig();
+async function initializeOptionsPage() {
+  await loadConfig();
+  try {
+    await refreshModels();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+}
+
+initializeOptionsPage();

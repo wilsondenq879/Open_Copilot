@@ -199,7 +199,7 @@ The extension also supports task extraction. It can scan recent visible chat con
 
 The `Local Work Folder` setting is also important. Once you pick a work folder in Settings, conversation exports such as `Download MD` save into that folder, and the same folder can be used as the source for local documents plus pull / push sync actions.
 
-If you work with GitHub often, the `GitHub API Key` setting matters too. Adding a GitHub personal access token lets the extension fetch GitHub content you are allowed to access, including private repositories, so the GitHub-focused skills can work with much richer source material.
+If you work with GitHub often, the `GitHub API Key` setting matters too. Use a fine-grained, read-only GitHub personal access token when possible. That lets the extension fetch GitHub content you are allowed to access, including private repositories, so the GitHub-focused skills can work with much richer source material.
 
 This setup is also useful for privacy-sensitive team workflows: instead of depending on a centrally managed cloud workspace, a team can keep using local models and a shared work folder to collaborate around documents and exports while preserving tighter control over sensitive material.
 
@@ -337,7 +337,7 @@ Important notes:
 
 - Ollama and LM Studio requests go to the endpoints you configure
 - Gemini and Azure OpenAI credentials can be stored in extension storage
-- A GitHub token allows the extension to fetch GitHub content you can access
+- A GitHub token allows the extension to fetch GitHub content you can access. Prefer a fine-grained, read-only token.
 - Google Drive sync writes sync data into your Google Drive app data
 - Mermaid rendering currently depends on `https://mermaid.ink`
 
@@ -551,7 +551,7 @@ ollama pull gemma4:e2b
 
 `Local Work Folder` 也很重要。你先在 Settings 裡指定好 work folder 之後，對談中的 `Download MD` 這類匯出就會直接存到那個資料夾，同時那個資料夾也能拿來當本機文件來源，以及做 pull / push 同步。
 
-如果你常用 GitHub，那 `GitHub API Key` 也很值得設定。填入 GitHub personal access token 之後，extension 就能抓取你有權限存取的 GitHub 內容，包含 private repositories，這樣那些 GitHub 導向的 skills 才能吃到更完整的材料。
+如果你常用 GitHub，那 `GitHub API Key` 也很值得設定。建議優先使用 fine-grained、唯讀範圍的 GitHub personal access token。填入之後，extension 就能抓取你有權限存取的 GitHub 內容，包含 private repositories，這樣那些 GitHub 導向的 skills 才能吃到更完整的材料。
 
 這種配置對重視資料機敏性的團隊也很有幫助。你不一定需要倚賴集中式雲端工作區或申請 admin 權限；只要使用地端模型，再配合共用的 work folder，就能在團隊內共享文件與匯出結果，同時把敏感資料維持在自己可控的設備與網路範圍裡。
 
@@ -689,7 +689,7 @@ repo 內建許多 starter 與描述，常見方向包含：
 
 - 若你使用 Ollama / LM Studio，本體聊天請求會送到你設定的本機服務
 - 若你填入 Gemini / Azure OpenAI，相關設定會儲存在 extension storage 中
-- 若你填入 GitHub API Key，extension 可以用它讀取你有權限的 GitHub 內容
+- 若你填入 GitHub API Key，extension 可以用它讀取你有權限的 GitHub 內容。建議優先使用 fine-grained、唯讀範圍的 token
 - 若啟用 Google Drive Sync，聊天文件與同步資料會寫入你的 Google Drive app data
 - Mermaid 圖表轉 SVG 目前依賴外部服務 `https://mermaid.ink`
 

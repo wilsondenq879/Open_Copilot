@@ -28,6 +28,14 @@
       </div>
 
       <div class="actions settings-toolbar">
+        <label class="toolbar-field" for="settingsThemeToolbar">
+          <span id="settingsThemeToolbarLabel">Theme</span>
+          <select id="settingsThemeToolbar" aria-label="Settings theme">
+            <option id="settingsThemeToolbarSystemOption" value="system">Follow System</option>
+            <option id="settingsThemeToolbarDarkOption" value="dark">Dark</option>
+            <option id="settingsThemeToolbarLightOption" value="light">Light</option>
+          </select>
+        </label>
         <button id="testButton" class="secondary-button" type="button">Test Connection</button>
         <button id="saveButton" class="primary-button" type="button">Save Settings</button>
       </div>
@@ -61,6 +69,17 @@
               <span id="ollamaUrlLabel">Ollama URL</span>
               <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" />
             </label>
+            <section class="provider-support-card ollama-models-card">
+              <div class="status-header ollama-models-head">
+                <div>
+                  <span class="section-kicker">Telemetry</span>
+                  <h3 id="installedModelsTitle" class="starter-studio-title">Installed Models</h3>
+                </div>
+                <button id="refreshButton" class="secondary-button" type="button">Refresh</button>
+              </div>
+              <div id="statusMessage" class="status-message">Waiting for connection check.</div>
+              <div id="modelsList" class="models-grid ollama-models-grid"></div>
+            </section>
           </section>
 
           <section id="panel-lmStudio" class="provider-panel" role="tabpanel" hidden>
@@ -325,17 +344,6 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </section>
       </section>
 
-      <section class="status-card">
-        <div class="status-header">
-          <div>
-            <span class="section-kicker">Telemetry</span>
-            <h2 id="installedModelsTitle">Installed Models</h2>
-          </div>
-          <button id="refreshButton" class="secondary-button" type="button">Refresh</button>
-        </div>
-        <div id="statusMessage" class="status-message">Waiting for connection check.</div>
-        <div id="modelsList" class="models-grid"></div>
-      </section>
     </main>
 
     <script src="options.js"></script>
