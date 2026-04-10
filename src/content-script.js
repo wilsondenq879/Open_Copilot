@@ -1451,7 +1451,23 @@ function getGithubTypeSpecificStarterKeys() {
 }
 
 function isLikelyEmailHost(hostname = window.location.hostname.toLowerCase()) {
-  return EMAIL_HOST_HINTS.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`));
+  const normalizedHostname = String(hostname || "").toLowerCase();
+  if (!normalizedHostname) {
+    return false;
+  }
+
+  if (EMAIL_HOST_HINTS.some((hint) => normalizedHostname === hint || normalizedHostname.endsWith(`.${hint}`))) {
+    return true;
+  }
+
+  return [
+    "mail.",
+    "webmail.",
+    "inbox.",
+    "email.",
+    "outlook.",
+    "owa.",
+  ].some((hint) => normalizedHostname.includes(hint));
 }
 
 function isMicrosoftAppHost() {
@@ -1676,6 +1692,46 @@ function collectEmailTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS)
   }
 }
 
+function detectEmailContentSignals(doc = document, sampleText = "") {
+  const visibleBodies = queryAllIncludingShadow(doc, EMAIL_BODY_SELECTORS, 6)
+    .map((node) => getNodeVisibleText(node))
+    .filter(Boolean);
+  const subject = queryAllIncludingShadow(doc, EMAIL_SUBJECT_SELECTORS, 3)
+    .map((node) => getNodeVisibleText(node))
+    .find(Boolean);
+  const normalizedSampleText = normalizeExtractedText(sampleText).toLowerCase();
+  const emailKeywords = [
+    "from:",
+    "to:",
+    "cc:",
+    "bcc:",
+    "reply",
+    "forward",
+    "sent:",
+    "draft",
+    "inbox",
+    "compose",
+    "subject:",
+    "received:",
+    "寄件者",
+    "收件者",
+    "副本",
+    "密件副本",
+    "主旨",
+    "回覆",
+    "轉寄",
+    "草稿",
+    "收件匣",
+  ];
+  const keywordHits = emailKeywords.filter((keyword) => normalizedSampleText.includes(keyword)).length;
+
+  return {
+    subject,
+    visibleBodies,
+    keywordHits,
+  };
+}
+
 function collectVisibleTextNodesIncludingShadow(root, maxNodes = 400) {
   const results = [];
   const seen = new Set();
@@ -1743,7 +1799,8 @@ function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   const seen = new Set();
 
   try {
-    if (isLikelyEmailHost()) {
+    const { subject, visibleBodies, keywordHits } = detectEmailContentSignals(doc, getNodeVisibleText(doc.body));
+    if (isLikelyEmailHost(doc.location?.hostname || window.location.hostname) || subject || visibleBodies.length || keywordHits >= 2) {
       const emailBlocks = collectEmailTextBlocksFromDocument(doc, maxBlocks);
       if (emailBlocks.length) {
         return emailBlocks;
@@ -2048,29 +2105,8 @@ function matchesEntertainmentPage(signals) {
 
 function matchesEmailPage(signals) {
   const { hostname, sampleText } = signals;
-  if (!isLikelyEmailHost(hostname)) {
-    return false;
-  }
-
-  const visibleBodies = queryAllIncludingShadow(document, EMAIL_BODY_SELECTORS, 4)
-    .map((node) => getNodeVisibleText(node))
-    .filter(Boolean);
-  const subject = queryAllIncludingShadow(document, EMAIL_SUBJECT_SELECTORS, 2)
-    .map((node) => getNodeVisibleText(node))
-    .find(Boolean);
-  const emailKeywords = [
-    "from:",
-    "to:",
-    "cc:",
-    "bcc:",
-    "reply",
-    "forward",
-    "sent:",
-    "draft",
-  ];
-  const keywordHits = emailKeywords.filter((keyword) => sampleText.includes(keyword)).length;
-
-  return Boolean(subject) || visibleBodies.length > 0 || keywordHits >= 2;
+  const { subject, visibleBodies, keywordHits } = detectEmailContentSignals(document, sampleText);
+  return Boolean(subject) || visibleBodies.length > 0 || keywordHits >= 2 || isLikelyEmailHost(hostname);
 }
 
 function matchesCollaborationPage(signals) {
