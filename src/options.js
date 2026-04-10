@@ -1,7 +1,7 @@
 const OPTION_I18N = {
   "zh-TW": {
-    pageTitle: "Edge AI Chat 設定",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot 設定",
+    eyebrow: "Open Copilot",
     title: "設定",
     description: "調校 Ollama、LM Studio、Gemini 與 Azure OpenAI 的設定，並設定瀏覽器聊天的預設體驗。",
     connectionKicker: "連線",
@@ -126,8 +126,8 @@ const OPTION_I18N = {
     connectedSummary: "已連線到 {baseUrl}。找到 {count} 個模型。",
   },
   en: {
-    pageTitle: "Edge AI Chat Settings",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot Settings",
+    eyebrow: "Open Copilot",
     title: "Settings",
     description: "Configure Ollama, LM Studio, Gemini, and Azure OpenAI, then define the default browser chat experience.",
     connectionKicker: "Connection",
@@ -252,8 +252,8 @@ const OPTION_I18N = {
     connectedSummary: "Connected to {baseUrl}. Found {count} model(s).",
   },
   ja: {
-    pageTitle: "Edge AI Chat 設定",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot 設定",
+    eyebrow: "Open Copilot",
     title: "設定",
     description: "Ollama、LM Studio、Gemini、Azure OpenAI の設定を行い、ブラウザー上のチャット体験を調整します。",
     connectionKicker: "接続",
@@ -305,8 +305,8 @@ const OPTION_I18N = {
     connectedSummary: "{baseUrl} に接続しました。{count} 個のモデルが見つかりました。",
   },
   ko: {
-    pageTitle: "Edge AI Chat 설정",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot 설정",
+    eyebrow: "Open Copilot",
     title: "설정",
     description: "Ollama, LM Studio, Gemini, Azure OpenAI 설정을 관리하고 브라우저 채팅 기본 동작을 조정합니다.",
     connectionKicker: "연결",
@@ -358,8 +358,8 @@ const OPTION_I18N = {
     connectedSummary: "{baseUrl}에 연결되었습니다. 모델 {count}개를 찾았습니다.",
   },
   "zh-CN": {
-    pageTitle: "Edge AI Chat 设置",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot 设置",
+    eyebrow: "Open Copilot",
     title: "设置",
     description: "配置 Ollama、LM Studio、Gemini 与 Azure OpenAI，并调整浏览器聊天的默认体验。",
     connectionKicker: "连接",
@@ -411,8 +411,8 @@ const OPTION_I18N = {
     connectedSummary: "已连接到 {baseUrl}。找到 {count} 个模型。",
   },
   es: {
-    pageTitle: "Configuración de Edge AI Chat",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Configuración de Open Copilot",
+    eyebrow: "Open Copilot",
     title: "Configuración",
     description: "Configura Ollama, LM Studio, Gemini y Azure OpenAI, y define la experiencia predeterminada del chat en el navegador.",
     connectionKicker: "Conexión",
@@ -464,8 +464,8 @@ const OPTION_I18N = {
     connectedSummary: "Conectado a {baseUrl}. Se encontraron {count} modelo(s).",
   },
   fr: {
-    pageTitle: "Paramètres Edge AI Chat",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Paramètres Open Copilot",
+    eyebrow: "Open Copilot",
     title: "Paramètres",
     description: "Configurez Ollama, LM Studio, Gemini et Azure OpenAI, puis définissez l’expérience de chat par défaut dans le navigateur.",
     connectionKicker: "Connexion",
@@ -517,8 +517,8 @@ const OPTION_I18N = {
     connectedSummary: "Connecté à {baseUrl}. {count} modèle(s) trouvé(s).",
   },
   de: {
-    pageTitle: "Edge AI Chat Einstellungen",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot Einstellungen",
+    eyebrow: "Open Copilot",
     title: "Einstellungen",
     description: "Konfiguriere Ollama, LM Studio, Gemini und Azure OpenAI und lege das Standardverhalten des Browser-Chats fest.",
     connectionKicker: "Verbindung",
@@ -570,8 +570,8 @@ const OPTION_I18N = {
     connectedSummary: "Mit {baseUrl} verbunden. {count} Modell(e) gefunden.",
   },
   "pt-BR": {
-    pageTitle: "Configurações do Edge AI Chat",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Configurações do Open Copilot",
+    eyebrow: "Open Copilot",
     title: "Configurações",
     description: "Configure Ollama, LM Studio, Gemini e Azure OpenAI e defina a experiência padrão do chat no navegador.",
     connectionKicker: "Conexão",
@@ -623,8 +623,8 @@ const OPTION_I18N = {
     connectedSummary: "Conectado a {baseUrl}. Encontrado(s) {count} modelo(s).",
   },
   hi: {
-    pageTitle: "Edge AI Chat सेटिंग्स",
-    eyebrow: "Edge AI Chat",
+    pageTitle: "Open Copilot सेटिंग्स",
+    eyebrow: "Open Copilot",
     title: "सेटिंग्स",
     description: "Ollama, LM Studio, Gemini और Azure OpenAI कॉन्फ़िगर करें और ब्राउज़र चैट का डिफ़ॉल्ट अनुभव तय करें।",
     connectionKicker: "कनेक्शन",
