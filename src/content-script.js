@@ -495,6 +495,9 @@ const CONTENT_I18N = {
     starterDraftModePerspective: "多視角",
     starterDraftScopeAll: "所有頁面",
     starterDraftSaved: "已儲存",
+    starterDraftImportHint: "請將 JSON 貼入設定中的 Custom Starter Skill 內建立。",
+    starterDraftActionHint: "貼到 Settings 內的 Custom Starter",
+    copyStarterJson: "複製 JSON",
     customStarterBuilderTitle: "建立 Custom Starter",
     customStarterBuilderHint: "先把想法填好，再帶給 AI 幫你整理成可儲存的 starter。",
     customStarterBuilderName: "這個按鈕想叫什麼名字？",
@@ -871,6 +874,9 @@ const CONTENT_I18N = {
     starterDraftModePerspective: "Perspective",
     starterDraftScopeAll: "All Pages",
     starterDraftSaved: "Saved",
+    starterDraftImportHint: "Paste this JSON into Custom Starter Skill in Settings to create it.",
+    starterDraftActionHint: "Paste into Custom Starter in Settings",
+    copyStarterJson: "Copy JSON",
     customStarterBuilderTitle: "Create Custom Starter",
     customStarterBuilderHint: "Fill in the idea first, then pass it to AI to turn it into a starter you can save.",
     customStarterBuilderName: "What should this button be called?",
@@ -3361,14 +3367,37 @@ function escapeJsonStringLineBreaks(value) {
 }
 
 function parseStarterDraftCandidate(candidate) {
-  try {
-    return JSON.parse(candidate);
-  } catch (_error) {
+  let rawCandidate = String(candidate || "").trim();
+  if (!rawCandidate) {
+    return null;
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      return JSON.parse(escapeJsonStringLineBreaks(candidate));
-    } catch (_nextError) {
-      return null;
+      const parsed = JSON.parse(rawCandidate);
+      if (typeof parsed === "string") {
+        rawCandidate = parsed.trim();
+        continue;
+      }
+      return parsed;
+    } catch (_error) {
+      try {
+        const repaired = JSON.parse(escapeJsonStringLineBreaks(rawCandidate));
+        if (typeof repaired === "string") {
+          rawCandidate = repaired.trim();
+          continue;
+        }
+        return repaired;
+      } catch (_nextError) {
+        return null;
+      }
     }
+  }
+
+  try {
+    return JSON.parse(rawCandidate);
+  } catch (_error) {
+    return null;
   }
 }
 
@@ -3380,6 +3409,17 @@ function looksLikeStarterDraftText(text) {
 
   const fieldMatches = ["id", "label", "prompt", "scopes", "mode"].filter((field) => new RegExp(`["']${field}["']\\s*:`).test(value));
   return fieldMatches.length >= 4 && (/[{\[]/.test(value) || /```|~~~|'''/.test(value));
+}
+
+function countStarterDraftFieldMatches(text) {
+  const value = String(text || "");
+  if (!value) {
+    return 0;
+  }
+
+  return ["id", "label", "prompt", "scopes", "mode"]
+    .filter((field) => new RegExp(`["']${field}["']\\s*:`).test(value))
+    .length;
 }
 
 function getMessageIndexById(messageId) {
@@ -3523,19 +3563,19 @@ function getStarterDraftsForMessage(message) {
   }
 
   const messageIndex = getMessageIndexById(message.id);
-  if (messageIndex < 0) {
+  const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
+  const hasStarterLikeFragment = countStarterDraftFieldMatches(message.content) >= 2;
+  if (!previousUserMessage && !hasStarterLikeFragment) {
     return [];
   }
-
-  const previousUserMessage = getPreviousUserMessage(messageIndex);
-  if (!previousUserMessage || !isStarterBuilderRequest(previousUserMessage.content)) {
+  if (previousUserMessage && !isStarterBuilderRequest(previousUserMessage.content) && !hasStarterLikeFragment) {
     return [];
   }
 
   const fallbackStarter = {
-    id: extractLooseQuotedField(message.content, "id") || slugifyStarterId(extractStarterLabelFromRequest(previousUserMessage.content) || previousUserMessage.content, "starter"),
-    label: extractLooseQuotedField(message.content, "label") || extractStarterLabelFromRequest(previousUserMessage.content) || tl("starterDraftLabel"),
-    prompt: extractLooseQuotedField(message.content, "prompt") || buildStarterPromptFromRequest(previousUserMessage.content),
+    id: extractLooseQuotedField(message.content, "id") || slugifyStarterId(extractLooseQuotedField(message.content, "label") || extractStarterLabelFromRequest(previousUserMessage?.content || "") || previousUserMessage?.content || "starter", "starter"),
+    label: extractLooseQuotedField(message.content, "label") || extractStarterLabelFromRequest(previousUserMessage?.content || "") || tl("starterDraftLabel"),
+    prompt: extractLooseQuotedField(message.content, "prompt") || buildStarterPromptFromRequest(previousUserMessage?.content || tl("starterDraftLabel")),
     scopes: extractLooseStringArrayField(message.content, "scopes"),
     mode: extractLooseQuotedField(message.content, "mode") || "chat",
   };
@@ -3574,6 +3614,15 @@ function extractMarkdownCodeBlocks(markdown) {
   }
 
   return blocks;
+}
+
+function stripMarkdownCodeBlocks(markdown, shouldStrip) {
+  let blockIndex = 0;
+  return String(markdown || "").replace(/```([\s\S]*?)```/g, (match) => {
+    const keepBlock = typeof shouldStrip === "function" ? !shouldStrip(blockIndex, match) : true;
+    blockIndex += 1;
+    return keepBlock ? match : "";
+  });
 }
 
 function getStarterDraftsForCodeBlock(message, codeBlockIndex) {
@@ -3660,6 +3709,7 @@ function renderStarterDrafts(message) {
 
   const savedIds = getSavedCustomStarterIds();
   const allSaved = drafts.every((draft) => savedIds.has(draft.id));
+  const exportedJson = serializeStarterDraftsForExport(drafts);
 
   const cards = drafts
     .map((draft) => {
@@ -3675,18 +3725,20 @@ function renderStarterDrafts(message) {
               <div class="ollama-quick-starter-draft-kicker">${escapeHtml(tl("starterDraftLabel"))}</div>
               <div class="ollama-quick-starter-draft-title">${escapeHtml(draft.label)}</div>
             </div>
-            ${
-              isSaved
-                ? `<span class="ollama-quick-starter-draft-badge">${escapeHtml(tl("starterDraftSaved"))}</span>`
-                : `<button class="ollama-quick-copy" type="button" data-action="save-generated-starter" data-message-id="${escapeHtml(message.id)}" data-starter-id="${escapeHtml(draft.id)}">${escapeHtml(tl("saveStarter"))}</button>`
-            }
+            <div class="ollama-quick-starter-draft-buttons">
+              <button class="ollama-quick-copy" type="button" data-action="copy-generated-starter-json" data-message-id="${escapeHtml(message.id)}" data-starter-id="${escapeHtml(draft.id)}">${escapeHtml(tl("copyStarterJson"))}</button>
+              ${
+                isSaved
+                  ? `<span class="ollama-quick-starter-draft-badge">${escapeHtml(tl("starterDraftSaved"))}</span>`
+                  : `<button class="ollama-quick-copy" type="button" data-action="save-generated-starter" data-message-id="${escapeHtml(message.id)}" data-starter-id="${escapeHtml(draft.id)}">${escapeHtml(tl("saveStarter"))}</button>`
+              }
+            </div>
           </div>
           <div class="ollama-quick-starter-draft-meta">
             <span>${escapeHtml(tl("starterDraftMode"))}: ${escapeHtml(getStarterDraftModeLabel(draft.composeMode))}</span>
             <span>${escapeHtml(tl("starterDraftScopes"))}:</span>
             <div class="ollama-quick-starter-draft-scopes">${scopeMarkup}</div>
           </div>
-          <div class="ollama-quick-starter-draft-prompt">${escapeHtml(draft.prompt)}</div>
         </article>
       `;
     })
@@ -3695,13 +3747,25 @@ function renderStarterDrafts(message) {
   const bulkAction = drafts.length > 1 && !allSaved
     ? `
       <div class="ollama-quick-starter-draft-actions">
+        <button class="ollama-quick-copy" type="button" data-action="copy-generated-starters-json" data-message-id="${escapeHtml(message.id)}">${escapeHtml(tl("copyStarterJson"))}</button>
         <button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${escapeHtml(message.id)}">${escapeHtml(tl("saveAllStarters"))}</button>
       </div>
     `
+    : drafts.length > 1
+      ? `
+        <div class="ollama-quick-starter-draft-actions">
+          <button class="ollama-quick-copy" type="button" data-action="copy-generated-starters-json" data-message-id="${escapeHtml(message.id)}">${escapeHtml(tl("copyStarterJson"))}</button>
+        </div>
+      `
     : "";
 
   return `
     <section class="ollama-quick-starter-drafts">
+      <div class="ollama-quick-starter-draft-import-guide">
+        <div class="ollama-quick-starter-draft-import-text">${escapeHtml(tl("starterDraftImportHint"))}</div>
+        <button class="ollama-quick-copy" type="button" data-action="copy-generated-starters-json" data-message-id="${escapeHtml(message.id)}">${escapeHtml(tl("copyStarterJson"))}</button>
+      </div>
+      <pre class="ollama-quick-starter-draft-json">${escapeHtml(exportedJson)}</pre>
       ${cards}
       ${bulkAction}
     </section>
@@ -3751,6 +3815,29 @@ async function persistGeneratedStarters(starters) {
 
   currentConfig = result.config;
   renderShell();
+}
+
+function serializeStarterDraftsForExport(starters) {
+  const normalizedStarters = (Array.isArray(starters) ? starters : [])
+    .map((item, index) => normalizeCustomStarter(item, index))
+    .filter(Boolean)
+    .map((starter) => ({
+      id: starter.id,
+      label: starter.label,
+      prompt: starter.prompt,
+      scopes: starter.scopes,
+      mode: starter.composeMode,
+    }));
+
+  return JSON.stringify(normalizedStarters, null, 2);
+}
+
+function renderStarterDraftJsonBody(drafts) {
+  return `
+    <div class="ollama-quick-code-block ollama-quick-code-block-starter-json">
+      <pre><code>${escapeHtml(serializeStarterDraftsForExport(drafts))}</code></pre>
+    </div>
+  `;
 }
 
 function getStarterText(starterKey) {
@@ -4012,7 +4099,7 @@ function buildCustomStarterBuilderPrompt() {
     "幫我做一個 starter。",
     "",
     "請根據下面需求，產生可直接儲存的 starter JSON。",
-    "請只回我可儲存的 starter JSON，不要加其他解釋。",
+    "請只回我可儲存的 starter JSON，不要加其他解釋，也不要包在 Markdown code block 裡。",
     "",
     `按鈕名稱：${draft.name.trim()}`,
     `用途：${draft.purpose.trim()}`,
@@ -4603,14 +4690,21 @@ function renderMarkdown(markdown, options = {}) {
     const languageBadge = block.language
       ? `<span class="ollama-quick-code-block-language">${escapeHtml(block.language)}</span>`
       : "";
+    const copyButton = starterDrafts.length
+      ? `<button class="ollama-quick-copy" type="button" data-action="copy-generated-starter-code-block-json" data-message-id="${escapeHtml(messageId)}" data-code-block-index="${index}">${escapeHtml(tl("copyStarterJson"))}</button>`
+      : "";
     const saveButton = starterDrafts.length
       ? allSaved
         ? `<span class="ollama-quick-starter-draft-badge">${escapeHtml(tl("starterDraftSaved"))}</span>`
         : `<button class="ollama-quick-copy" type="button" data-action="save-generated-starter-code-block" data-message-id="${escapeHtml(messageId)}" data-code-block-index="${index}">${escapeHtml(tl("saveStarterToSettings"))}</button>`
       : "";
+    const importHint = starterDrafts.length
+      ? `<div class="ollama-quick-code-block-hint">${escapeHtml(tl("starterDraftImportHint"))}</div>`
+      : "";
     const codeMarkup = `
       <div class="ollama-quick-code-block">
-        ${(languageBadge || saveButton) ? `<div class="ollama-quick-code-block-top">${languageBadge}${saveButton}</div>` : ""}
+        ${importHint}
+        ${(languageBadge || copyButton || saveButton) ? `<div class="ollama-quick-code-block-top">${languageBadge}<div class="ollama-quick-code-block-actions">${copyButton}${saveButton}</div></div>` : ""}
         <pre><code>${escapeHtml(block.code)}</code></pre>
       </div>
     `;
@@ -5104,9 +5198,8 @@ async function buildPrompt(userMessage) {
         "STARTER GENERATION MODE",
         "The user is asking you to design a reusable starter for this browser extension.",
         "Do not perform the requested task itself. Convert the request into starter JSON instead.",
-        "Reply with a single complete JSON code block only. Do not add explanation before or after it.",
-        "Your response must start with ```json and end with ```.",
-        "Any response that is not a JSON code block is invalid.",
+        "Reply with JSON only. Do not wrap the response in Markdown code fences.",
+        "Do not add explanation before or after the JSON.",
         "Do not return a markdown table, bullet list, prose, or partial JSON.",
         "Ignore the page body, article text, email content, code, and chat history as answer targets.",
         "Use them only as inspiration for what the starter should ask the model to do later.",
@@ -6229,6 +6322,7 @@ function renderMessages() {
         const messageIndex = getMessageIndexById(message.id);
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
+        const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
         const body =
           isTypingAssistant
             ? `
@@ -6239,9 +6333,15 @@ function renderMessages() {
               </div>
             `
             : message.role === "assistant"
-            ? renderMarkdown(message.content, { messageId: message.id })
+            ? (
+                parsedStarterDrafts.length
+                  ? renderStarterDraftJsonBody(parsedStarterDrafts)
+                  : renderMarkdown(
+                      message.content,
+                      { messageId: message.id }
+                    )
+              )
             : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>${messageAttachments}`;
-        const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
         const hasDraftCodeBlock = message.role === "assistant" && !isTypingAssistant ? hasStarterDraftCodeBlock(message) : false;
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
         const downloadableHtml = message.role === "assistant" && !isTypingAssistant ? extractHtmlDocumentFromText(message.content) : "";
@@ -6256,10 +6356,17 @@ function renderMessages() {
           )
         );
         const actionButtons = [];
-        if (showSaveStarterButton) {
+        if (parsedStarterDrafts.length) {
+          actionButtons.push(
+            `<span class="ollama-quick-message-action-hint">${escapeHtml(tl("starterDraftActionHint"))}</span>`
+          );
+          actionButtons.push(
+            `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-generated-starters-json" data-message-id="${message.id}" title="${escapeHtml(tl("copyStarterJson"))}" aria-label="${escapeHtml(tl("copyStarterJson"))}">⧉</button>`
+          );
+        } else if (showSaveStarterButton) {
           actionButtons.push(`<button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${message.id}">${escapeHtml(tl("saveStarter"))}</button>`);
         }
-        if (message.role === "assistant" && !isTypingAssistant) {
+        if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length) {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
@@ -6274,7 +6381,7 @@ function renderMessages() {
             );
           }
         }
-        const starterDrafts = parsedStarterDrafts.length ? renderStarterDrafts(message) : "";
+        const starterDrafts = "";
         const roleLabel = isTypingAssistant
           ? tl("assistantThinking")
           : message.role === "assistant"
@@ -7723,6 +7830,38 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "copy-generated-starter-json" || action === "copy-generated-starters-json") {
+    const messageId = actionNode.dataset.messageId || "";
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const drafts = getStarterDraftsForMessage(message);
+    if (!drafts.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    const startersToCopy =
+      action === "copy-generated-starter-json"
+        ? drafts.filter((draft) => draft.id === (actionNode.dataset.starterId || ""))
+        : drafts;
+    if (!startersToCopy.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(serializeStarterDraftsForExport(startersToCopy));
+      setStatus(tl("copiedResponse"));
+    } catch {
+      setStatus(tl("copyFailed"));
+    }
+    return;
+  }
+
   if (action === "save-generated-starter-code-block") {
     const messageId = actionNode.dataset.messageId || "";
     const codeBlockIndex = Number.parseInt(actionNode.dataset.codeBlockIndex || "-1", 10);
@@ -7753,6 +7892,32 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "copy-generated-starter-code-block-json") {
+    const messageId = actionNode.dataset.messageId || "";
+    const codeBlockIndex = Number.parseInt(actionNode.dataset.codeBlockIndex || "-1", 10);
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const startersToCopy = Number.isInteger(codeBlockIndex) && codeBlockIndex >= 0
+      ? getStarterDraftsForCodeBlock(message, codeBlockIndex)
+      : [];
+    if (!startersToCopy.length) {
+      setStatus(tl("starterSaveFailed"));
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(serializeStarterDraftsForExport(startersToCopy));
+      setStatus(tl("copiedResponse"));
+    } catch {
+      setStatus(tl("copyFailed"));
+    }
+    return;
+  }
+
   if (action === "clear-chat") {
     if (!window.confirm(tl("confirmClearChat"))) {
       return;
@@ -7779,7 +7944,10 @@ async function handleClick(event) {
     }
 
     try {
-      await navigator.clipboard.writeText(message.content);
+      const starterDrafts = getStarterDraftsForMessage(message);
+      await navigator.clipboard.writeText(
+        starterDrafts.length ? serializeStarterDraftsForExport(starterDrafts) : message.content
+      );
       setStatus(tl("copiedResponse"));
     } catch {
       setStatus(tl("copyFailed"));

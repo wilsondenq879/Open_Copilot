@@ -953,8 +953,37 @@ function normalizeImportedStarter(item, index) {
   };
 }
 
+function unwrapImportedStarterText(rawText) {
+  const text = String(rawText || "").trim();
+  if (!text) {
+    return text;
+  }
+
+  const fencedMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fencedMatch) {
+    return fencedMatch[1].trim();
+  }
+
+  return text;
+}
+
+function parseStarterJsonLikeText(rawText) {
+  let candidate = unwrapImportedStarterText(rawText);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parsed = JSON.parse(candidate);
+    if (typeof parsed === "string") {
+      candidate = parsed.trim();
+      continue;
+    }
+    return parsed;
+  }
+
+  throw new Error(t("customStarterImportFailed"));
+}
+
 function parseImportedStarters(rawText) {
-  const parsed = JSON.parse(String(rawText || "").trim());
+  const parsed = parseStarterJsonLikeText(rawText);
   const starters = Array.isArray(parsed) ? parsed : parsed?.starters;
   if (!Array.isArray(starters)) {
     throw new Error(t("customStarterImportFailed"));
