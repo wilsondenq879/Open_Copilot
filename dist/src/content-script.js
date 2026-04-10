@@ -81,6 +81,57 @@ const EMAIL_BODY_SELECTORS = [
   "[role='textbox'][g_editable='true']",
   ".ProseMirror[contenteditable='true']",
 ];
+const OFFICE_DOCUMENT_TEXT_SELECTORS = [
+  "[role='document']",
+  "[role='textbox']",
+  "[contenteditable='true']",
+  "[data-automationid*='Content']",
+  "[data-automationid*='content']",
+  "[data-automationid*='Page']",
+  "[data-automationid*='page']",
+  "[aria-label*='Document']",
+  "[aria-label*='document']",
+  "[aria-label*='Page']",
+  "[aria-label*='page']",
+  ".CanvasZone",
+  ".page",
+];
+const OFFICE_CHROME_NOISE_PATTERNS = [
+  /^file$/i,
+  /^home$/i,
+  /^insert$/i,
+  /^layout$/i,
+  /^references$/i,
+  /^review$/i,
+  /^view$/i,
+  /^help$/i,
+  /^share$/i,
+  /^comments?$/i,
+  /^present$/i,
+  /^designer$/i,
+  /^word$/i,
+  /^excel$/i,
+  /^powerpoint$/i,
+  /^teams$/i,
+  /^chat$/i,
+  /^calendar$/i,
+  /^calls$/i,
+  /^onedrive$/i,
+  /^apps$/i,
+  /^copilot$/i,
+  /^activity$/i,
+  /^more$/i,
+  /^檔案$/i,
+  /^常用$/i,
+  /^插入$/i,
+  /^版面配置$/i,
+  /^參考資料$/i,
+  /^校閱$/i,
+  /^檢視$/i,
+  /^共用$/i,
+  /^註解$/i,
+  /^助理$/i,
+];
 
 let currentConfig = null;
 let cachedModels = [];
@@ -197,6 +248,120 @@ const GITHUB_CODE_STARTERS = ["githubCodeReviewDeep", "githubContractCheck", "gi
 const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSurfaceReview"];
 const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
 const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
+const BUILTIN_STARTER_DESCRIPTIONS = {
+  "zh-TW": {
+    pageSummary: "快速整理目前頁面的重點、脈絡與關鍵資訊。",
+    translatePage: "把目前頁面內容翻成指定語言，方便直接閱讀。",
+    reflectionArticle: "根據頁面內容整理重點，並延伸成一篇有觀點的心得文。",
+    codeExplain: "把目前看到的程式碼或技術內容用白話方式講清楚。",
+    emailSummary: "抓出信件重點、待回覆事項與重要人物時間。",
+    articleTimeline: "把文章或頁面中的事件依時間順序整理出來。",
+    articleBiasCheck: "分析主張依據、隱含假設，以及可能忽略的反面觀點。",
+    codeRiskReview: "用 code review 角度盤點潛在 bug、風險與可改進處。",
+    codeTeachBack: "把技術內容重寫成比較容易吸收的學習筆記。",
+    githubRepoPurpose: "快速判斷這個 repository 想解決什麼問題、主要在做什麼。",
+    githubSummary: "摘要目前 GitHub 頁面的背景、重點與狀態。",
+    githubReviewFocus: "站在 reviewer 角度指出最值得優先檢查的地方。",
+    githubNextSteps: "根據目前內容整理最合理的後續行動。",
+    githubCrossCheck: "拿目前頁面和你加入的文件做交叉比對，找出對得上或對不上的地方。",
+    githubSpecCoverage: "檢查目前實作或變更是否有被規格與文件完整覆蓋。",
+    githubDriftCheck: "找出程式、PR 或頁面內容和加入文件之間的不一致。",
+    githubReviewChecklist: "整理一份可以逐項確認的 review checklist。",
+    githubTestGap: "盤點目前缺少哪些測試、驗證情境或證據。",
+    githubDocReview: "檢查文件是否清楚、正確，還有哪些地方需要補強。",
+    githubRequirementMap: "把需求、規格與目前內容逐項對照整理。",
+    githubSecurityRequirementCheck: "確認安全需求有沒有被目前內容或實作覆蓋到。",
+    githubWebReview: "專看前端結構、HTML 語意與頁面組成是否合理。",
+    githubAccessibilityReview: "檢查可近用性、語意標記與互動是否友善。",
+    githubFrontendSecurityReview: "聚焦前端常見安全風險，像是 XSS、注入或敏感資料暴露。",
+    githubCodeReviewDeep: "做更深入的程式碼檢查，挖出隱性問題與設計風險。",
+    githubContractCheck: "檢查模組、API 或資料介面的契約是否一致。",
+    githubSecurityReview: "從整體安全角度盤點可能的漏洞與風險點。",
+    githubRegressionHotspots: "找出這次變更最容易引發回歸問題的區域。",
+    githubMemorySafetyReview: "檢查可能的記憶體安全問題與危險操作。",
+    githubAttackSurfaceReview: "盤點系統暴露出的攻擊面與可能被濫用的入口。",
+    githubConfigReview: "專看設定檔、環境參數與預設值有沒有風險。",
+    githubSecretAndPermissionReview: "檢查 secrets、token、權限設定是否過寬或暴露。",
+    githubOperationalRiskReview: "盤點部署、維運與操作層面的潛在風險。",
+    githubArchitectureMap: "整理專案架構、模組分工與關聯。",
+    githubImpactSurfaceMap: "評估這頁內容或變更會影響到哪些模組、流程與使用者。",
+    githubRepoSecurityReview: "從 repository 層級檢查設定、流程與管理上的安全風險。",
+    chatWeeklyDigest: "把最近幾天的對談濃縮成一份短報告。",
+    chatActionItems: "從對話中抓出待辦、負責人與時程。",
+    docExecutiveBrief: "把文件濃縮成適合快速決策閱讀的高層摘要。",
+    docOutline: "把目前內容重新整理成結構清楚的大綱。",
+    landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
+    bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
+    catalystMap: "整理推動事件、觸發因子與可能影響路徑。",
+    pricedIn: "判斷市場是否已經把某些預期反映進價格。",
+    tickerImpact: "列出事件可能影響到的股票或標的與原因。",
+    memeCaption: "把目前內容轉成適合做梗圖的短文案。",
+    darkMeme: "產出更黑色幽默、偏地獄梗風格的版本。",
+    xPost: "把內容改寫成適合發在 X 上的貼文格式。",
+    templateIdeas: "根據內容推薦適合套用的梗圖模板方向。",
+    lowIqMeme: "把內容改成更直白、誇張、低智商風格的梗圖文案。",
+    multiPerspective: "從多個角色或立場切入，同時看同一件事。",
+    imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
+    imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
+    createCustomStarter: "先整理需求，幫你設計一個新的自訂 starter。",
+  },
+  en: {
+    pageSummary: "Pull out the main points, context, and key details from the current page.",
+    translatePage: "Translate the current page into the selected language for quick reading.",
+    reflectionArticle: "Turn the page into a short reflection piece with takeaways and perspective.",
+    codeExplain: "Explain the visible code or technical content in plain language.",
+    emailSummary: "Summarize the email, including key points, follow-ups, and important details.",
+    articleTimeline: "Reconstruct the events on the page in time order.",
+    articleBiasCheck: "Analyze the main claims, assumptions, and possible blind spots.",
+    codeRiskReview: "Scan the visible code for bugs, risky areas, and improvement opportunities.",
+    codeTeachBack: "Rewrite technical content into easier-to-learn study notes.",
+    githubRepoPurpose: "Figure out what problem this repository solves and what it is mainly for.",
+    githubSummary: "Summarize the current GitHub page, its context, and its current state.",
+    githubReviewFocus: "Point out the most important things a reviewer should inspect first.",
+    githubNextSteps: "Suggest the most reasonable next actions based on the current page.",
+    githubCrossCheck: "Compare the current page against the added source and highlight matches or mismatches.",
+    githubSpecCoverage: "Check whether the current work is properly covered by specs or docs.",
+    githubDriftCheck: "Find where the page and the added source have drifted apart.",
+    githubReviewChecklist: "Generate a practical checklist for reviewing the current work.",
+    githubTestGap: "Spot missing tests, validation steps, or proof points.",
+    githubDocReview: "Review the docs for clarity, correctness, and missing pieces.",
+    githubRequirementMap: "Map the current work back to requirements and documentation.",
+    githubSecurityRequirementCheck: "Verify whether security requirements are actually covered.",
+    githubWebReview: "Review frontend structure, HTML semantics, and page composition.",
+    githubAccessibilityReview: "Check accessibility, semantic markup, and interaction quality.",
+    githubFrontendSecurityReview: "Look for common frontend security issues like XSS or unsafe exposure.",
+    githubCodeReviewDeep: "Do a deeper pass on code quality, design risks, and subtle issues.",
+    githubContractCheck: "Check whether APIs, interfaces, and data contracts stay consistent.",
+    githubSecurityReview: "Review the current work from an overall security-risk perspective.",
+    githubRegressionHotspots: "Identify the areas most likely to break or regress.",
+    githubMemorySafetyReview: "Check for memory-safety problems and dangerous patterns.",
+    githubAttackSurfaceReview: "Map the exposed attack surface and likely abuse points.",
+    githubConfigReview: "Inspect configs, defaults, and environment settings for risk.",
+    githubSecretAndPermissionReview: "Look for overbroad permissions, exposed secrets, or unsafe access.",
+    githubOperationalRiskReview: "Review deployment and operational risks around the current work.",
+    githubArchitectureMap: "Lay out the project structure, modules, and relationships.",
+    githubImpactSurfaceMap: "Show what modules, flows, or users are likely to be affected.",
+    githubRepoSecurityReview: "Review repository-level security risks in setup and workflow.",
+    chatWeeklyDigest: "Condense recent conversation history into a short digest.",
+    chatActionItems: "Extract action items, owners, and deadlines from the conversation.",
+    docExecutiveBrief: "Turn the document into a concise, decision-friendly brief.",
+    docOutline: "Reorganize the current content into a clearer outline.",
+    landingHtml: "Turn the current material into a single downloadable HTML page.",
+    bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
+    catalystMap: "Map the events, triggers, and likely impact paths around a topic.",
+    pricedIn: "Judge whether expectations already seem reflected in the price.",
+    tickerImpact: "List the tickers or assets most likely to be affected and why.",
+    memeCaption: "Turn the current content into meme-ready caption ideas.",
+    darkMeme: "Generate a darker, more brutal joke version of the meme idea.",
+    xPost: "Rewrite the current content into a post format suited for X.",
+    templateIdeas: "Suggest meme template directions that fit the current content.",
+    lowIqMeme: "Rewrite the idea into an intentionally blunt, chaotic low-IQ meme style.",
+    multiPerspective: "Analyze the same topic from multiple roles or perspectives.",
+    imageAnalysis: "Describe the image, key elements, and likely meaning.",
+    imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
+    createCustomStarter: "Help define and shape a new reusable custom starter.",
+  },
+};
 const CUSTOM_STARTER_SCOPE_ALIASES = {
   "*": "all",
   any: "all",
@@ -1451,7 +1616,23 @@ function getGithubTypeSpecificStarterKeys() {
 }
 
 function isLikelyEmailHost(hostname = window.location.hostname.toLowerCase()) {
-  return EMAIL_HOST_HINTS.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`));
+  const normalizedHostname = String(hostname || "").toLowerCase();
+  if (!normalizedHostname) {
+    return false;
+  }
+
+  if (EMAIL_HOST_HINTS.some((hint) => normalizedHostname === hint || normalizedHostname.endsWith(`.${hint}`))) {
+    return true;
+  }
+
+  return [
+    "mail.",
+    "webmail.",
+    "inbox.",
+    "email.",
+    "outlook.",
+    "owa.",
+  ].some((hint) => normalizedHostname.includes(hint));
 }
 
 function isMicrosoftAppHost() {
@@ -1676,6 +1857,46 @@ function collectEmailTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS)
   }
 }
 
+function detectEmailContentSignals(doc = document, sampleText = "") {
+  const visibleBodies = queryAllIncludingShadow(doc, EMAIL_BODY_SELECTORS, 6)
+    .map((node) => getNodeVisibleText(node))
+    .filter(Boolean);
+  const subject = queryAllIncludingShadow(doc, EMAIL_SUBJECT_SELECTORS, 3)
+    .map((node) => getNodeVisibleText(node))
+    .find(Boolean);
+  const normalizedSampleText = normalizeExtractedText(sampleText).toLowerCase();
+  const emailKeywords = [
+    "from:",
+    "to:",
+    "cc:",
+    "bcc:",
+    "reply",
+    "forward",
+    "sent:",
+    "draft",
+    "inbox",
+    "compose",
+    "subject:",
+    "received:",
+    "寄件者",
+    "收件者",
+    "副本",
+    "密件副本",
+    "主旨",
+    "回覆",
+    "轉寄",
+    "草稿",
+    "收件匣",
+  ];
+  const keywordHits = emailKeywords.filter((keyword) => normalizedSampleText.includes(keyword)).length;
+
+  return {
+    subject,
+    visibleBodies,
+    keywordHits,
+  };
+}
+
 function collectVisibleTextNodesIncludingShadow(root, maxNodes = 400) {
   const results = [];
   const seen = new Set();
@@ -1738,15 +1959,66 @@ function collectVisibleTextNodesIncludingShadow(root, maxNodes = 400) {
   return results;
 }
 
+function isOfficeChromeNoiseText(text) {
+  const normalized = normalizeExtractedText(text);
+  if (!normalized) {
+    return true;
+  }
+
+  if (OFFICE_CHROME_NOISE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  return normalized.length < 2;
+}
+
+function collectOfficeDocumentTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+  const blocks = [];
+  const seen = new Set();
+
+  queryAllIncludingShadow(doc, OFFICE_DOCUMENT_TEXT_SELECTORS, maxBlocks * 4)
+    .map((node) => getNodeVisibleText(node))
+    .forEach((text) => {
+      if (!text || isOfficeChromeNoiseText(text)) {
+        return;
+      }
+      appendUniqueTextBlock(blocks, seen, text, 2800);
+    });
+
+  collectVisibleTextNodesIncludingShadow(doc, maxBlocks * 20)
+    .filter((text) => !isOfficeChromeNoiseText(text))
+    .sort((left, right) => right.length - left.length)
+    .slice(0, maxBlocks * 4)
+    .forEach((text) => {
+      appendUniqueTextBlock(blocks, seen, text, 1200);
+    });
+
+  return blocks.slice(0, maxBlocks);
+}
+
 function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   const blocks = [];
   const seen = new Set();
 
   try {
-    if (isLikelyEmailHost()) {
+    const { subject, visibleBodies, keywordHits } = detectEmailContentSignals(doc, getNodeVisibleText(doc.body));
+    if (isLikelyEmailHost(doc.location?.hostname || window.location.hostname) || subject || visibleBodies.length || keywordHits >= 2) {
       const emailBlocks = collectEmailTextBlocksFromDocument(doc, maxBlocks);
       if (emailBlocks.length) {
         return emailBlocks;
+      }
+    }
+
+    const officeSignals = detectDocumentWorkspaceSignals({
+      hostname: doc.location?.hostname || window.location.hostname,
+      pathname: doc.location?.pathname || window.location.pathname,
+      title: doc.title || document.title || "",
+      sampleText: getNodeVisibleText(doc.body).slice(0, 4000),
+    });
+    if (officeSignals.matchesHost || officeSignals.matchesPath || officeSignals.teamsEmbeddedOffice || officeSignals.hasOfficeFileChrome) {
+      const officeBlocks = collectOfficeDocumentTextBlocksFromDocument(doc, maxBlocks);
+      if (officeBlocks.length) {
+        return officeBlocks;
       }
     }
 
@@ -1785,6 +2057,123 @@ function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   return blocks;
 }
 
+function detectDocumentWorkspaceSignals(signals) {
+  const {
+    hostname = window.location.hostname.toLowerCase(),
+    pathname = window.location.pathname.toLowerCase(),
+    title = document.title || "",
+    sampleText = "",
+  } = signals || {};
+  const normalizedTitle = normalizeExtractedText(title).toLowerCase();
+  const normalizedSampleText = normalizeExtractedText(sampleText).toLowerCase();
+  const domText = normalizeExtractedText(
+    queryAllIncludingShadow(document, [
+      "[role='tablist']",
+      "[role='toolbar']",
+      "[aria-label*='Word']",
+      "[aria-label*='Excel']",
+      "[aria-label*='PowerPoint']",
+      "[title*='Word']",
+      "[title*='Excel']",
+      "[title*='PowerPoint']",
+      "[data-tid]",
+      "button",
+    ], 160)
+      .map((node) => getNodeVisibleText(node))
+      .join(" ")
+  ).toLowerCase();
+  const documentHostHints = [
+    "office.com",
+    "officeapps.live.com",
+    "word-edit.officeapps.live.com",
+    "excel.officeapps.live.com",
+    "powerpoint.officeapps.live.com",
+    "onenote.officeapps.live.com",
+    "sharepoint.com",
+  ];
+  const documentKeywords = [
+    "document outline",
+    "editing",
+    "comments",
+    "suggesting",
+    "heading",
+    "table of contents",
+    "share",
+    "last edited",
+    "page setup",
+    "worksheet",
+    "slide",
+    "slides",
+    "workbook",
+    "sheet",
+    "formula bar",
+    "references",
+    "review",
+    "present",
+    "常用",
+    "插入",
+    "版面配置",
+    "參考資料",
+    "校閱",
+    "檢視",
+    "工作表",
+    "投影片",
+    "活頁簿",
+    "公式列",
+    "文件",
+  ];
+  const officeAppKeywords = [
+    "word",
+    "excel",
+    "powerpoint",
+    "power point",
+    "onedrive",
+    "sharepoint",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+  ];
+  const keywordHits = documentKeywords.filter((keyword) => normalizedSampleText.includes(keyword)).length;
+  const officeAppHits = officeAppKeywords.filter((keyword) => normalizedTitle.includes(keyword) || normalizedSampleText.includes(keyword) || domText.includes(keyword)).length;
+  const hasOfficeToolbar =
+    ["home", "insert", "layout", "references", "review", "view", "常用", "插入", "版面配置", "參考資料", "校閱", "檢視"].filter((keyword) => normalizedSampleText.includes(keyword) || domText.includes(keyword)).length >= 2;
+  const hasOfficeFileChrome =
+    [
+      "file",
+      "share",
+      "comments",
+      "present",
+      "designer",
+      "format painter",
+      "home insert",
+      "insert layout",
+      "layout references",
+      "references review",
+      "review view",
+      "檔案",
+      "共用",
+      "註解",
+      "格式刷",
+      "常用 插入",
+      "插入 版面配置",
+      "版面配置 參考資料",
+      "參考資料 校閱",
+    ].filter((keyword) => domText.includes(keyword)).length >= 2;
+  const teamsEmbeddedOffice =
+    hostname.includes("teams.microsoft.com") &&
+    (officeAppHits >= 1 || hasOfficeToolbar || hasOfficeFileChrome || /\/file\/|\/document\/|\/presentation\/|\/worksheet\/|\/workbook\//.test(pathname));
+
+  return {
+    keywordHits,
+    officeAppHits,
+    hasOfficeToolbar,
+    hasOfficeFileChrome,
+    matchesHost: documentHostHints.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`)),
+    matchesPath: /\/document\/|\/spreadsheets\/|\/presentation\/|\/wordeditor|\/excel|\/powerpoint|\/worksheet|\/workbook|\/slide/.test(pathname),
+    teamsEmbeddedOffice,
+  };
+}
+
 function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true) {
   const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
   const blocks = [];
@@ -1801,7 +2190,14 @@ function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = tru
     return normalized;
   }
 
-  return isLikelyCollaborationHost()
+  const officeSignals = detectDocumentWorkspaceSignals({
+    hostname: window.location.hostname.toLowerCase(),
+    pathname: window.location.pathname.toLowerCase(),
+    title: document.title || "",
+    sampleText: normalized.slice(0, 2500),
+  });
+
+  return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
     ? normalized.slice(-maxLength)
     : normalized.slice(0, maxLength);
 }
@@ -2048,34 +2444,16 @@ function matchesEntertainmentPage(signals) {
 
 function matchesEmailPage(signals) {
   const { hostname, sampleText } = signals;
-  if (!isLikelyEmailHost(hostname)) {
-    return false;
-  }
-
-  const visibleBodies = queryAllIncludingShadow(document, EMAIL_BODY_SELECTORS, 4)
-    .map((node) => getNodeVisibleText(node))
-    .filter(Boolean);
-  const subject = queryAllIncludingShadow(document, EMAIL_SUBJECT_SELECTORS, 2)
-    .map((node) => getNodeVisibleText(node))
-    .find(Boolean);
-  const emailKeywords = [
-    "from:",
-    "to:",
-    "cc:",
-    "bcc:",
-    "reply",
-    "forward",
-    "sent:",
-    "draft",
-  ];
-  const keywordHits = emailKeywords.filter((keyword) => sampleText.includes(keyword)).length;
-
-  return Boolean(subject) || visibleBodies.length > 0 || keywordHits >= 2;
+  const { subject, visibleBodies, keywordHits } = detectEmailContentSignals(document, sampleText);
+  return Boolean(subject) || visibleBodies.length > 0 || keywordHits >= 2 || isLikelyEmailHost(hostname);
 }
 
 function matchesCollaborationPage(signals) {
   const { hostname, pathname, sampleText } = signals;
   if (matchesEmailPage(signals)) {
+    return false;
+  }
+  if (detectDocumentWorkspaceSignals(signals).teamsEmbeddedOffice) {
     return false;
   }
 
@@ -2126,16 +2504,10 @@ function isLikelyCollaborationHost() {
 
 function matchesDocumentWorkspacePage(signals) {
   const { hostname, pathname, sampleText } = signals;
+  const officeSignals = detectDocumentWorkspaceSignals(signals);
   const documentHostHints = [
     "docs.google.com",
     "drive.google.com",
-    "office.com",
-    "officeapps.live.com",
-    "word-edit.officeapps.live.com",
-    "excel.officeapps.live.com",
-    "powerpoint.officeapps.live.com",
-    "onenote.officeapps.live.com",
-    "sharepoint.com",
   ];
   const documentKeywords = [
     "document outline",
@@ -2153,6 +2525,12 @@ function matchesDocumentWorkspacePage(signals) {
   ];
 
   return (
+    officeSignals.matchesHost ||
+    officeSignals.matchesPath ||
+    officeSignals.teamsEmbeddedOffice ||
+    officeSignals.officeAppHits >= 1 ||
+    officeSignals.hasOfficeFileChrome ||
+    (officeSignals.hasOfficeToolbar && officeSignals.keywordHits >= 1) ||
     documentHostHints.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`)) ||
     /\/document\/|\/spreadsheets\/|\/presentation\/|\/wordeditor|\/excel|\/powerpoint/.test(pathname) ||
     documentKeywords.filter((keyword) => sampleText.includes(keyword)).length >= 3
@@ -2213,21 +2591,6 @@ const PAGE_COPILOT_ADAPTERS = [
     },
   },
   {
-    id: "collaboration",
-    match() {
-      return matchesCollaborationPage(getPageSignals());
-    },
-    resolve() {
-      return {
-        adapterId: "collaboration",
-        adapterLabel: getAdapterLabel("collaboration"),
-        type: "collaboration",
-        label: getPageTypeLabel("collaboration"),
-        starterKeys: PAGE_COPILOT_STARTERS.collaboration,
-      };
-    },
-  },
-  {
     id: "document",
     match() {
       return matchesDocumentWorkspacePage(getPageSignals());
@@ -2239,6 +2602,21 @@ const PAGE_COPILOT_ADAPTERS = [
         type: "document",
         label: getPageTypeLabel("document"),
         starterKeys: PAGE_COPILOT_STARTERS.document,
+      };
+    },
+  },
+  {
+    id: "collaboration",
+    match() {
+      return matchesCollaborationPage(getPageSignals());
+    },
+    resolve() {
+      return {
+        adapterId: "collaboration",
+        adapterLabel: getAdapterLabel("collaboration"),
+        type: "collaboration",
+        label: getPageTypeLabel("collaboration"),
+        starterKeys: PAGE_COPILOT_STARTERS.collaboration,
       };
     },
   },
@@ -2301,15 +2679,49 @@ function isGithubAdapterActive(pageCopilot = currentPageCopilot) {
 
 function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
   const baseKeys = Array.isArray(pageCopilot?.starterKeys) ? pageCopilot.starterKeys : DEFAULT_STARTER_KEYS;
-  let nextKeys = [...baseKeys, "createCustomStarter"];
+  let nextKeys = [...baseKeys];
 
   if (isGithubAdapterActive(pageCopilot)) {
+    nextKeys = ["codeExplain", ...nextKeys];
     if (includedGithubSources.length) {
       nextKeys = [...nextKeys, ...GITHUB_INCLUDED_STARTERS];
     }
     nextKeys = [...nextKeys, ...getGithubTypeSpecificStarterKeys()];
-  } else if (!nextKeys.includes("translatePage")) {
+  }
+
+  if (!isGithubAdapterActive(pageCopilot) && !nextKeys.includes("translatePage")) {
     nextKeys = [...nextKeys, "translatePage"];
+  }
+
+  nextKeys = [...nextKeys, "createCustomStarter"];
+
+  return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
+}
+
+function getHighlightedStarterKeys(pageCopilot = currentPageCopilot) {
+  const baseKeys = Array.isArray(pageCopilot?.starterKeys) ? pageCopilot.starterKeys : DEFAULT_STARTER_KEYS;
+  let nextKeys = [...baseKeys];
+
+  if (isGithubAdapterActive(pageCopilot)) {
+    nextKeys = ["codeExplain", ...nextKeys, ...GITHUB_INCLUDED_STARTERS, ...getGithubTypeSpecificStarterKeys()];
+  }
+
+  return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
+}
+
+function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
+  let nextKeys = [
+    ...DEFAULT_STARTER_KEYS,
+    ...Object.values(PAGE_COPILOT_STARTERS).flat(),
+    "createCustomStarter",
+  ];
+
+  if (isGithubAdapterActive(pageCopilot)) {
+    nextKeys = [
+      ...nextKeys,
+      ...GITHUB_INCLUDED_STARTERS,
+      ...getGithubTypeSpecificStarterKeys(),
+    ];
   }
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
@@ -2328,6 +2740,26 @@ function getRecommendedStarterScopes(pageCopilot = currentPageCopilot) {
   }
 
   return ["generic"];
+}
+
+function getStarterScopeRank(scopes = [], pageCopilot = currentPageCopilot) {
+  const normalizedScopes = Array.isArray(scopes) ? scopes.map((scope) => normalizeCustomStarterScope(scope)) : [];
+  const adapterId = String(pageCopilot?.adapterId || "generic").trim().toLowerCase();
+  const pageType = String(pageCopilot?.type || "generic").trim().toLowerCase();
+
+  if (normalizedScopes.includes(adapterId)) {
+    return 0;
+  }
+  if (normalizedScopes.includes(pageType)) {
+    return 0;
+  }
+  if (normalizedScopes.includes("all")) {
+    return 1;
+  }
+  if (normalizedScopes.includes("generic")) {
+    return 2;
+  }
+  return 3;
 }
 
 function slugifyStarterId(value, fallback = "starter") {
@@ -2366,14 +2798,45 @@ function normalizeCustomStarter(item, index = 0) {
     .filter(Boolean)
     .filter((scope, scopeIndex, list) => list.indexOf(scope) === scopeIndex);
   const composeModeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
+  const description = String(item.description || item.summary || item.hint || "").trim();
 
   return {
     id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
     label,
     prompt,
+    description,
     scopes: scopes.length ? scopes : ["all"],
     composeMode: composeModeValue === "perspective" ? "perspective" : "chat",
   };
+}
+
+function summarizeStarterDescription(value, fallback = "") {
+  const normalized = String(value || fallback || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const sentenceMatch = normalized.match(/^(.{1,140}?[.!?。！？])(?:\s|$)/);
+  const summary = sentenceMatch ? sentenceMatch[1].trim() : normalized;
+  if (summary.length <= 160) {
+    return summary;
+  }
+  return `${summary.slice(0, 157).trimEnd()}...`;
+}
+
+function getGenericCustomStarterDescription(starter) {
+  const label = String(starter?.label || "").trim() || "Custom Starter";
+  if (getUiLanguage() === "zh-TW") {
+    return starter?.composeMode === "perspective"
+      ? `用這個 starter 快速展開「${label}」的多視角分析。`
+      : `用這個 starter 快速開始「${label}」這類任務。`;
+  }
+
+  return starter?.composeMode === "perspective"
+    ? `Use this starter to quickly run a multi-perspective take on "${label}".`
+    : `Use this starter to quickly start a "${label}" task.`;
 }
 
 function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
@@ -2383,32 +2846,54 @@ function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
     .filter(Boolean);
 
   return normalized
-    .filter((starter) => {
-      if (starter.scopes.includes("all")) {
-        return true;
-      }
-
-      return starter.scopes.includes(pageCopilot?.type || "generic") || starter.scopes.includes(pageCopilot?.adapterId || "generic");
-    })
     .map((starter) => ({
       id: `custom:${starter.id}`,
       label: starter.label,
       prompt: starter.prompt,
+      description: summarizeStarterDescription(starter.description, getGenericCustomStarterDescription(starter)),
       composeMode: starter.composeMode,
+      isCustomStarter: true,
+      scopes: starter.scopes,
+      isRecommended: getStarterScopeRank(starter.scopes, pageCopilot) === 0,
+      recommendationRank: getStarterScopeRank(starter.scopes, pageCopilot),
     }));
 }
 
 function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
-  return getActiveStarterKeys(pageCopilot).map((starterKey) => ({
-    id: `builtin:${starterKey}`,
-    label: getStarterText(starterKey),
-    prompt: getStarterPrompt(starterKey),
-    composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
-  }));
+  const recommendedKeys = getActiveStarterKeys(pageCopilot);
+  const highlightedKeys = getHighlightedStarterKeys(pageCopilot);
+  const allKeys = getAllBuiltinStarterKeys(pageCopilot);
+
+  return allKeys.map((starterKey) => {
+    const recommendationRank = recommendedKeys.includes(starterKey) ? recommendedKeys.indexOf(starterKey) : recommendedKeys.length + 20;
+    return {
+      id: `builtin:${starterKey}`,
+      label: getStarterText(starterKey),
+      prompt: getStarterPrompt(starterKey),
+      description: summarizeStarterDescription(getStarterDescription(starterKey), getStarterText(starterKey)),
+      composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
+      isCustomStarter: false,
+      isRecommended: highlightedKeys.includes(starterKey),
+      isCustomStarterBuilder: starterKey === "createCustomStarter",
+      recommendationRank,
+    };
+  });
 }
 
 function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
-  return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)];
+  return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
+    .map((starter, index) => ({ ...starter, sortIndex: index }))
+    .sort((left, right) => {
+      if (left.isRecommended !== right.isRecommended) {
+        return left.isRecommended ? -1 : 1;
+      }
+      const leftRank = Number.isFinite(left.recommendationRank) ? left.recommendationRank : 999;
+      const rightRank = Number.isFinite(right.recommendationRank) ? right.recommendationRank : 999;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+      return left.sortIndex - right.sortIndex;
+    });
 }
 
 function normalizeStarterDraftCollection(parsedValue) {
@@ -3275,6 +3760,15 @@ function getStarterText(starterKey) {
   }
 
   return tl(`starter_${starterKey}`);
+}
+
+function getStarterDescription(starterKey) {
+  const language = getUiLanguage();
+  const localized = BUILTIN_STARTER_DESCRIPTIONS[language]?.[starterKey];
+  if (localized) {
+    return localized;
+  }
+  return BUILTIN_STARTER_DESCRIPTIONS.en[starterKey] || "";
 }
 
 function getStarterPrompt(starterKey) {
@@ -4486,7 +4980,15 @@ function mergePageContexts(contexts) {
       if (normalized.length <= MAX_PAGE_TEXT) {
         return normalized;
       }
-      return isLikelyCollaborationHost() ? normalized.slice(-MAX_PAGE_TEXT) : normalized.slice(0, MAX_PAGE_TEXT);
+      const officeSignals = detectDocumentWorkspaceSignals({
+        hostname: window.location.hostname.toLowerCase(),
+        pathname: window.location.pathname.toLowerCase(),
+        title: document.title || "",
+        sampleText: normalized.slice(0, 2500),
+      });
+      return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
+        ? normalized.slice(-MAX_PAGE_TEXT)
+        : normalized.slice(0, MAX_PAGE_TEXT);
     })(),
   };
 }
@@ -5887,6 +6389,7 @@ function renderShell() {
     includePickerOpen = false;
   }
   const activeStarterEntries = getActiveStarterEntries(currentPageCopilot);
+  const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const modelOptions = cachedModels.length
     ? cachedModels
         .map((model) => {
@@ -5994,7 +6497,24 @@ function renderShell() {
               ${isPanelMaximized ? "" : `<button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${startersExpanded ? "true" : "false"}">${escapeHtml(startersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>`}
             </div>
             <div class="ollama-quick-starters">
-            ${activeStarterEntries.map((starter) => `<button class="ollama-quick-starter" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(starter.label)}</button>`).join("")}
+            ${activeStarterEntries.map((starter) => {
+              const title = starterHoverTipsEnabled ? ` title="${escapeHtml(starter.description || starter.prompt || starter.label)}"` : "";
+              const classNames = [
+                "ollama-quick-starter",
+                starter.isRecommended ? "is-recommended" : "",
+                starter.isCustomStarter ? "is-custom" : "",
+                starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+              ].filter(Boolean).join(" ");
+              const prefix = starter.isRecommended
+                ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
+                : starter.isCustomStarter
+                  ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
+                  : "";
+              const suffix = starter.isCustomStarter && !starter.isCustomStarterBuilder
+                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
+                : "";
+              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
+            }).join("")}
             </div>
           </div>
         </aside>
@@ -7747,7 +8267,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     return;
   }
 
-  if (changes.ollamaUrl || changes.selectedModel || changes.replyLanguage || changes.systemPrompt || changes.multiPerspectiveProfiles || changes.githubApiKey || changes.customStarters) {
+  if (changes.ollamaUrl || changes.selectedModel || changes.replyLanguage || changes.systemPrompt || changes.multiPerspectiveProfiles || changes.githubApiKey || changes.customStarters || changes.starterHoverTipsEnabled) {
     bootstrap().catch(() => {});
   }
 });
