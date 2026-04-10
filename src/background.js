@@ -763,11 +763,12 @@ async function deleteTaskRecord(taskId) {
   }
 
   const tasks = await getTaskRecords();
-  const nextTasks = tasks.filter((item) => item.id !== normalizedTaskId);
+  const nextTasks = tasks.filter((item) => item.id !== taskId && normalizeTaskText(item.id || "", 120) !== normalizedTaskId);
   await saveTaskRecords(nextTasks);
   await clearTaskAlarm(normalizedTaskId);
   return {
     deletedId: normalizedTaskId,
+    deleted: nextTasks.length !== tasks.length,
     tasks: nextTasks,
   };
 }

@@ -392,6 +392,9 @@ const CONTENT_I18N = {
     imagesOnly: "目前只支援圖片檔。",
     attachedImagesVisionWarning: "已附加 {count} 張圖片。目前模型可能不支援視覺，建議切換模型。",
     attachedImages: "已附加 {count} 張圖片。",
+    sentImageAttachment: "圖片",
+    sentDocumentAttachment: "文件",
+    sentGithubSource: "GitHub",
     attachedFiles: "已附加 {items}。",
     pastedImage: "已從剪貼簿貼上圖片。",
     typePromptOrAttach: "請先輸入問題，或附加圖片 / 文字檔。",
@@ -765,6 +768,9 @@ const CONTENT_I18N = {
     imagesOnly: "Only image files are supported.",
     attachedImagesVisionWarning: "Attached {count} image(s). Current model may not support vision. Consider switching models.",
     attachedImages: "Attached {count} image(s).",
+    sentImageAttachment: "Image",
+    sentDocumentAttachment: "Document",
+    sentGithubSource: "GitHub",
     attachedFiles: "Attached {items}.",
     pastedImage: "Pasted image from clipboard.",
     typePromptOrAttach: "Type a prompt or attach an image or text file first.",
@@ -4341,7 +4347,7 @@ async function getGithubFileContext() {
 }
 
 async function getSelectedGithubContext() {
-  if (!includedGithubSources.length || !isGithubAdapterActive()) {
+  if (!includedGithubSources.length) {
     return "";
   }
 
@@ -4544,11 +4550,26 @@ async function getAggregatedPageContext() {
   return mergePageContexts([localContext, ...frameContexts]);
 }
 
+function getAttachedDocumentsContext() {
+  if (!attachedDocuments.length) {
+    return "";
+  }
+
+  return [
+    tl("attachedTextFilesHeading"),
+    ...attachedDocuments.map((item) => {
+      const sourceLabel = item.source === "local-work-folder" && item.path ? ` (${item.path})` : "";
+      return `${tl("attachedFileLabel")}: ${item.name}${sourceLabel}\n${item.text}`;
+    }),
+  ].join("\n\n");
+}
+
 async function buildPrompt(userMessage) {
   const starterRequest = isStarterBuilderRequest(userMessage);
   const context = includePageContext ? await getAggregatedPageContext() : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubContext = await getSelectedGithubContext();
+  const attachedDocumentsContext = getAttachedDocumentsContext();
   const browserTabsContext = attachedBrowserTabs.map((item) => summarizeBrowserTabContext(item)).filter(Boolean).join("\n\n---\n\n");
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const recommendedStarterScopes = getRecommendedStarterScopes(currentPageCopilot);
@@ -4615,6 +4636,7 @@ async function buildPrompt(userMessage) {
     contextBlock,
     githubPageContext,
     githubContext,
+    attachedDocumentsContext,
     browserTabsContext,
     history ? `CHAT HISTORY\n\n${history}` : "",
     starterBuilderInstruction,
@@ -5704,6 +5726,7 @@ function renderMessages() {
         const isTypingAssistant = message.role === "assistant" && !message.content.trim() && isGenerating;
         const messageIndex = getMessageIndexById(message.id);
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
+        const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
         const body =
           isTypingAssistant
             ? `
@@ -5715,7 +5738,7 @@ function renderMessages() {
             `
             : message.role === "assistant"
             ? renderMarkdown(message.content, { messageId: message.id })
-            : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>`;
+            : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>${messageAttachments}`;
         const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
         const hasDraftCodeBlock = message.role === "assistant" && !isTypingAssistant ? hasStarterDraftCodeBlock(message) : false;
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
@@ -5786,6 +5809,36 @@ function renderMessages() {
   list.innerHTML = [perspectivePanel, messageMarkup].filter(Boolean).join("");
 
   list.scrollTop = list.scrollHeight;
+}
+
+function renderSentMessageAttachments(attachments = {}) {
+  const images = Array.isArray(attachments?.images) ? attachments.images : [];
+  const documents = Array.isArray(attachments?.documents) ? attachments.documents : [];
+  const githubSources = Array.isArray(attachments?.githubSources) ? attachments.githubSources : [];
+  const items = [
+    ...images.map((item) => ({
+      label: tl("sentImageAttachment"),
+      name: item.name,
+    })),
+    ...documents.map((item) => ({
+      label: tl("sentDocumentAttachment"),
+      name: item.name,
+    })),
+    ...githubSources.map((item) => ({
+      label: tl("sentGithubSource"),
+      name: item.path || item.repoFullName,
+    })),
+  ].filter((item) => item.name);
+
+  if (!items.length) {
+    return "";
+  }
+
+  return `
+    <div class="ollama-quick-sent-attachments">
+      ${items.map((item) => `<span class="ollama-quick-sent-attachment"><strong>${escapeHtml(item.label)}</strong>${escapeHtml(item.name)}</span>`).join("")}
+    </div>
+  `;
 }
 
 function scheduleMessagesRender() {
@@ -5885,7 +5938,7 @@ function renderShell() {
               <div class="ollama-quick-compose-input">
                 <label class="ollama-quick-compose-upload" title="${escapeHtml(tl("uploadFile"))}" aria-label="${escapeHtml(tl("uploadFile"))}">
                   ⊕
-                  <input type="file" accept="image/*,.txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" hidden multiple />
+                  <input class="ollama-quick-file-input" type="file" accept="image/*,.txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" multiple />
                 </label>
                 <textarea class="ollama-quick-textarea" data-role="prompt" placeholder="${escapeHtml(tl("promptPlaceholder"))}"></textarea>
               </div>
@@ -6484,6 +6537,11 @@ async function handleClick(event) {
   }
 
   const action = actionNode.dataset.action;
+  if (action) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   if (action === "toggle-panel") {
     if (actionNode.classList.contains("ollama-quick-launcher") && suppressLauncherToggle) {
       suppressLauncherToggle = false;
@@ -6623,16 +6681,20 @@ async function handleClick(event) {
   }
 
   if (action === "delete-task-reminder") {
-    const taskId = actionNode.dataset.taskId || "";
+    const taskId = actionNode.dataset.taskId || actionNode.closest("[data-task-card]")?.dataset.taskId || "";
     if (!taskId || !window.confirm(tl("taskConfirmDelete"))) {
       return;
     }
 
     try {
+      savedTaskReminders = savedTaskReminders.filter((item) => String(item.id) !== String(taskId));
+      renderShell();
       await deleteTaskReminderRecord(taskId);
       renderShell();
       setStatus(tl("taskDeleted"));
     } catch (error) {
+      await loadSavedTaskReminders().catch(() => {});
+      renderShell();
       setStatus(error instanceof Error ? error.message : String(error));
     }
     return;
@@ -7398,10 +7460,20 @@ async function sendCurrentPrompt() {
 
   setStatus(tl("preparingRequest", { model: currentConfig.selectedModel }));
   const displayMessage = userMessage || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
+  const outgoingAttachments = {
+    images: attachedImages.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
+    documents: attachedDocuments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
+    githubSources: includedGithubSources.map((item) => ({
+      type: item.type,
+      repoFullName: item.repoFullName,
+      path: item.path || item.repoFullName,
+      ref: item.ref || "",
+    })),
+  };
   promptNode.value = "";
 
   if (composeMode === "perspective") {
-    chatMessages.push({ id: Date.now(), role: "user", content: displayMessage });
+    chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
     renderMessages();
     scheduleConversationSave();
     await runMultiPerspectiveAnalysis(userMessage);
@@ -7410,7 +7482,7 @@ async function sendCurrentPrompt() {
     return;
   }
 
-  chatMessages.push({ id: Date.now(), role: "user", content: displayMessage });
+  chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
   chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
   isGenerating = true;
   renderMessages();
@@ -7505,13 +7577,7 @@ function updateAssistantDraft(text) {
 }
 
 async function buildChatMessages(userMessage) {
-  const markdownAttachmentBlock = attachedDocuments.length
-    ? [
-        tl("attachedTextFilesHeading"),
-        ...attachedDocuments.map((item) => `FILE: ${item.name}\n${item.text}`),
-      ].join("\n\n")
-    : "";
-  const contextPrompt = [await buildPrompt(userMessage), markdownAttachmentBlock].filter(Boolean).join("\n\n");
+  const contextPrompt = await buildPrompt(userMessage);
   const systemPrompt = buildSystemPrompt();
   const messages = [];
 

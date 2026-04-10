@@ -679,6 +679,35 @@
   line-height: inherit;
 }
 
+.ollama-quick-sent-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ollama-quick-sent-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid rgba(126, 233, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(126, 233, 255, 0.08);
+  color: #dff6ff;
+  font-size: 11px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.ollama-quick-sent-attachment strong {
+  color: #9ce7ff;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .ollama-quick-typing {
   display: inline-flex;
   gap: 6px;
@@ -928,6 +957,20 @@
   line-height: 1;
   z-index: 1;
   color: #f7fbff;
+}
+
+.ollama-quick-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  pointer-events: none;
 }
 
 .ollama-quick-textarea {
