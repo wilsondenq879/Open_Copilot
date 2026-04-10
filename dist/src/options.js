@@ -41,6 +41,8 @@ const OPTION_I18N = {
     localWorkFolderHint: "選擇一個本機資料夾，作為「下載 MD」的儲存位置，也可用來加入本機文件。",
     pickFolder: "選擇資料夾",
     clearFolder: "清除資料夾",
+    workFolderPull: "從資料夾拉回",
+    workFolderPush: "推送到資料夾",
     folderNotSelected: "尚未選擇資料夾。",
     folderReady: "已連結本機資料夾：{name}",
     folderPermissionMissing: "資料夾已記錄，但寫入權限失效。請重新選擇一次。",
@@ -50,23 +52,57 @@ const OPTION_I18N = {
     folderSaveSuccess: "已儲存本機資料夾設定。",
     folderSaveFailed: "儲存本機資料夾失敗。",
     folderClearSuccess: "已清除本機資料夾設定。",
+    workFolderPullSuccess: "已從工作資料夾拉回並合併。",
+    workFolderPushSuccess: "已推送到工作資料夾。",
+    googleDriveSyncLabel: "Google Drive 同步",
+    googleDriveClientIdLabel: "OAuth Client ID",
+    googleDriveSyncEnabledLabel: "啟用 Drive 同步",
+    googleDriveAutoSyncLabel: "儲存後自動同步",
+    googleDriveConnect: "連接 Google Drive",
+    googleDrivePull: "從 Drive 拉回",
+    googleDrivePush: "推送到 Drive",
+    googleDriveDisconnect: "中斷連線",
+    googleDriveSyncHint: "透過 Google Drive app data 同步生成的聊天文件、Starter Skill Collection 與待辦提醒。",
+    googleDriveRedirectLabel: "Redirect URL",
+    googleDriveNotConnected: "尚未連接 Google Drive。",
+    googleDriveConnected: "Google Drive 已連接。",
+    googleDriveLastSync: "上次同步：{time}",
+    googleDriveLastError: "Drive 同步錯誤：{error}",
+    googleDriveConnectSuccess: "Google Drive 已連接。",
+    googleDriveDisconnectSuccess: "Google Drive 已中斷連線。",
+    googleDrivePushSuccess: "已推送到 Google Drive。",
+    googleDrivePullSuccess: "已從 Google Drive 拉回並合併。",
+    googleDriveMissingClientId: "請先填入 Google OAuth Client ID 並儲存設定。",
     defaultProviderLabel: "預設 Provider",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
+    taskExtractionWindowDaysLabel: "Task自動抓取區間",
+    taskExtractionWindowDaysHint: "待辦抓取會根據目前可見的聊天內容整理，預設優先近 3 天，最多可調到 7 天。",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "多視角角色",
+    utilityTabExperience: "Experience",
+    utilityTabStarterSkills: "Starter Skills",
     customStartersLabel: "自訂 Starters",
     customStartersInputLabel: "貼上 Starter JSON",
+    starterLibraryKicker: "Starter Skills",
+    starterLibraryTitle: "Starter Skill Library",
+    starterLibraryDescription: "把可重複使用的 custom starter 集中管理在這裡。貼上新的 JSON、依照 ID 更新既有 skill，讓頁面內聊天面板隨時可用。",
+    starterLibraryStoredLabel: "已儲存",
+    starterLibraryCapacityLabel: "容量",
+    starterLibraryLimitHint: "最多可儲存 20 組 starter skills",
+    starterLibraryGridTitle: "Starter Skill Collection",
+    starterLibraryGridDescription: "每張 skill 卡都會同步提供給頁面內聊天面板，可在這裡持續更新或刪除。",
     systemPromptHint: "這段內容會先於使用者訊息與頁面 context 一起送給模型，適合放角色設定、格式要求與回覆限制。",
     multiPerspectiveProfilesHint: "每行一個視角，格式為 `標題|指令`。留白時會使用內建的頁型預設。",
-    customStartersHint: "把 starter JSON 貼到文字框後按建立。每個項目至少要有 `label` 和 `prompt`，可選 `scopes` 與 `mode`。",
+    customStartersHint: "把 starter JSON 貼到這裡後加入技能庫。相同 `id` 會更新，新的 `id` 會新增。每個項目至少要有 `label` 和 `prompt`，可選 `scopes` 與 `mode`。",
     customStartersInputPlaceholder: '[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]',
-    createStarters: "建立",
-    clearStarters: "清除匯入",
+    createStarters: "加入技能庫",
+    clearStarters: "清空技能庫",
     noCustomStarters: "目前沒有匯入自訂 starters。",
-    customStarterImported: "已匯入 {count} 個自訂 starters。",
+    customStarterImported: "已加入或更新 {count} 個 starters，目前共 {total} / {limit} 組。",
     customStarterCleared: "已清除自訂 starters。",
     customStarterImportFailed: "Starter JSON 匯入失敗。",
+    customStarterLimitReached: "最多只能儲存 {limit} 組 custom starters。",
     deleteStarter: "刪除",
     customStarterDeleted: "已刪除 starter：{name}",
     confirmClearFolder: "確定要清除本機資料夾設定嗎？",
@@ -129,6 +165,8 @@ const OPTION_I18N = {
     localWorkFolderHint: "Pick a local folder to use as the save location for Download MD, and as the source for adding local documents.",
     pickFolder: "Choose Folder",
     clearFolder: "Clear Folder",
+    workFolderPull: "Pull From Folder",
+    workFolderPush: "Push To Folder",
     folderNotSelected: "No folder selected.",
     folderReady: "Local folder connected: {name}",
     folderPermissionMissing: "Folder remembered, but write permission is no longer available. Please pick it again.",
@@ -138,23 +176,57 @@ const OPTION_I18N = {
     folderSaveSuccess: "Local work folder saved.",
     folderSaveFailed: "Failed to save local work folder.",
     folderClearSuccess: "Local work folder cleared.",
+    workFolderPullSuccess: "Pulled from the work folder and merged.",
+    workFolderPushSuccess: "Pushed to the work folder.",
+    googleDriveSyncLabel: "Google Drive Sync",
+    googleDriveClientIdLabel: "OAuth Client ID",
+    googleDriveSyncEnabledLabel: "Enable Drive sync",
+    googleDriveAutoSyncLabel: "Auto-sync after saves",
+    googleDriveConnect: "Connect Google Drive",
+    googleDrivePull: "Pull From Drive",
+    googleDrivePush: "Push To Drive",
+    googleDriveDisconnect: "Disconnect",
+    googleDriveSyncHint: "Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.",
+    googleDriveRedirectLabel: "Redirect URL",
+    googleDriveNotConnected: "Google Drive is not connected.",
+    googleDriveConnected: "Google Drive is connected.",
+    googleDriveLastSync: "Last sync: {time}",
+    googleDriveLastError: "Drive sync error: {error}",
+    googleDriveConnectSuccess: "Google Drive connected.",
+    googleDriveDisconnectSuccess: "Google Drive disconnected.",
+    googleDrivePushSuccess: "Pushed to Google Drive.",
+    googleDrivePullSuccess: "Pulled from Google Drive and merged.",
+    googleDriveMissingClientId: "Enter and save a Google OAuth Client ID first.",
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
+    taskExtractionWindowDaysLabel: "Task Auto Extraction Window",
+    taskExtractionWindowDaysHint: "Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
+    utilityTabExperience: "Experience",
+    utilityTabStarterSkills: "Starter Skills",
     customStartersLabel: "Custom Starters",
     customStartersInputLabel: "Paste Starter JSON",
+    starterLibraryKicker: "Starter Skills",
+    starterLibraryTitle: "Starter Skill Library",
+    starterLibraryDescription: "Store reusable custom starter skills here. Import new JSON, update an existing skill by ID, and keep a strong library ready for the in-page chat panel.",
+    starterLibraryStoredLabel: "Stored",
+    starterLibraryCapacityLabel: "Capacity",
+    starterLibraryLimitHint: "Store up to 20 starter skills",
+    starterLibraryGridTitle: "Starter Skill Collection",
+    starterLibraryGridDescription: "Every skill card is available to the in-page chat panel and can be updated or removed here.",
     systemPromptHint: "This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.",
     multiPerspectiveProfilesHint: "One perspective per line using `Title|Instruction`. Leave it empty to use the built-in defaults for each page type.",
-    customStartersHint: "Paste starter JSON into the text box, then click Create. Each item needs at least `label` and `prompt`, with optional `scopes` and `mode`.",
+    customStartersHint: "Paste starter JSON here to add it to the library. Matching `id` values update existing skills, while new `id` values are added. Each item needs at least `label` and `prompt`, with optional `scopes` and `mode`.",
     customStartersInputPlaceholder: '[{"label":"Email Summary","prompt":"Summarize this email"}]',
-    createStarters: "Create",
-    clearStarters: "Clear Imported",
+    createStarters: "Add to Library",
+    clearStarters: "Clear Library",
     noCustomStarters: "No custom starters imported yet.",
-    customStarterImported: "Imported {count} custom starter(s).",
+    customStarterImported: "Added or updated {count} starter(s). Library now has {total} / {limit}.",
     customStarterCleared: "Custom starters cleared.",
     customStarterImportFailed: "Failed to import starter JSON.",
+    customStarterLimitReached: "You can store up to {limit} custom starters.",
     deleteStarter: "Delete",
     customStarterDeleted: "Deleted starter: {name}",
     confirmClearFolder: "Clear the local work folder setting?",
@@ -606,9 +678,11 @@ const LOCAL_DB_VERSION = 1;
 const LOCAL_DB_STORE = "kv";
 const WORK_FOLDER_HANDLE_KEY = "work-folder-handle";
 const LOCAL_META_KEY = "localWorkFolderMeta";
+const MAX_CUSTOM_STARTERS = 20;
 
 let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
+let activeUtilityTab = "experience";
 let currentCustomStarters = [];
 
 function openLocalDb() {
@@ -666,7 +740,7 @@ async function clearPersistedWorkFolderHandle() {
   await idbDelete(WORK_FOLDER_HANDLE_KEY);
   await chrome.storage.local.remove(LOCAL_META_KEY);
 }
-const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "github", "collaboration", "document", "market", "entertainment"];
+const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "email", "github", "collaboration", "document", "market", "entertainment"];
 const STARTER_SCOPE_ALIASES = {
   "*": "all",
   any: "all",
@@ -743,14 +817,40 @@ function applyTranslations() {
   document.getElementById("localWorkFolderHint").textContent = t("localWorkFolderHint");
   document.getElementById("pickFolderButton").textContent = t("pickFolder");
   document.getElementById("clearFolderButton").textContent = t("clearFolder");
+  document.getElementById("workFolderPullButton").textContent = t("workFolderPull");
+  document.getElementById("workFolderPushButton").textContent = t("workFolderPush");
   document.getElementById("localWorkFolderPathLabel").textContent = t("folderPathLabel");
+  document.getElementById("googleDriveSyncLabel").textContent = t("googleDriveSyncLabel");
+  document.getElementById("googleDriveClientIdLabel").textContent = t("googleDriveClientIdLabel");
+  document.getElementById("googleDriveSyncEnabledLabel").textContent = t("googleDriveSyncEnabledLabel");
+  document.getElementById("googleDriveAutoSyncLabel").textContent = t("googleDriveAutoSyncLabel");
+  document.getElementById("googleDriveConnectButton").textContent = t("googleDriveConnect");
+  document.getElementById("googleDrivePullButton").textContent = t("googleDrivePull");
+  document.getElementById("googleDrivePushButton").textContent = t("googleDrivePush");
+  document.getElementById("googleDriveDisconnectButton").textContent = t("googleDriveDisconnect");
+  document.getElementById("googleDriveSyncHint").textContent = t("googleDriveSyncHint");
+  document.getElementById("googleDriveRedirectLabel").textContent = t("googleDriveRedirectLabel");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
+  document.getElementById("taskExtractionWindowDaysLabel").textContent = t("taskExtractionWindowDaysLabel");
+  document.getElementById("taskExtractionWindowDaysHint").textContent = t("taskExtractionWindowDaysHint");
+  renderTaskExtractionWindowChoices();
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
+  document.getElementById("tabExperience").textContent = t("utilityTabExperience");
+  document.getElementById("tabStarterSkills").textContent = t("utilityTabStarterSkills");
   document.getElementById("customStartersLabel").textContent = t("customStartersLabel");
   document.getElementById("customStartersInputLabel").textContent = t("customStartersInputLabel");
+  document.getElementById("starterLibraryKicker").textContent = t("starterLibraryKicker");
+  document.getElementById("starterLibraryTitle").textContent = t("starterLibraryTitle");
+  document.getElementById("starterLibraryDescription").textContent = t("starterLibraryDescription");
+  document.getElementById("starterLibraryStoredLabel").textContent = t("starterLibraryStoredLabel");
+  document.getElementById("starterLibraryCapacityLabel").textContent = t("starterLibraryCapacityLabel");
+  document.getElementById("starterLibraryLimitHint").textContent = t("starterLibraryLimitHint");
+  document.getElementById("starterLibraryGridTitle").textContent = t("starterLibraryGridTitle");
+  document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
+  document.getElementById("starterLibraryCapacityValue").textContent = String(MAX_CUSTOM_STARTERS);
   document.getElementById("systemPromptHint").textContent = t("systemPromptHint");
   document.getElementById("multiPerspectiveProfilesHint").textContent = t("multiPerspectiveProfilesHint");
   document.getElementById("customStartersHint").textContent = t("customStartersHint");
@@ -761,6 +861,7 @@ function applyTranslations() {
   document.getElementById("testButton").textContent = t("testConnection");
   document.getElementById("installedModelsTitle").textContent = t("installedModels");
   document.getElementById("refreshButton").textContent = t("refresh");
+  setActiveUtilityTab(activeUtilityTab);
   renderCustomStartersPreview(currentCustomStarters);
 }
 
@@ -780,6 +881,27 @@ function normalizeStarterScopeToken(value) {
     .replace(/^type:/, "")
     .replace(/^adapter:/, "");
   return STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
+}
+
+function normalizeTaskExtractionWindowDays(value) {
+  const parsed = Number.parseInt(String(value || "3"), 10);
+  if (!Number.isFinite(parsed)) {
+    return 3;
+  }
+  return Math.min(Math.max(parsed, 1), 7);
+}
+
+function renderTaskExtractionWindowChoices() {
+  const select = document.getElementById("taskExtractionWindowDays");
+  if (!(select instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const isZh = currentLocale === OPTION_I18N["zh-TW"];
+  Array.from(select.options).forEach((option) => {
+    const days = normalizeTaskExtractionWindowDays(option.value);
+    option.textContent = isZh ? `${days} 天` : `${days} day${days > 1 ? "s" : ""}`;
+  });
 }
 
 function normalizeStarterScopes(value) {
@@ -835,11 +957,55 @@ function getModeLabel(mode) {
   return mode === "perspective" ? t("starterPreviewModePerspective") : t("starterPreviewModeChat");
 }
 
+function renderCustomStarterLibraryMeta() {
+  const countNode = document.getElementById("customStartersCount");
+  if (countNode) {
+    countNode.textContent = `${currentCustomStarters.length} / ${MAX_CUSTOM_STARTERS}`;
+  }
+}
+
+function mergeImportedStarters(existingStarters, importedStarters) {
+  const merged = new Map(
+    (Array.isArray(existingStarters) ? existingStarters : [])
+      .map((item, index) => normalizeImportedStarter(item, index))
+      .map((starter) => [starter.id, starter])
+  );
+
+  importedStarters.forEach((starter) => {
+    merged.set(starter.id, starter);
+  });
+
+  const nextStarters = Array.from(merged.values());
+  if (nextStarters.length > MAX_CUSTOM_STARTERS) {
+    throw new Error(t("customStarterLimitReached", { limit: MAX_CUSTOM_STARTERS }));
+  }
+
+  return nextStarters;
+}
+
+function setActiveUtilityTab(tab) {
+  activeUtilityTab = tab === "starterSkills" ? "starterSkills" : "experience";
+
+  document.querySelectorAll("[data-utility-tab]").forEach((button) => {
+    const isActive = button.dataset.utilityTab === activeUtilityTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  document.querySelectorAll(".utility-panel").forEach((panel) => {
+    const isActive = panel.id === `panel-${activeUtilityTab === "starterSkills" ? "starter-skills" : "experience"}`;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
+}
+
 function renderCustomStartersPreview(starters) {
   const node = document.getElementById("customStartersPreview");
   if (!node) {
     return;
   }
+
+  renderCustomStarterLibraryMeta();
 
   if (!starters.length) {
     node.className = "starter-preview-list empty-state";
@@ -867,7 +1033,10 @@ function renderCustomStartersPreview(starters) {
       return `
         <article class="starter-preview-card">
           <div class="starter-preview-head">
-            <div class="starter-preview-name">${escapeHtml(starter.label)}</div>
+            <div class="starter-preview-skill-meta">
+              <div class="starter-preview-skill-kicker">${escapeHtml(starter.id)}</div>
+              <div class="starter-preview-name">${escapeHtml(starter.label)}</div>
+            </div>
             <div class="starter-preview-actions">
               <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
               <button class="secondary-button danger-button starter-preview-delete" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
@@ -978,6 +1147,29 @@ async function loadWorkFolderStatus() {
   }
 }
 
+function renderGoogleDriveStatus(status) {
+  const statusNode = document.getElementById("googleDriveSyncStatus");
+  const redirectNode = document.getElementById("googleDriveRedirectUrl");
+  redirectNode.textContent = status?.redirectUrl || t("folderPathUnavailable");
+
+  const parts = [status?.connected ? t("googleDriveConnected") : t("googleDriveNotConnected")];
+  if (status?.lastSyncAt) {
+    parts.push(t("googleDriveLastSync", { time: new Date(status.lastSyncAt).toLocaleString() }));
+  }
+  if (status?.lastError) {
+    parts.push(t("googleDriveLastError", { error: status.lastError }));
+  }
+  statusNode.textContent = parts.join(" ");
+  statusNode.classList.toggle("is-error", Boolean(status?.lastError));
+}
+
+async function loadGoogleDriveStatus() {
+  const result = await sendMessage({ type: "google-drive:get-status" });
+  if (result?.ok) {
+    renderGoogleDriveStatus(result.status);
+  }
+}
+
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
@@ -995,8 +1187,12 @@ async function loadConfig() {
     document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
     document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
     document.getElementById("azureOpenAiApiKey").value = result.config.azureOpenAiApiKey || "";
+    document.getElementById("googleDriveClientId").value = result.config.googleDriveClientId || "";
+    document.getElementById("googleDriveSyncEnabled").checked = Boolean(result.config.googleDriveSyncEnabled);
+    document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
+    document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
     document.getElementById("systemPrompt").value = result.config.systemPrompt || "";
     document.getElementById("multiPerspectiveProfiles").value = result.config.multiPerspectiveProfiles || "";
     try {
@@ -1007,6 +1203,7 @@ async function loadConfig() {
     renderCustomStartersPreview(currentCustomStarters);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     await loadWorkFolderStatus();
+    await loadGoogleDriveStatus();
     setStatus(t("waiting"));
   }
 }
@@ -1023,8 +1220,12 @@ async function saveConfig() {
   const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
   const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
   const azureOpenAiApiKey = document.getElementById("azureOpenAiApiKey").value.trim();
+  const googleDriveClientId = document.getElementById("googleDriveClientId").value.trim();
+  const googleDriveSyncEnabled = document.getElementById("googleDriveSyncEnabled").checked;
+  const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
+  const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentLocale = OPTION_I18N[replyLanguage] || OPTION_I18N.en;
@@ -1043,8 +1244,12 @@ async function saveConfig() {
       azureOpenAiDeployment,
       azureOpenAiApiVersion,
       azureOpenAiApiKey,
+      googleDriveClientId,
+      googleDriveSyncEnabled,
+      googleDriveAutoSync,
       defaultProvider,
       replyLanguage,
+      taskExtractionWindowDays,
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,
@@ -1101,10 +1306,12 @@ document.getElementById("createStartersButton").addEventListener("click", async 
     if (!rawText) {
       throw new Error(t("customStarterImportFailed"));
     }
-    currentCustomStarters = parseImportedStarters(rawText);
+    const importedStarters = parseImportedStarters(rawText);
+    currentCustomStarters = mergeImportedStarters(currentCustomStarters, importedStarters);
     renderCustomStartersPreview(currentCustomStarters);
     await persistCustomStarters(currentCustomStarters);
-    setStatus(t("customStarterImported", { count: currentCustomStarters.length }));
+    document.getElementById("customStartersInput").value = "";
+    setStatus(t("customStarterImported", { count: importedStarters.length, total: currentCustomStarters.length, limit: MAX_CUSTOM_STARTERS }));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
@@ -1191,9 +1398,103 @@ document.getElementById("clearFolderButton").addEventListener("click", async () 
   }
 });
 
+document.getElementById("workFolderPushButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "work-folder:sync-push" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("folderSaveFailed"));
+    }
+    renderWorkFolderStatus(result.status);
+    setStatus(t("workFolderPushSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("workFolderPullButton").addEventListener("click", async () => {
+  try {
+    const result = await sendMessage({ type: "work-folder:sync-pull" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("folderSaveFailed"));
+    }
+    renderWorkFolderStatus(result.status);
+    await loadConfig();
+    setStatus(t("workFolderPullSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDriveConnectButton").addEventListener("click", async () => {
+  try {
+    document.getElementById("googleDriveSyncEnabled").checked = true;
+    await saveConfig();
+    if (!document.getElementById("googleDriveClientId").value.trim()) {
+      throw new Error(t("googleDriveMissingClientId"));
+    }
+    const result = await sendMessage({ type: "google-drive:connect" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDriveConnectSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDriveDisconnectButton").addEventListener("click", async () => {
+  try {
+    const result = await sendMessage({ type: "google-drive:disconnect" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDriveDisconnectSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDrivePushButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "google-drive:sync-push" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDrivePushSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDrivePullButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "google-drive:sync-pull" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    await loadConfig();
+    setStatus(t("googleDrivePullSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
 document.querySelectorAll("[data-provider-tab]").forEach((button) => {
   button.addEventListener("click", () => {
     setActiveProviderTab(button.dataset.providerTab || "ollama");
+  });
+});
+
+document.querySelectorAll("[data-utility-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveUtilityTab(button.dataset.utilityTab || "experience");
   });
 });
 

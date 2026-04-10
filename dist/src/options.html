@@ -139,28 +139,6 @@
           </section>
 
           <div class="provider-support-grid">
-            <div class="provider-support-card">
-              <label class="field">
-                <span id="githubApiKeyLabel">GitHub API Key</span>
-                <input id="githubApiKey" type="password" placeholder="ghp_..." />
-              </label>
-              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
-            </div>
-
-            <div class="provider-support-card">
-              <div class="field">
-                <span id="localWorkFolderLabel">Local Work Folder</span>
-                <div class="actions">
-                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
-                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
-                </div>
-                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
-                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
-                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
-                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
-              </div>
-            </div>
-
             <div class="provider-support-card provider-support-wide">
               <div class="split-fields settings-compact-fields">
                 <label class="field">
@@ -187,8 +165,73 @@
                     <option value="hi">हिन्दी</option>
                   </select>
                 </label>
+                <label class="field">
+                  <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
+                  <select id="taskExtractionWindowDays">
+                    <option value="1">1 day</option>
+                    <option value="2">2 days</option>
+                    <option value="3">3 days</option>
+                    <option value="4">4 days</option>
+                    <option value="5">5 days</option>
+                    <option value="6">6 days</option>
+                    <option value="7">7 days</option>
+                  </select>
+                </label>
               </div>
               <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
+              <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="field">
+                <span id="githubApiKeyLabel">GitHub API Key</span>
+                <input id="githubApiKey" type="password" placeholder="ghp_..." />
+              </label>
+              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <div class="field">
+                <span id="localWorkFolderLabel">Local Work Folder</span>
+                <div class="actions">
+                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
+                  <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
+                  <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
+                </div>
+                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
+                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
+              </div>
+            </div>
+
+            <div class="provider-support-card provider-support-wide">
+              <div class="field">
+                <span id="googleDriveSyncLabel">Google Drive Sync</span>
+                <label class="field">
+                  <span id="googleDriveClientIdLabel">OAuth Client ID</span>
+                  <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+                </label>
+                <label class="checkbox-field">
+                  <input id="googleDriveSyncEnabled" type="checkbox" />
+                  <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
+                </label>
+                <label class="checkbox-field">
+                  <input id="googleDriveAutoSync" type="checkbox" />
+                  <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
+                </label>
+                <div class="actions settings-inline-actions">
+                  <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
+                  <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
+                  <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
+                  <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
+                </div>
+                <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
+                <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
+                <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
+                <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
+              </div>
             </div>
           </div>
         </article>
@@ -201,33 +244,77 @@
             </div>
             <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
           </div>
-          <div class="side-stack">
-            <label class="field">
-              <span id="systemPromptLabel">System Prompt</span>
-              <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
-            </label>
-            <label class="field">
-              <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
-              <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
+          <div class="utility-tabs" role="tablist" aria-label="Settings workspace tabs">
+            <button id="tabExperience" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-experience" data-utility-tab="experience">Experience</button>
+            <button id="tabStarterSkills" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-starter-skills" data-utility-tab="starterSkills">Starter Skills</button>
+          </div>
+
+          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
+            <div class="side-stack">
+              <label class="field">
+                <span id="systemPromptLabel">System Prompt</span>
+                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
+              </label>
+              <label class="field">
+                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
+                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
 Skeptic|Challenge assumptions, missing evidence, and weak points.
 Action Advisor|Recommend practical next steps and decisions."></textarea>
-            </label>
-            <div class="field">
-              <span id="customStartersLabel">Custom Starters</span>
-              <label class="field starter-json-field">
-                <span id="customStartersInputLabel">Paste Starter JSON</span>
-                <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
               </label>
-              <div class="actions settings-inline-actions">
-                <button id="createStartersButton" class="secondary-button" type="button">Create</button>
-                <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
-              </div>
-              <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
             </div>
-          </div>
-          <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
-          <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
-          <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
+            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
+          </section>
+
+          <section id="panel-starter-skills" class="utility-panel starter-library-panel" role="tabpanel" hidden>
+            <div class="starter-library-hero">
+              <div class="starter-library-copy">
+                <span id="starterLibraryKicker" class="section-kicker">Starter Skills</span>
+                <h3 id="starterLibraryTitle">Starter Skill Library</h3>
+                <p id="starterLibraryDescription">Store reusable custom starter skills here. Import new JSON, update an existing skill by ID, and keep a strong library ready for the in-page chat panel.</p>
+              </div>
+              <div class="starter-library-metrics" aria-hidden="true">
+                <article class="starter-library-metric">
+                  <span id="starterLibraryStoredLabel" class="starter-library-metric-label">Stored</span>
+                  <strong id="customStartersCount" class="starter-library-metric-value">0 / 20</strong>
+                </article>
+                <article class="starter-library-metric">
+                  <span id="starterLibraryCapacityLabel" class="starter-library-metric-label">Capacity</span>
+                  <strong id="starterLibraryCapacityValue" class="starter-library-metric-value">20</strong>
+                </article>
+              </div>
+            </div>
+
+            <div class="starter-studio-shell">
+              <section class="starter-studio-intake">
+                <div class="starter-studio-head">
+                  <div>
+                    <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
+                    <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+                  </div>
+                  <span id="starterLibraryLimitHint" class="starter-library-limit">Up to 20 starter skills</span>
+                </div>
+                <label class="field starter-json-field">
+                  <span id="customStartersInputLabel">Paste Starter JSON</span>
+                  <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+                </label>
+                <div class="actions settings-inline-actions starter-studio-actions">
+                  <button id="createStartersButton" class="primary-button" type="button">Create</button>
+                  <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
+                </div>
+              </section>
+
+              <section class="starter-studio-library">
+                <div class="starter-studio-library-head">
+                  <div>
+                    <div id="starterLibraryGridTitle" class="starter-studio-title">Starter Skill Collection</div>
+                    <p id="starterLibraryGridDescription" class="field-hint">Each skill stays available to the quick chat panel and can be updated or removed here.</p>
+                  </div>
+                </div>
+                <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
+              </section>
+            </div>
+          </section>
         </section>
       </section>
 

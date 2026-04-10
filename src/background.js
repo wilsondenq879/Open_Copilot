@@ -11,6 +11,17 @@ const LOCAL_META_KEY = "localWorkFolderMeta";
 const LATEST_CHAT_SESSION_KEY = "latestChatSession";
 const EXPORT_SEQUENCE_KEY = "chatExportSequence";
 const TASKS_STORAGE_KEY = "taskReminderItems";
+const GOOGLE_DRIVE_SYNC_META_KEY = "googleDriveSyncMeta";
+const GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY = "googleDriveSyncDocuments";
+const GOOGLE_DRIVE_SYNC_FILE_NAME = "edge-ai-chat-sync.json";
+const GOOGLE_DRIVE_SYNC_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const GOOGLE_DRIVE_SYNC_VERSION = 1;
+const MAX_GOOGLE_DRIVE_SYNC_DOCUMENTS = 50;
+const WORK_FOLDER_SKILL_DIR = "skill";
+const WORK_FOLDER_TASK_DIR = "task";
+const WORK_FOLDER_SYNC_DIR = "sync";
+const WORK_FOLDER_STARTERS_FILE = "starter-skills.json";
+const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
 const TASK_NOTIFICATION_PREFIX = "task-notification:";
 const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
@@ -33,6 +44,9 @@ const DEFAULT_CONFIG = {
   selectedModel: "",
   replyLanguage: "zh-TW",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
+  googleDriveClientId: "",
+  googleDriveSyncEnabled: false,
+  googleDriveAutoSync: true,
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
   customStarters: [],
   recentGithubFiles: [],
@@ -116,6 +130,10 @@ function timestampForFile(date = new Date()) {
   const minute = String(date.getMinutes()).padStart(2, "0");
   const second = String(date.getSeconds()).padStart(2, "0");
   return `${year}${month}${day}-${hour}${minute}${second}`;
+}
+
+function createStableId(prefix = "item") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function normalizeMarkdownText(value) {
@@ -243,6 +261,12 @@ async function writeTextFile(handle, filename, contents) {
   await writable.close();
 }
 
+async function readTextFile(handle, filename) {
+  const fileHandle = await handle.getFileHandle(filename);
+  const file = await fileHandle.getFile();
+  return file.text();
+}
+
 async function getWorkFolderHandle() {
   return idbGet(WORK_FOLDER_HANDLE_KEY);
 }
@@ -278,6 +302,21 @@ async function resolveDirectoryHandle(rootHandle, path = "") {
   return currentHandle;
 }
 
+async function ensureDirectoryHandle(rootHandle, path = "") {
+  const parts = splitRelativePath(path);
+  let currentHandle = rootHandle;
+  for (const part of parts) {
+    currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+  }
+  return currentHandle;
+}
+
+async function ensureWorkFolderSyncDirectories(rootHandle) {
+  await ensureDirectoryHandle(rootHandle, WORK_FOLDER_SKILL_DIR);
+  await ensureDirectoryHandle(rootHandle, WORK_FOLDER_TASK_DIR);
+  await ensureDirectoryHandle(rootHandle, WORK_FOLDER_SYNC_DIR);
+}
+
 function getPathExtension(path) {
   const fileName = String(path || "").split("/").filter(Boolean).pop() || "";
   const dotIndex = fileName.lastIndexOf(".");
@@ -303,6 +342,9 @@ async function ensureWorkFolderReadableHandle() {
 }
 
 async function setWorkFolderHandle(handle) {
+  if (isDirectoryHandleLike(handle)) {
+    await ensureWorkFolderSyncDirectories(handle);
+  }
   await idbSet(WORK_FOLDER_HANDLE_KEY, handle);
   await chrome.storage.local.set({
     [LOCAL_META_KEY]: {
@@ -353,6 +395,13 @@ async function saveChatSession(session) {
   await chrome.storage.local.set({
     [LATEST_CHAT_SESSION_KEY]: payload,
   });
+
+  if (saveToFolder) {
+    await addGoogleDriveDocumentFromSession(payload);
+  }
+
+  maybePushWorkFolderSync();
+  maybeAutoSyncGoogleDrive();
 
   if (!saveToFolder) {
     return { savedToFolder: false, reason: "not-requested" };
@@ -603,6 +652,9 @@ async function saveTaskRecords(tasks) {
     [TASKS_STORAGE_KEY]: normalizedTasks,
   });
 
+  maybePushWorkFolderSync();
+  maybeAutoSyncGoogleDrive();
+
   return normalizedTasks;
 }
 
@@ -737,6 +789,8 @@ async function setConfig(nextConfig) {
     taskExtractionWindowDays: normalizeTaskExtractionWindowDays(nextConfig?.taskExtractionWindowDays ?? current.taskExtractionWindowDays),
   };
   await chrome.storage.sync.set(merged);
+  maybePushWorkFolderSync();
+  maybeAutoSyncGoogleDrive();
   return merged;
 }
 
@@ -746,6 +800,461 @@ function normalizeTaskExtractionWindowDays(value) {
     return DEFAULT_TASK_EXTRACTION_WINDOW_DAYS;
   }
   return Math.min(Math.max(parsed, 1), MAX_TASK_EXTRACTION_WINDOW_DAYS);
+}
+
+function sanitizeGoogleDriveClientId(value) {
+  return String(value || "").trim();
+}
+
+function getGoogleDriveRedirectUrl() {
+  if (!chrome.identity?.getRedirectURL) {
+    throw new Error("Chrome identity API is not available.");
+  }
+  return chrome.identity.getRedirectURL("google-drive-sync");
+}
+
+async function getGoogleDriveSyncMeta() {
+  const { [GOOGLE_DRIVE_SYNC_META_KEY]: meta } = await chrome.storage.local.get(GOOGLE_DRIVE_SYNC_META_KEY);
+  return meta && typeof meta === "object" ? meta : {};
+}
+
+async function setGoogleDriveSyncMeta(patch = {}) {
+  const current = await getGoogleDriveSyncMeta();
+  const next = {
+    ...current,
+    ...patch,
+  };
+  await chrome.storage.local.set({ [GOOGLE_DRIVE_SYNC_META_KEY]: next });
+  return next;
+}
+
+async function clearGoogleDriveSyncAuth() {
+  const meta = await getGoogleDriveSyncMeta();
+  if (meta.accessToken && chrome.identity?.removeCachedAuthToken) {
+    try {
+      await chrome.identity.removeCachedAuthToken({ token: meta.accessToken });
+    } catch (_error) {
+      // Token cache cleanup is best effort.
+    }
+  }
+  await chrome.storage.local.set({
+    [GOOGLE_DRIVE_SYNC_META_KEY]: {
+      fileId: meta.fileId || "",
+      lastSyncAt: meta.lastSyncAt || "",
+      lastError: "",
+      tokenExpiresAt: 0,
+      accessToken: "",
+    },
+  });
+}
+
+function parseOAuthFragment(url) {
+  const parsed = new URL(String(url || ""));
+  const fragment = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+  const error = fragment.get("error");
+  if (error) {
+    throw new Error(`Google authorization failed: ${error}`);
+  }
+  const accessToken = fragment.get("access_token") || "";
+  if (!accessToken) {
+    throw new Error("Google authorization did not return an access token.");
+  }
+  const expiresIn = Number.parseInt(fragment.get("expires_in") || "3600", 10);
+  return {
+    accessToken,
+    tokenExpiresAt: Date.now() + Math.max(Number.isFinite(expiresIn) ? expiresIn : 3600, 60) * 1000,
+  };
+}
+
+async function authorizeGoogleDrive(interactive = false) {
+  const config = await getConfig();
+  const clientId = sanitizeGoogleDriveClientId(config.googleDriveClientId);
+  if (!clientId) {
+    throw new Error("Google Drive OAuth Client ID is required.");
+  }
+
+  const meta = await getGoogleDriveSyncMeta();
+  if (!interactive && meta.accessToken && Number(meta.tokenExpiresAt || 0) > Date.now() + 60000) {
+    return meta.accessToken;
+  }
+
+  if (!chrome.identity?.launchWebAuthFlow) {
+    throw new Error("Chrome identity API is not available.");
+  }
+
+  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authUrl.searchParams.set("client_id", clientId);
+  authUrl.searchParams.set("response_type", "token");
+  authUrl.searchParams.set("redirect_uri", getGoogleDriveRedirectUrl());
+  authUrl.searchParams.set("scope", GOOGLE_DRIVE_SYNC_SCOPE);
+  authUrl.searchParams.set("prompt", interactive ? "consent" : "none");
+
+  const redirectUrl = await chrome.identity.launchWebAuthFlow({
+    url: authUrl.toString(),
+    interactive,
+  });
+  const token = parseOAuthFragment(redirectUrl);
+  await setGoogleDriveSyncMeta({
+    ...token,
+    lastError: "",
+  });
+  return token.accessToken;
+}
+
+async function getGoogleDriveAuthHeader(interactive = false) {
+  return {
+    Authorization: `Bearer ${await authorizeGoogleDrive(interactive)}`,
+  };
+}
+
+async function googleDriveFetch(url, init = {}, interactive = false) {
+  const headers = {
+    ...(init.headers || {}),
+    ...(await getGoogleDriveAuthHeader(interactive)),
+  };
+  const response = await fetch(url, { ...init, headers });
+  if (response.status === 401) {
+    await clearGoogleDriveSyncAuth();
+    const retryHeaders = {
+      ...(init.headers || {}),
+      ...(await getGoogleDriveAuthHeader(interactive)),
+    };
+    return fetch(url, { ...init, headers: retryHeaders });
+  }
+  return response;
+}
+
+async function readGoogleDriveJsonResponse(response) {
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Google Drive HTTP ${response.status}: ${text || response.statusText}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+async function findGoogleDriveSyncFile(interactive = false) {
+  const meta = await getGoogleDriveSyncMeta();
+  if (meta.fileId) {
+    return meta.fileId;
+  }
+
+  const url = new URL("https://www.googleapis.com/drive/v3/files");
+  url.searchParams.set("spaces", "appDataFolder");
+  url.searchParams.set("fields", "files(id,name,modifiedTime)");
+  url.searchParams.set("q", `name='${GOOGLE_DRIVE_SYNC_FILE_NAME.replaceAll("'", "\\'")}' and 'appDataFolder' in parents and trashed=false`);
+
+  const response = await googleDriveFetch(url.toString(), { method: "GET" }, interactive);
+  const payload = await readGoogleDriveJsonResponse(response);
+  const fileId = Array.isArray(payload?.files) && payload.files[0]?.id ? payload.files[0].id : "";
+  if (fileId) {
+    await setGoogleDriveSyncMeta({ fileId });
+  }
+  return fileId;
+}
+
+function buildMultipartBody(metadata, content) {
+  const boundary = `edge-ai-chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const body = [
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify(content, null, 2),
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+  return {
+    body,
+    contentType: `multipart/related; boundary=${boundary}`,
+  };
+}
+
+async function uploadGoogleDriveSyncPayload(payload, interactive = false) {
+  const existingFileId = await findGoogleDriveSyncFile(interactive);
+  const metadata = existingFileId
+    ? { name: GOOGLE_DRIVE_SYNC_FILE_NAME, mimeType: "application/json" }
+    : { name: GOOGLE_DRIVE_SYNC_FILE_NAME, mimeType: "application/json", parents: ["appDataFolder"] };
+  const multipart = buildMultipartBody(metadata, payload);
+  const url = existingFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existingFileId)}?uploadType=multipart&fields=id,name,modifiedTime`
+    : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime";
+  const response = await googleDriveFetch(
+    url,
+    {
+      method: existingFileId ? "PATCH" : "POST",
+      headers: {
+        "Content-Type": multipart.contentType,
+      },
+      body: multipart.body,
+    },
+    interactive
+  );
+  const result = await readGoogleDriveJsonResponse(response);
+  await setGoogleDriveSyncMeta({
+    fileId: result?.id || existingFileId || "",
+    lastSyncAt: new Date().toISOString(),
+    lastError: "",
+  });
+  return result;
+}
+
+async function downloadGoogleDriveSyncPayload(interactive = false) {
+  const fileId = await findGoogleDriveSyncFile(interactive);
+  if (!fileId) {
+    return null;
+  }
+  const response = await googleDriveFetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    { method: "GET" },
+    interactive
+  );
+  return readGoogleDriveJsonResponse(response);
+}
+
+async function getGoogleDriveDocuments() {
+  const { [GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY]: documents } = await chrome.storage.local.get(GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY);
+  return Array.isArray(documents) ? documents : [];
+}
+
+async function saveGoogleDriveDocuments(documents) {
+  const normalized = (Array.isArray(documents) ? documents : [])
+    .filter((item) => item && typeof item === "object")
+    .sort((left, right) => String(right.savedAt || "").localeCompare(String(left.savedAt || "")))
+    .slice(0, MAX_GOOGLE_DRIVE_SYNC_DOCUMENTS);
+  await chrome.storage.local.set({ [GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY]: normalized });
+  return normalized;
+}
+
+async function addGoogleDriveDocumentFromSession(session = {}) {
+  const savedAt = session?.savedAt || new Date().toISOString();
+  const fileName = `${timestampForFile(new Date(savedAt))}-${sanitizeFileSegment(deriveConversationFileTitle(session), "chat")}.md`;
+  const document = {
+    id: createStableId("doc"),
+    fileName,
+    savedAt,
+    pageTitle: String(session?.pageTitle || "Untitled conversation"),
+    pageUrl: String(session?.pageUrl || ""),
+    markdown: buildChatMarkdown(session),
+    session,
+  };
+  const documents = await getGoogleDriveDocuments();
+  await saveGoogleDriveDocuments([document, ...documents]);
+  return document;
+}
+
+async function buildGoogleDriveSyncPayload() {
+  const config = await getConfig();
+  const latestChatSession = await getLatestChatSession();
+  return {
+    version: GOOGLE_DRIVE_SYNC_VERSION,
+    updatedAt: new Date().toISOString(),
+    customStarters: Array.isArray(config.customStarters) ? config.customStarters : [],
+    tasks: await getTaskRecords(),
+    latestChatSession,
+    documents: await getGoogleDriveDocuments(),
+  };
+}
+
+function mergeById(localItems, remoteItems, getTimestamp) {
+  const merged = new Map();
+  for (const item of [...(Array.isArray(localItems) ? localItems : []), ...(Array.isArray(remoteItems) ? remoteItems : [])]) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const id = String(item.id || "").trim();
+    if (!id) {
+      continue;
+    }
+    const existing = merged.get(id);
+    const itemTime = Date.parse(getTimestamp(item) || "") || 0;
+    const existingTime = Date.parse(getTimestamp(existing) || "") || 0;
+    if (!existing || itemTime >= existingTime) {
+      merged.set(id, item);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function chooseLatestByTime(localItem, remoteItem, field) {
+  const localTime = Date.parse(localItem?.[field] || "") || 0;
+  const remoteTime = Date.parse(remoteItem?.[field] || "") || 0;
+  return remoteTime > localTime ? remoteItem : localItem;
+}
+
+async function applyGoogleDriveSyncPayload(remotePayload = {}) {
+  const config = await getConfig();
+  const mergedStarters = mergeById(config.customStarters, remotePayload.customStarters, (item) => item.updatedAt || item.id);
+  await chrome.storage.sync.set({
+    ...config,
+    customStarters: mergedStarters,
+  });
+
+  const mergedTasks = sortTaskRecords(mergeById(await getTaskRecords(), remotePayload.tasks, (item) => item.updatedAt || item.createdAt));
+  await chrome.storage.local.set({ [TASKS_STORAGE_KEY]: mergedTasks });
+  await restoreTaskAlarms();
+
+  const localLatestSession = await getLatestChatSession();
+  const nextLatestSession = chooseLatestByTime(localLatestSession, remotePayload.latestChatSession, "savedAt");
+  if (nextLatestSession) {
+    await chrome.storage.local.set({ [LATEST_CHAT_SESSION_KEY]: nextLatestSession });
+  }
+
+  const mergedDocuments = mergeById(await getGoogleDriveDocuments(), remotePayload.documents, (item) => item.savedAt);
+  await saveGoogleDriveDocuments(mergedDocuments);
+
+  return buildGoogleDriveSyncPayload();
+}
+
+async function getWritableWorkFolderHandle() {
+  const handle = await getWorkFolderHandle();
+  if (!handle) {
+    throw new Error("Local work folder is not configured.");
+  }
+  if (!isDirectoryHandleLike(handle)) {
+    throw new Error("Local work folder handle is invalid.");
+  }
+  await ensureWorkFolderSyncDirectories(handle);
+  return handle;
+}
+
+async function writeWorkFolderJson(path, fileName, data) {
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  await writeTextFile(directoryHandle, fileName, JSON.stringify(data, null, 2));
+}
+
+async function readWorkFolderJson(path, fileName) {
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await resolveDirectoryHandle(rootHandle, path);
+  return JSON.parse(await readTextFile(directoryHandle, fileName));
+}
+
+async function writeWorkFolderStarters(starters) {
+  await writeWorkFolderJson(WORK_FOLDER_SKILL_DIR, WORK_FOLDER_STARTERS_FILE, {
+    version: GOOGLE_DRIVE_SYNC_VERSION,
+    updatedAt: new Date().toISOString(),
+    customStarters: Array.isArray(starters) ? starters : [],
+  });
+}
+
+async function writeWorkFolderTasks(tasks) {
+  await writeWorkFolderJson(WORK_FOLDER_TASK_DIR, WORK_FOLDER_TASKS_FILE, {
+    version: GOOGLE_DRIVE_SYNC_VERSION,
+    updatedAt: new Date().toISOString(),
+    tasks: Array.isArray(tasks) ? tasks : [],
+  });
+}
+
+async function writeWorkFolderSyncPayload(payload) {
+  await writeWorkFolderJson(WORK_FOLDER_SYNC_DIR, GOOGLE_DRIVE_SYNC_FILE_NAME, payload);
+}
+
+async function pushWorkFolderSync() {
+  const payload = await buildGoogleDriveSyncPayload();
+  await writeWorkFolderSyncPayload(payload);
+  await writeWorkFolderStarters(payload.customStarters);
+  await writeWorkFolderTasks(payload.tasks);
+  return {
+    pushedAt: payload.updatedAt,
+    payload,
+  };
+}
+
+async function pullWorkFolderSync() {
+  let payload = null;
+
+  try {
+    payload = await readWorkFolderJson(WORK_FOLDER_SYNC_DIR, GOOGLE_DRIVE_SYNC_FILE_NAME);
+  } catch (_error) {
+    const [startersPayload, tasksPayload] = await Promise.all([
+      readWorkFolderJson(WORK_FOLDER_SKILL_DIR, WORK_FOLDER_STARTERS_FILE).catch(() => null),
+      readWorkFolderJson(WORK_FOLDER_TASK_DIR, WORK_FOLDER_TASKS_FILE).catch(() => null),
+    ]);
+    payload = {
+      version: GOOGLE_DRIVE_SYNC_VERSION,
+      updatedAt: new Date().toISOString(),
+      customStarters: Array.isArray(startersPayload?.customStarters) ? startersPayload.customStarters : [],
+      tasks: Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : [],
+      latestChatSession: null,
+      documents: [],
+    };
+  }
+
+  const mergedPayload = await applyGoogleDriveSyncPayload(payload || {});
+  await writeWorkFolderSyncPayload(mergedPayload);
+  await writeWorkFolderStarters(mergedPayload.customStarters);
+  await writeWorkFolderTasks(mergedPayload.tasks);
+  return {
+    pulledAt: new Date().toISOString(),
+    payload: mergedPayload,
+  };
+}
+
+async function maybePushWorkFolderSync() {
+  try {
+    const handle = await getWorkFolderHandle();
+    if (!handle || !isDirectoryHandleLike(handle)) {
+      return;
+    }
+    await pushWorkFolderSync();
+  } catch (error) {
+    console.warn("[Edge AI Chat] Failed to sync local work folder", error);
+  }
+}
+
+async function syncGoogleDriveNow(direction = "push", interactive = false) {
+  const config = await getConfig();
+  if (!config.googleDriveSyncEnabled && direction !== "status") {
+    throw new Error("Google Drive sync is disabled.");
+  }
+
+  if (direction === "pull") {
+    const remote = await downloadGoogleDriveSyncPayload(interactive);
+    if (!remote) {
+      const payload = await buildGoogleDriveSyncPayload();
+      await uploadGoogleDriveSyncPayload(payload, interactive);
+      return { direction: "push", created: true, payload };
+    }
+    const payload = await applyGoogleDriveSyncPayload(remote);
+    await uploadGoogleDriveSyncPayload(payload, interactive);
+    return { direction: "pull", payload };
+  }
+
+  const payload = await buildGoogleDriveSyncPayload();
+  await uploadGoogleDriveSyncPayload(payload, interactive);
+  return { direction: "push", payload };
+}
+
+async function maybeAutoSyncGoogleDrive() {
+  try {
+    const config = await getConfig();
+    if (!config.googleDriveSyncEnabled || !config.googleDriveAutoSync) {
+      return;
+    }
+    await syncGoogleDriveNow("push", false);
+  } catch (error) {
+    await setGoogleDriveSyncMeta({
+      lastError: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function getGoogleDriveSyncStatus() {
+  const config = await getConfig();
+  const meta = await getGoogleDriveSyncMeta();
+  return {
+    enabled: Boolean(config.googleDriveSyncEnabled),
+    autoSync: config.googleDriveAutoSync !== false,
+    hasClientId: Boolean(sanitizeGoogleDriveClientId(config.googleDriveClientId)),
+    connected: Boolean(meta.accessToken && Number(meta.tokenExpiresAt || 0) > Date.now()),
+    redirectUrl: chrome.identity?.getRedirectURL ? getGoogleDriveRedirectUrl() : "",
+    lastSyncAt: meta.lastSyncAt || "",
+    lastError: meta.lastError || "",
+    fileId: meta.fileId || "",
+  };
 }
 
 async function reconcileSelectedModel(config, models) {
@@ -1531,6 +2040,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "ollama:get-work-folder-status": {
         sendResponse({ ok: true, status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:sync-push": {
+        sendResponse({ ok: true, result: await pushWorkFolderSync(), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:sync-pull": {
+        sendResponse({ ok: true, result: await pullWorkFolderSync(), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "google-drive:get-status": {
+        sendResponse({ ok: true, status: await getGoogleDriveSyncStatus() });
+        return;
+      }
+      case "google-drive:connect": {
+        await authorizeGoogleDrive(true);
+        sendResponse({ ok: true, status: await getGoogleDriveSyncStatus() });
+        return;
+      }
+      case "google-drive:disconnect": {
+        await clearGoogleDriveSyncAuth();
+        sendResponse({ ok: true, status: await getGoogleDriveSyncStatus() });
+        return;
+      }
+      case "google-drive:sync-push": {
+        const result = await syncGoogleDriveNow("push", true);
+        sendResponse({ ok: true, result, status: await getGoogleDriveSyncStatus() });
+        return;
+      }
+      case "google-drive:sync-pull": {
+        const result = await syncGoogleDriveNow("pull", true);
+        sendResponse({ ok: true, result, status: await getGoogleDriveSyncStatus() });
         return;
       }
       case "ollama:save-chat-session": {

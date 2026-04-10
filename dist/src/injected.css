@@ -1,4 +1,6 @@
 #ollama-quick-chat-host {
+  all: initial;
+  --ollama-host-scale: 1;
   position: fixed;
   top: 50%;
   right: 14px;
@@ -11,10 +13,40 @@
   color: #e6edf7;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  direction: ltr;
+  text-align: left;
+}
+
+.ollama-quick-shell {
+  position: relative;
+  transform: scale(var(--ollama-host-scale));
+  transform-origin: top left;
+}
+
+#ollama-quick-chat-host.is-panel-maximized .ollama-quick-shell {
+  width: 100%;
+  height: 100%;
+  transform: none;
 }
 
 #ollama-quick-chat-host * {
   box-sizing: border-box;
+}
+
+#ollama-quick-chat-host button {
+  font-family: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+#ollama-quick-chat-host input,
+#ollama-quick-chat-host select,
+#ollama-quick-chat-host textarea {
+  font: inherit !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
 #ollama-quick-chat-host p,
@@ -266,9 +298,9 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   color: #eef6ff;
-  font-size: 10px;
+  font-size: 10px !important;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.2 !important;
 }
 
 .ollama-quick-page-copilot-pill span:last-child {
@@ -291,9 +323,9 @@
   color: #d9e9ff;
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 11px !important;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1 !important;
   padding: 7px 10px;
   white-space: nowrap;
 }
@@ -330,9 +362,9 @@
   background: rgba(255, 255, 255, 0.06);
   color: #d8e7ff;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px !important;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.15 !important;
   padding: 6px 9px;
   flex: 0 0 auto;
   max-width: 100%;
@@ -343,7 +375,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13px !important;
   color: #c6d3f5;
 }
 
@@ -359,6 +391,9 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: #edf4ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
   padding: 8px 12px;
 }
 
@@ -732,6 +767,34 @@
   color: #eef7ff;
 }
 
+.ollama-quick-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ollama-quick-code-block-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ollama-quick-code-block-language {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid rgba(126, 233, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(126, 233, 255, 0.08);
+  color: rgba(222, 246, 255, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .rendered-markdown .mermaid-diagram {
   margin: 0 0 14px;
   border: 1px solid rgba(126, 233, 255, 0.14);
@@ -799,7 +862,13 @@
   gap: 8px;
   padding: 12px 16px 14px;
   border-top: 1px solid rgba(154, 176, 255, 0.14);
-  position: relative;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(9, 14, 26, 0.2), rgba(11, 16, 28, 0.94) 22%),
+    rgba(11, 16, 28, 0.94);
+  backdrop-filter: blur(12px);
 }
 
 .ollama-quick-compose-main {
@@ -918,6 +987,12 @@
   40% {
     opacity: 1;
     transform: translateY(-2px);
+  }
+}
+
+@keyframes ollama-task-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -1055,6 +1130,7 @@
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column-reverse;
+  overflow: hidden;
 }
 
 .ollama-quick-main-pane {
@@ -1062,12 +1138,25 @@
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
+  min-height: 220px;
+  overflow: hidden;
 }
 
 .ollama-quick-sidebar {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(42vh, 360px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 10px;
+}
+
+.ollama-quick-task-rail {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -1136,8 +1225,8 @@
   flex: 0 0 auto;
   border-color: rgba(126, 233, 255, 0.18);
   padding: 7px 11px;
-  font-size: 12px;
-  line-height: 1;
+  font-size: 11px;
+  line-height: 1.1;
 }
 
 .ollama-quick-include-summary {
@@ -1176,6 +1265,338 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ollama-quick-task-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 0;
+}
+
+.ollama-quick-task-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ollama-quick-task-panel-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(213, 227, 249, 0.72);
+}
+
+.ollama-quick-task-disabled-hint {
+  margin-top: -2px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(213, 227, 249, 0.58);
+}
+
+.ollama-quick-task-extract {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-color: rgba(95, 226, 148, 0.38);
+  background: linear-gradient(135deg, rgba(44, 160, 95, 0.92), rgba(66, 186, 110, 0.92));
+  color: #f6fff8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(20, 109, 58, 0.16);
+}
+
+.ollama-quick-task-extract:hover,
+.ollama-quick-task-extract:focus {
+  border-color: rgba(124, 241, 169, 0.5);
+  background: linear-gradient(135deg, rgba(53, 173, 104, 0.98), rgba(78, 199, 121, 0.98));
+}
+
+.ollama-quick-task-extract[disabled] {
+  border-color: rgba(141, 154, 181, 0.2);
+  background: linear-gradient(135deg, rgba(84, 92, 112, 0.72), rgba(101, 110, 131, 0.68));
+  color: rgba(232, 237, 246, 0.76);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.ollama-quick-task-extract[disabled]:hover,
+.ollama-quick-task-extract[disabled]:focus {
+  border-color: rgba(141, 154, 181, 0.2);
+  background: linear-gradient(135deg, rgba(84, 92, 112, 0.72), rgba(101, 110, 131, 0.68));
+}
+
+.ollama-quick-task-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(154, 176, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ollama-quick-task-section.is-candidates {
+  border-color: rgba(126, 233, 255, 0.16);
+}
+
+.ollama-quick-task-section.is-saved {
+  border-color: rgba(122, 225, 169, 0.16);
+}
+
+.ollama-quick-task-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ollama-quick-task-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ollama-quick-task-tab {
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid rgba(154, 176, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(221, 235, 255, 0.82);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+}
+
+.ollama-quick-task-tab.is-active {
+  border-color: rgba(126, 233, 255, 0.28);
+  background: linear-gradient(135deg, rgba(22, 110, 137, 0.28), rgba(39, 84, 176, 0.24));
+  color: #f6fbff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.ollama-quick-task-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid rgba(154, 176, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e9f3ff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.ollama-quick-task-section-toggle-text {
+  flex: 0 0 auto;
+  color: rgba(200, 235, 255, 0.8);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ollama-quick-task-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(169, 227, 255, 0.76);
+}
+
+.ollama-quick-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.ollama-quick-task-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(154, 176, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(8, 13, 24, 0.36);
+}
+
+.ollama-quick-task-card.is-completed {
+  opacity: 0.76;
+}
+
+.ollama-quick-task-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ollama-quick-task-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #f4f9ff;
+}
+
+.ollama-quick-task-card-summary {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(230, 238, 250, 0.84);
+}
+
+.ollama-quick-task-chip {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid rgba(126, 233, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(126, 233, 255, 0.08);
+  color: #9ce7ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ollama-quick-task-chip.is-completed {
+  border-color: rgba(157, 255, 197, 0.18);
+  background: rgba(88, 201, 126, 0.12);
+  color: #baf3c9;
+}
+
+.ollama-quick-task-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ollama-quick-task-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ollama-quick-task-meta-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(169, 227, 255, 0.62);
+}
+
+.ollama-quick-task-meta-value {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #eef6ff;
+  word-break: break-word;
+}
+
+.ollama-quick-task-muted {
+  color: rgba(213, 227, 249, 0.56);
+}
+
+.ollama-quick-task-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ollama-quick-task-evidence p {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(225, 236, 251, 0.78);
+}
+
+.ollama-quick-task-reminder-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dfeaff;
+}
+
+.ollama-quick-task-reminder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(112px, 0.8fr);
+  gap: 8px;
+}
+
+.ollama-quick-task-reminder-split {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ollama-quick-task-reminder-split span {
+  color: rgba(213, 227, 249, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ollama-quick-task-datetime {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid rgba(154, 176, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f9ff;
+  font: inherit;
+}
+
+.ollama-quick-task-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.26);
+  border-top-color: rgba(255, 255, 255, 0.96);
+  border-radius: 999px;
+  animation: ollama-task-spin 0.9s linear infinite;
+  flex: 0 0 auto;
+}
+
+.ollama-quick-task-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ollama-quick-task-actions-row .ollama-quick-secondary {
+  flex: 1 1 auto;
+  text-align: center;
+}
+
+.ollama-quick-task-empty {
+  padding: 12px;
+  border: 1px dashed rgba(154, 176, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(221, 235, 255, 0.78);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ollama-quick-task-empty.is-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .ollama-quick-picker-backdrop {
@@ -1248,6 +1669,13 @@
   line-height: 1.2;
 }
 
+.ollama-quick-picker-subtitle {
+  margin-top: 6px;
+  color: rgba(223, 236, 255, 0.76);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .ollama-quick-picker-search {
   width: 100%;
   min-height: 48px;
@@ -1258,6 +1686,63 @@
   color: #f5f9ff;
   font: inherit;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ollama-quick-custom-starter-modal {
+  width: min(100%, 640px);
+  max-height: min(80vh, 760px);
+}
+
+.ollama-quick-custom-starter-form {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ollama-quick-custom-starter-field {
+  display: grid;
+  gap: 8px;
+  color: #eef6ff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ollama-quick-custom-starter-textarea {
+  width: 100%;
+  min-height: 74px;
+  padding: 12px 14px;
+  border: 1px solid rgba(154, 176, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f9ff;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ollama-quick-custom-starter-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ollama-quick-custom-starter-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(154, 176, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f1ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ollama-quick-custom-starter-scope input {
+  margin: 0;
 }
 
 .ollama-quick-picker-search::placeholder {
@@ -1403,6 +1888,10 @@
   font-size: 11px;
 }
 
+.ollama-quick-picker-row .ollama-quick-picker-stack {
+  flex: 1 1 auto;
+}
+
 .ollama-quick-github-empty {
   padding: 12px 10px;
   color: rgba(216, 231, 255, 0.68);
@@ -1432,11 +1921,36 @@
   margin-top: 14px;
 }
 
-.ollama-quick-panel.is-open.is-maximized .ollama-quick-workspace {
+.ollama-quick-panel.is-open.is-maximized.has-task-rail .ollama-quick-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.92fr) minmax(260px, 0.72fr);
   gap: 0;
   align-items: stretch;
+}
+
+.ollama-quick-panel.is-open.is-maximized:not(.has-task-rail) .ollama-quick-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.78fr);
+  gap: 0;
+  align-items: stretch;
+}
+
+@media (min-width: 1500px) {
+  .ollama-quick-panel.is-open.is-maximized {
+    width: min(1080px, calc(100vw - 40px));
+  }
+
+  #ollama-quick-chat-host.is-panel-maximized .ollama-quick-panel.is-open.is-maximized {
+    width: min(1220px, calc(100vw - 40px));
+  }
+
+  .ollama-quick-panel.is-open.is-maximized.has-task-rail .ollama-quick-workspace {
+    grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.86fr) minmax(260px, 0.66fr);
+  }
+
+  .ollama-quick-panel.is-open.is-maximized:not(.has-task-rail) .ollama-quick-workspace {
+    grid-template-columns: minmax(0, 1.82fr) minmax(260px, 0.68fr);
+  }
 }
 
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-main-pane {
@@ -1444,8 +1958,21 @@
   border-right: 1px solid rgba(154, 176, 255, 0.12);
 }
 
-.ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-task-rail {
   min-height: 0;
+  overflow: auto;
+  padding: 10px 0 14px;
+  border-right: 1px solid rgba(154, 176, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(10, 16, 29, 0.86), rgba(8, 13, 24, 0.8)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   padding: 10px 0 14px;
   background:
@@ -1460,6 +1987,44 @@
   padding-right: 18px;
 }
 
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-task-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-task-stack {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-task-section {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-task-list {
+  flex: 1 1 auto;
+  max-height: none;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-select {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-controls {
   padding-top: 8px;
 }
@@ -1469,26 +2034,38 @@
   flex-wrap: wrap;
 }
 
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-starters-toggle {
+  display: none;
+}
+
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-starters-panel {
-  flex: 1 1 auto;
-  max-height: none;
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none !important;
   overflow: visible;
 }
 
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-starters {
+  display: flex;
   flex-direction: column;
+  gap: 8px;
   align-items: stretch;
-  flex-wrap: nowrap;
+  min-height: 0;
   overflow: visible;
   mask-image: none;
+  padding-bottom: 0;
 }
 
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-starter {
   width: 100%;
-  border-radius: 16px;
+  min-height: 42px;
+  border-radius: 14px;
   text-align: left;
   white-space: normal;
-  padding: 10px 12px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
 }
 
 .ollama-quick-panel.is-maximized .ollama-quick-message-body {
@@ -1525,6 +2102,13 @@
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
+}
+
+.ollama-quick-message-action-icon.is-text-label {
+  width: auto;
+  min-width: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
 }
 
 .ollama-quick-starter-drafts {
@@ -1701,6 +2285,12 @@
     border-bottom: 1px solid rgba(154, 176, 255, 0.12);
   }
 
+  .ollama-quick-panel.is-open.is-maximized .ollama-quick-task-rail {
+    border-right: none;
+    border-bottom: 1px solid rgba(154, 176, 255, 0.12);
+    max-height: 34vh;
+  }
+
   .ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
     max-height: 34vh;
   }
@@ -1708,6 +2298,19 @@
   .ollama-quick-include-panel {
     align-items: stretch;
     flex-wrap: wrap;
+  }
+
+  .ollama-quick-task-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ollama-quick-task-panel-head,
+  .ollama-quick-task-actions-row {
+    flex-wrap: wrap;
+  }
+
+  .ollama-quick-task-reminder-row {
+    grid-template-columns: 1fr;
   }
 
   .ollama-quick-picker-backdrop {

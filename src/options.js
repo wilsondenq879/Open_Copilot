@@ -41,6 +41,8 @@ const OPTION_I18N = {
     localWorkFolderHint: "選擇一個本機資料夾，作為「下載 MD」的儲存位置，也可用來加入本機文件。",
     pickFolder: "選擇資料夾",
     clearFolder: "清除資料夾",
+    workFolderPull: "從資料夾拉回",
+    workFolderPush: "推送到資料夾",
     folderNotSelected: "尚未選擇資料夾。",
     folderReady: "已連結本機資料夾：{name}",
     folderPermissionMissing: "資料夾已記錄，但寫入權限失效。請重新選擇一次。",
@@ -50,6 +52,27 @@ const OPTION_I18N = {
     folderSaveSuccess: "已儲存本機資料夾設定。",
     folderSaveFailed: "儲存本機資料夾失敗。",
     folderClearSuccess: "已清除本機資料夾設定。",
+    workFolderPullSuccess: "已從工作資料夾拉回並合併。",
+    workFolderPushSuccess: "已推送到工作資料夾。",
+    googleDriveSyncLabel: "Google Drive 同步",
+    googleDriveClientIdLabel: "OAuth Client ID",
+    googleDriveSyncEnabledLabel: "啟用 Drive 同步",
+    googleDriveAutoSyncLabel: "儲存後自動同步",
+    googleDriveConnect: "連接 Google Drive",
+    googleDrivePull: "從 Drive 拉回",
+    googleDrivePush: "推送到 Drive",
+    googleDriveDisconnect: "中斷連線",
+    googleDriveSyncHint: "透過 Google Drive app data 同步生成的聊天文件、Starter Skill Collection 與待辦提醒。",
+    googleDriveRedirectLabel: "Redirect URL",
+    googleDriveNotConnected: "尚未連接 Google Drive。",
+    googleDriveConnected: "Google Drive 已連接。",
+    googleDriveLastSync: "上次同步：{time}",
+    googleDriveLastError: "Drive 同步錯誤：{error}",
+    googleDriveConnectSuccess: "Google Drive 已連接。",
+    googleDriveDisconnectSuccess: "Google Drive 已中斷連線。",
+    googleDrivePushSuccess: "已推送到 Google Drive。",
+    googleDrivePullSuccess: "已從 Google Drive 拉回並合併。",
+    googleDriveMissingClientId: "請先填入 Google OAuth Client ID 並儲存設定。",
     defaultProviderLabel: "預設 Provider",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI provider。",
     replyLanguageLabel: "回覆語言",
@@ -142,6 +165,8 @@ const OPTION_I18N = {
     localWorkFolderHint: "Pick a local folder to use as the save location for Download MD, and as the source for adding local documents.",
     pickFolder: "Choose Folder",
     clearFolder: "Clear Folder",
+    workFolderPull: "Pull From Folder",
+    workFolderPush: "Push To Folder",
     folderNotSelected: "No folder selected.",
     folderReady: "Local folder connected: {name}",
     folderPermissionMissing: "Folder remembered, but write permission is no longer available. Please pick it again.",
@@ -151,6 +176,27 @@ const OPTION_I18N = {
     folderSaveSuccess: "Local work folder saved.",
     folderSaveFailed: "Failed to save local work folder.",
     folderClearSuccess: "Local work folder cleared.",
+    workFolderPullSuccess: "Pulled from the work folder and merged.",
+    workFolderPushSuccess: "Pushed to the work folder.",
+    googleDriveSyncLabel: "Google Drive Sync",
+    googleDriveClientIdLabel: "OAuth Client ID",
+    googleDriveSyncEnabledLabel: "Enable Drive sync",
+    googleDriveAutoSyncLabel: "Auto-sync after saves",
+    googleDriveConnect: "Connect Google Drive",
+    googleDrivePull: "Pull From Drive",
+    googleDrivePush: "Push To Drive",
+    googleDriveDisconnect: "Disconnect",
+    googleDriveSyncHint: "Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.",
+    googleDriveRedirectLabel: "Redirect URL",
+    googleDriveNotConnected: "Google Drive is not connected.",
+    googleDriveConnected: "Google Drive is connected.",
+    googleDriveLastSync: "Last sync: {time}",
+    googleDriveLastError: "Drive sync error: {error}",
+    googleDriveConnectSuccess: "Google Drive connected.",
+    googleDriveDisconnectSuccess: "Google Drive disconnected.",
+    googleDrivePushSuccess: "Pushed to Google Drive.",
+    googleDrivePullSuccess: "Pulled from Google Drive and merged.",
+    googleDriveMissingClientId: "Enter and save a Google OAuth Client ID first.",
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
     replyLanguageLabel: "Reply Language",
@@ -771,7 +817,19 @@ function applyTranslations() {
   document.getElementById("localWorkFolderHint").textContent = t("localWorkFolderHint");
   document.getElementById("pickFolderButton").textContent = t("pickFolder");
   document.getElementById("clearFolderButton").textContent = t("clearFolder");
+  document.getElementById("workFolderPullButton").textContent = t("workFolderPull");
+  document.getElementById("workFolderPushButton").textContent = t("workFolderPush");
   document.getElementById("localWorkFolderPathLabel").textContent = t("folderPathLabel");
+  document.getElementById("googleDriveSyncLabel").textContent = t("googleDriveSyncLabel");
+  document.getElementById("googleDriveClientIdLabel").textContent = t("googleDriveClientIdLabel");
+  document.getElementById("googleDriveSyncEnabledLabel").textContent = t("googleDriveSyncEnabledLabel");
+  document.getElementById("googleDriveAutoSyncLabel").textContent = t("googleDriveAutoSyncLabel");
+  document.getElementById("googleDriveConnectButton").textContent = t("googleDriveConnect");
+  document.getElementById("googleDrivePullButton").textContent = t("googleDrivePull");
+  document.getElementById("googleDrivePushButton").textContent = t("googleDrivePush");
+  document.getElementById("googleDriveDisconnectButton").textContent = t("googleDriveDisconnect");
+  document.getElementById("googleDriveSyncHint").textContent = t("googleDriveSyncHint");
+  document.getElementById("googleDriveRedirectLabel").textContent = t("googleDriveRedirectLabel");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
@@ -927,15 +985,6 @@ function mergeImportedStarters(existingStarters, importedStarters) {
 
 function setActiveUtilityTab(tab) {
   activeUtilityTab = tab === "starterSkills" ? "starterSkills" : "experience";
-  const titleNode = document.getElementById("generalSectionTitle");
-  const tagNode = document.getElementById("generalSectionTag");
-
-  if (titleNode) {
-    titleNode.textContent = activeUtilityTab === "starterSkills" ? t("starterLibraryTitle") : t("generalSectionTitle");
-  }
-  if (tagNode) {
-    tagNode.textContent = activeUtilityTab === "starterSkills" ? t("utilityTabStarterSkills") : t("generalSectionTag");
-  }
 
   document.querySelectorAll("[data-utility-tab]").forEach((button) => {
     const isActive = button.dataset.utilityTab === activeUtilityTab;
@@ -1098,6 +1147,29 @@ async function loadWorkFolderStatus() {
   }
 }
 
+function renderGoogleDriveStatus(status) {
+  const statusNode = document.getElementById("googleDriveSyncStatus");
+  const redirectNode = document.getElementById("googleDriveRedirectUrl");
+  redirectNode.textContent = status?.redirectUrl || t("folderPathUnavailable");
+
+  const parts = [status?.connected ? t("googleDriveConnected") : t("googleDriveNotConnected")];
+  if (status?.lastSyncAt) {
+    parts.push(t("googleDriveLastSync", { time: new Date(status.lastSyncAt).toLocaleString() }));
+  }
+  if (status?.lastError) {
+    parts.push(t("googleDriveLastError", { error: status.lastError }));
+  }
+  statusNode.textContent = parts.join(" ");
+  statusNode.classList.toggle("is-error", Boolean(status?.lastError));
+}
+
+async function loadGoogleDriveStatus() {
+  const result = await sendMessage({ type: "google-drive:get-status" });
+  if (result?.ok) {
+    renderGoogleDriveStatus(result.status);
+  }
+}
+
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
@@ -1115,6 +1187,9 @@ async function loadConfig() {
     document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
     document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
     document.getElementById("azureOpenAiApiKey").value = result.config.azureOpenAiApiKey || "";
+    document.getElementById("googleDriveClientId").value = result.config.googleDriveClientId || "";
+    document.getElementById("googleDriveSyncEnabled").checked = Boolean(result.config.googleDriveSyncEnabled);
+    document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("replyLanguage").value = replyLanguage;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
@@ -1128,6 +1203,7 @@ async function loadConfig() {
     renderCustomStartersPreview(currentCustomStarters);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     await loadWorkFolderStatus();
+    await loadGoogleDriveStatus();
     setStatus(t("waiting"));
   }
 }
@@ -1144,6 +1220,9 @@ async function saveConfig() {
   const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
   const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
   const azureOpenAiApiKey = document.getElementById("azureOpenAiApiKey").value.trim();
+  const googleDriveClientId = document.getElementById("googleDriveClientId").value.trim();
+  const googleDriveSyncEnabled = document.getElementById("googleDriveSyncEnabled").checked;
+  const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
   const replyLanguage = document.getElementById("replyLanguage").value;
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
@@ -1165,6 +1244,9 @@ async function saveConfig() {
       azureOpenAiDeployment,
       azureOpenAiApiVersion,
       azureOpenAiApiKey,
+      googleDriveClientId,
+      googleDriveSyncEnabled,
+      googleDriveAutoSync,
       defaultProvider,
       replyLanguage,
       taskExtractionWindowDays,
@@ -1311,6 +1393,94 @@ document.getElementById("clearFolderButton").addEventListener("click", async () 
     await clearPersistedWorkFolderHandle();
     renderWorkFolderStatus(null);
     setStatus(t("folderClearSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("workFolderPushButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "work-folder:sync-push" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("folderSaveFailed"));
+    }
+    renderWorkFolderStatus(result.status);
+    setStatus(t("workFolderPushSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("workFolderPullButton").addEventListener("click", async () => {
+  try {
+    const result = await sendMessage({ type: "work-folder:sync-pull" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("folderSaveFailed"));
+    }
+    renderWorkFolderStatus(result.status);
+    await loadConfig();
+    setStatus(t("workFolderPullSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDriveConnectButton").addEventListener("click", async () => {
+  try {
+    document.getElementById("googleDriveSyncEnabled").checked = true;
+    await saveConfig();
+    if (!document.getElementById("googleDriveClientId").value.trim()) {
+      throw new Error(t("googleDriveMissingClientId"));
+    }
+    const result = await sendMessage({ type: "google-drive:connect" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDriveConnectSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDriveDisconnectButton").addEventListener("click", async () => {
+  try {
+    const result = await sendMessage({ type: "google-drive:disconnect" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDriveDisconnectSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDrivePushButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "google-drive:sync-push" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    setStatus(t("googleDrivePushSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("googleDrivePullButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const result = await sendMessage({ type: "google-drive:sync-pull" });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    renderGoogleDriveStatus(result.status);
+    await loadConfig();
+    setStatus(t("googleDrivePullSuccess"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }

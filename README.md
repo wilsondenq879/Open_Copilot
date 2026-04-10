@@ -116,6 +116,27 @@ You can choose a local folder from the Settings page and let the extension auto-
 - The latest conversation snapshot is also stored locally inside the extension for quick restore
 - Use `Load latest` in the chat header to continue from the most recent saved conversation
 - If browser permission to the folder is lost, re-pick the folder from Settings
+- The extension creates helper folders inside the selected work folder:
+  - `skill/starter-skills.json`
+  - `task/task-reminders.json`
+  - `sync/edge-ai-chat-sync.json`
+- Generated chat Markdown / JSON exports are still saved in the first level of the selected work folder
+- Use `Push To Folder` and `Pull From Folder` in Settings to manually sync Starter skills, tasks, and the latest chat snapshot through the work folder
+
+## Google Drive Sync
+
+The Settings page can connect Google Drive so generated chat documents, Starter Skill Collection, and saved task reminders can sync across computers that use the same Google account.
+
+Setup:
+
+1. Create a Google Cloud OAuth Client ID for a web application
+2. Enable the Google Drive API for that Google Cloud project
+3. Open the extension Settings page and copy the displayed `Redirect URL`
+4. Add that redirect URL to the OAuth client
+5. Paste the OAuth Client ID into Settings
+6. Enable Drive sync and click `Connect Google Drive`
+
+The sync file is stored in Google Drive app data as `edge-ai-chat-sync.json`. It is used by the extension for cross-device sync and is not meant to be edited manually.
 
 ## What Page Data Is Included
 

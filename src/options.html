@@ -139,28 +139,6 @@
           </section>
 
           <div class="provider-support-grid">
-            <div class="provider-support-card">
-              <label class="field">
-                <span id="githubApiKeyLabel">GitHub API Key</span>
-                <input id="githubApiKey" type="password" placeholder="ghp_..." />
-              </label>
-              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
-            </div>
-
-            <div class="provider-support-card">
-              <div class="field">
-                <span id="localWorkFolderLabel">Local Work Folder</span>
-                <div class="actions">
-                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
-                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
-                </div>
-                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
-                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
-                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
-                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
-              </div>
-            </div>
-
             <div class="provider-support-card provider-support-wide">
               <div class="split-fields settings-compact-fields">
                 <label class="field">
@@ -202,6 +180,58 @@
               </div>
               <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
               <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="field">
+                <span id="githubApiKeyLabel">GitHub API Key</span>
+                <input id="githubApiKey" type="password" placeholder="ghp_..." />
+              </label>
+              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <div class="field">
+                <span id="localWorkFolderLabel">Local Work Folder</span>
+                <div class="actions">
+                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
+                  <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
+                  <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
+                </div>
+                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
+                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
+              </div>
+            </div>
+
+            <div class="provider-support-card provider-support-wide">
+              <div class="field">
+                <span id="googleDriveSyncLabel">Google Drive Sync</span>
+                <label class="field">
+                  <span id="googleDriveClientIdLabel">OAuth Client ID</span>
+                  <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+                </label>
+                <label class="checkbox-field">
+                  <input id="googleDriveSyncEnabled" type="checkbox" />
+                  <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
+                </label>
+                <label class="checkbox-field">
+                  <input id="googleDriveAutoSync" type="checkbox" />
+                  <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
+                </label>
+                <div class="actions settings-inline-actions">
+                  <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
+                  <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
+                  <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
+                  <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
+                </div>
+                <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
+                <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
+                <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
+                <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
+              </div>
             </div>
           </div>
         </article>
