@@ -83,7 +83,7 @@ const POPUP_I18N = {
     pageTitle: "Open Copilot",
     eyebrow: "Ruta Copilot local",
     title: "Open Copilot",
-    endpoint: "Endpoint",
+    endpoint: "Punto de conexión",
     settings: "Configuración",
     models: "Modelos",
     refresh: "Actualizar",
@@ -160,6 +160,14 @@ const POPUP_I18N = {
     foundModels: "{count} मॉडल मिले।",
   },
 };
+
+Object.assign(POPUP_I18N.ja, {
+  title: "Open Copilot",
+});
+
+Object.assign(POPUP_I18N.ko, {
+  title: "Open Copilot",
+});
 
 let popupLocale = POPUP_I18N["zh-TW"];
 

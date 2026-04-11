@@ -27,27 +27,37 @@ const TASK_NOTIFICATION_PREFIX = "task-notification:";
 const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
 const DEFAULT_TASK_EXTRACTION_WINDOW_DAYS = 3;
 const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
+const LOCAL_SECRET_CONFIG_KEY = "providerSecretConfig";
+const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey"];
+const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey"];
+
+const DEFAULT_SECRET_CONFIG = {
+  githubApiKey: "",
+  geminiApiKey: "",
+  azureOpenAiApiKey: "",
+};
 
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
   lmStudioUrl: "http://127.0.0.1:1234",
   lmStudioModel: "",
   lmStudioApiKey: "lm-studio",
-  githubApiKey: "",
-  geminiApiKey: "",
   geminiModel: "gemini-2.5-flash",
   azureOpenAiEndpoint: "",
-  azureOpenAiApiKey: "",
   azureOpenAiDeployment: "",
   azureOpenAiApiVersion: "2024-10-21",
   defaultProvider: "ollama",
   selectedModel: "",
   replyLanguage: "zh-TW",
+  settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
   starterHoverTipsEnabled: true,
   googleDriveClientId: "",
   googleDriveSyncEnabled: false,
   googleDriveAutoSync: true,
+  githubApiKeyConfigured: false,
+  geminiApiKeyConfigured: false,
+  azureOpenAiApiKeyConfigured: false,
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
   customStarters: [],
   recentGithubFiles: [],
@@ -59,6 +69,8 @@ const DEFAULT_CONFIG = {
     "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
   ].join("\n"),
 };
+
+let secretConfigMigrationPromise = null;
 
 function openLocalDb() {
   return new Promise((resolve, reject) => {
@@ -774,9 +786,153 @@ async function deleteTaskRecord(taskId) {
   };
 }
 
-async function getConfig() {
-  const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
-  const merged = { ...DEFAULT_CONFIG, ...config };
+function normalizeSecretValue(value) {
+  return typeof value === "string" ? value.trim() : String(value || "").trim();
+}
+
+function pickSecretConfig(source = {}) {
+  return SECRET_CONFIG_FIELDS.reduce((result, field) => {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      result[field] = normalizeSecretValue(source[field]);
+    }
+    return result;
+  }, {});
+}
+
+function omitSecretConfig(source = {}) {
+  const next = { ...source };
+  SECRET_CONFIG_FIELDS.forEach((field) => {
+    delete next[field];
+  });
+  return next;
+}
+
+function buildSecretAccessFlags(secretConfig = {}) {
+  return {
+    githubApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.githubApiKey)),
+    geminiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.geminiApiKey)),
+    azureOpenAiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.azureOpenAiApiKey)),
+  };
+}
+
+async function getSecretConfig() {
+  const { [LOCAL_SECRET_CONFIG_KEY]: storedSecretConfig } = await chrome.storage.local.get(LOCAL_SECRET_CONFIG_KEY);
+  return {
+    ...DEFAULT_SECRET_CONFIG,
+    ...(storedSecretConfig && typeof storedSecretConfig === "object" ? storedSecretConfig : {}),
+  };
+}
+
+async function setSecretConfig(secretConfig = {}) {
+  const normalized = {
+    ...DEFAULT_SECRET_CONFIG,
+    ...pickSecretConfig(secretConfig),
+  };
+  await chrome.storage.local.set({
+    [LOCAL_SECRET_CONFIG_KEY]: normalized,
+  });
+  return normalized;
+}
+
+async function ensureSecretConfigMigrated() {
+  if (secretConfigMigrationPromise) {
+    return secretConfigMigrationPromise;
+  }
+
+  secretConfigMigrationPromise = (async () => {
+    const legacySyncSecrets = await chrome.storage.sync.get(SECRET_CONFIG_FIELDS);
+    const legacySecretPatch = pickSecretConfig(legacySyncSecrets);
+    const hasLegacySecrets = Object.keys(legacySecretPatch).length > 0;
+
+    if (!hasLegacySecrets) {
+      return;
+    }
+
+    const localSecretConfig = await getSecretConfig();
+    const nextSecretConfig = {
+      ...localSecretConfig,
+    };
+
+    SECRET_CONFIG_FIELDS.forEach((field) => {
+      const legacyValue = normalizeSecretValue(legacySecretPatch[field]);
+      if (!legacyValue) {
+        return;
+      }
+      if (!normalizeSecretValue(nextSecretConfig[field])) {
+        nextSecretConfig[field] = legacyValue;
+      }
+    });
+
+    await chrome.storage.local.set({
+      [LOCAL_SECRET_CONFIG_KEY]: nextSecretConfig,
+    });
+    await chrome.storage.sync.remove(SECRET_CONFIG_FIELDS);
+    await chrome.storage.sync.set(buildSecretAccessFlags(nextSecretConfig));
+  })();
+
+  try {
+    await secretConfigMigrationPromise;
+  } finally {
+    secretConfigMigrationPromise = null;
+  }
+}
+
+function buildConfig(syncConfig = {}, secretConfig = {}, includeSecrets = true) {
+  const mergedSync = { ...DEFAULT_CONFIG, ...omitSecretConfig(syncConfig) };
+  const mergedSecrets = { ...DEFAULT_SECRET_CONFIG, ...pickSecretConfig(secretConfig) };
+  const accessFlags = buildSecretAccessFlags(mergedSecrets);
+  const normalized = {
+    ...mergedSync,
+    ...accessFlags,
+  };
+
+  if (includeSecrets) {
+    return {
+      ...normalized,
+      ...mergedSecrets,
+    };
+  }
+
+  return normalized;
+}
+
+function getExtensionOrigin() {
+  return new URL(chrome.runtime.getURL("/")).origin;
+}
+
+function senderCanAccessSensitiveConfig(sender) {
+  const senderUrl = String(sender?.url || "").trim();
+  if (!senderUrl) {
+    return false;
+  }
+
+  try {
+    return new URL(senderUrl).origin === getExtensionOrigin();
+  } catch (_error) {
+    return false;
+  }
+}
+
+function sanitizeConfigForSender(config, sender) {
+  if (senderCanAccessSensitiveConfig(sender)) {
+    return { ...config };
+  }
+
+  const sanitized = { ...config };
+  CLIENT_REDACTED_CONFIG_FIELDS.forEach((field) => {
+    delete sanitized[field];
+  });
+  return sanitized;
+}
+
+async function getConfig(options = {}) {
+  const includeSecrets = options?.includeSecrets !== false;
+  await ensureSecretConfigMigrated();
+  const [syncConfig, secretConfig] = await Promise.all([
+    chrome.storage.sync.get(DEFAULT_CONFIG),
+    getSecretConfig(),
+  ]);
+  const merged = buildConfig(syncConfig, secretConfig, includeSecrets);
   return {
     ...merged,
     taskExtractionWindowDays: normalizeTaskExtractionWindowDays(merged.taskExtractionWindowDays),
@@ -784,16 +940,30 @@ async function getConfig() {
 }
 
 async function setConfig(nextConfig) {
+  await ensureSecretConfigMigrated();
   const current = await getConfig();
+  const currentSecrets = pickSecretConfig(current);
+  const nextSecretPatch = pickSecretConfig(nextConfig);
+  const mergedSecrets = {
+    ...currentSecrets,
+    ...nextSecretPatch,
+  };
   const merged = {
     ...current,
-    ...nextConfig,
+    ...omitSecretConfig(nextConfig),
     taskExtractionWindowDays: normalizeTaskExtractionWindowDays(nextConfig?.taskExtractionWindowDays ?? current.taskExtractionWindowDays),
+    ...buildSecretAccessFlags(mergedSecrets),
   };
-  await chrome.storage.sync.set(merged);
+  await chrome.storage.sync.set(omitSecretConfig(merged));
+  if (Object.keys(nextSecretPatch).length) {
+    await setSecretConfig(mergedSecrets);
+  }
   maybePushWorkFolderSync();
   maybeAutoSyncGoogleDrive();
-  return merged;
+  return {
+    ...merged,
+    ...mergedSecrets,
+  };
 }
 
 function normalizeTaskExtractionWindowDays(value) {
@@ -1557,6 +1727,19 @@ async function fetchGithubRepository({ owner, repo, token }) {
   };
 }
 
+function buildGithubTokenScopeWarning(token) {
+  const normalizedToken = normalizeSecretValue(token);
+  if (!normalizedToken) {
+    return "";
+  }
+
+  if (/^github_pat_/i.test(normalizedToken)) {
+    return "";
+  }
+
+  return "Use a fine-grained GitHub token with read-only repository access when possible.";
+}
+
 function getCommonsImageMimeRank(value) {
   const mime = String(value || "").toLowerCase();
   if (mime === "image/jpeg" || mime === "image/png" || mime === "image/webp") {
@@ -1932,12 +2115,16 @@ async function streamChatWithOllama(port, messages, model) {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await ensureSecretConfigMigrated();
   const config = await getConfig();
-  await chrome.storage.sync.set(config);
+  await chrome.storage.sync.set(omitSecretConfig(config));
   await restoreTaskAlarms();
 });
 
 chrome.runtime.onStartup?.addListener(() => {
+  ensureSecretConfigMigrated().catch((error) => {
+    console.warn("[Edge AI Chat] Failed to migrate secret config on startup", error);
+  });
   restoreTaskAlarms().catch((error) => {
     console.warn("[Edge AI Chat] Failed to restore task alarms on startup", error);
   });
@@ -1993,20 +2180,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "ollama:get-config": {
-        sendResponse({ ok: true, config: await getConfig() });
+        const config = await getConfig();
+        sendResponse({ ok: true, config: sanitizeConfigForSender(config, sender) });
         return;
       }
       case "ollama:set-config": {
-        sendResponse({ ok: true, config: await setConfig(message.config || {}) });
+        const config = await setConfig(message.config || {});
+        sendResponse({ ok: true, config: sanitizeConfigForSender(config, sender) });
         return;
       }
       case "ollama:list-models": {
-        sendResponse({ ok: true, ...(await listModels()) });
+        const result = await listModels();
+        sendResponse({
+          ok: true,
+          ...result,
+          config: result.config ? sanitizeConfigForSender(result.config, sender) : result.config,
+        });
         return;
       }
       case "ollama:select-model": {
         const config = await setConfig({ selectedModel: message.model || "" });
-        sendResponse({ ok: true, config });
+        sendResponse({ ok: true, config: sanitizeConfigForSender(config, sender) });
         return;
       }
       case "ollama:generate": {
@@ -2117,7 +2311,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       case "github:list-repositories": {
-        sendResponse({ ok: true, ...(await listGithubRepositories(message || {})) });
+        const result = await listGithubRepositories(message || {});
+        const config = await getConfig();
+        const scopeWarning = buildGithubTokenScopeWarning(config.githubApiKey);
+        sendResponse({
+          ok: true,
+          ...result,
+          warnings: scopeWarning ? [...(Array.isArray(result.warnings) ? result.warnings : []), scopeWarning] : result.warnings,
+        });
         return;
       }
       case "github:fetch-repository": {

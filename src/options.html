@@ -346,6 +346,32 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
 
     </main>
 
+    <div id="starterAiEditorModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal" role="dialog" aria-modal="true" aria-labelledby="starterAiEditorTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="starterAiEditorKicker" class="section-kicker">AI Skill Editor</div>
+            <h3 id="starterAiEditorTitle" class="starter-studio-title">Refine Skill With AI</h3>
+            <p id="starterAiEditorHint" class="field-hint">Use plain language to improve an existing skill, then apply the AI-updated version.</p>
+          </div>
+          <button id="starterAiEditorClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div class="starter-ai-editor-current">
+          <div id="starterAiEditorCurrentLabel" class="starter-ai-editor-current-label">Current Skill</div>
+          <div id="starterAiEditorCurrentCard" class="starter-preview-card"></div>
+        </div>
+        <div id="starterAiEditorConversation" class="starter-ai-editor-conversation empty-state">No discussion yet.</div>
+        <label class="field">
+          <span id="starterAiEditorInputLabel">What should AI improve?</span>
+          <textarea id="starterAiEditorInput" rows="5" placeholder="For example: make it stricter about regression risk and explicitly use the current GitHub page as context."></textarea>
+        </label>
+        <div class="actions settings-inline-actions starter-ai-editor-actions">
+          <button id="starterAiEditorDiscuss" class="secondary-button" type="button">Discuss With AI</button>
+          <button id="starterAiEditorApply" class="primary-button" type="button" disabled>Apply Update</button>
+        </div>
+      </section>
+    </div>
+
     <script src="options.js"></script>
   </body>
   </html>

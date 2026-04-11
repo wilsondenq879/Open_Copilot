@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Edge AI Chat",
+  "name": "Open Copilot",
   "description": "Floating browser-side AI chat with current-page context and local Ollama routing.",
   "version": "0.1.0",
   "permissions": [
@@ -26,7 +26,7 @@
     "128": "assets/icons/icon-128.png"
   },
   "action": {
-    "default_title": "Edge AI Chat",
+    "default_title": "Open Copilot",
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "assets/icons/icon-16.png",

@@ -1,20 +1,26 @@
 # Open Copilot
+## Overview | 概述
+
+### English
 
 Open Copilot is a Microsoft Edge Manifest V3 extension that adds a floating AI chat panel to normal webpages and routes requests to your local or configured AI providers.
 
-這是一個 Microsoft Edge Manifest V3 擴充套件，會在一般網頁右下角加入可收合的 AI 聊天面板，並把請求送到你本機或已設定的 AI provider。
-
-One of its most useful ideas is that you can create your own reusable skills / starters for recurring tasks, then share them with other people as prompt workflows they can import and use.
-
-它其中一個很實用的重點，是你可以把常做的任務整理成自己的 reusable skills / starters，之後再分享給別人，讓他們也能直接匯入同樣的 prompt workflow。
+One of its most useful ideas is that you can create your own reusable skills and starters for recurring tasks, then share them with other people as prompt workflows they can import and use.
 
 Starters are a core part of the product, not a side feature. Depending on the site and page type you are viewing, the extension can surface the most relevant starters first so people can start from a useful workflow instead of inventing prompts from scratch.
 
+It is especially useful in environments where people want a practical AI tool without requiring admin-level backend access. Because it can run with local models and a shared work folder setup, teams can use it in a local-first way and keep sensitive working material inside their own controlled environment—no elevated permissions needed.
+
+### 中文說明
+
+Open Copilot 是一個 Microsoft Edge Manifest V3 擴充套件，會在一般網頁右下角加入可收合的 AI 聊天面板，並把請求送到你本機或已設定的 AI provider。
+
+它其中一個很實用的重點，是你可以把常做的任務整理成自己的 reusable skills 與 starters，之後再分享給別人，讓他們也能直接匯入同樣的 prompt workflow。
+
 Starter 是這個產品的核心，不是附屬功能。根據你正在看的網站與頁面類型，extension 會優先浮出最相關的 starters，讓使用者不用從零自己想 prompt，就能直接從合適的 workflow 開始。
 
-It is especially useful in environments where people want a practical AI tool without asking for admin-level backend access. Because it can run with local models and a shared work folder setup, teams can use it in a local-first way and keep sensitive working material inside their own controlled environment.
+它特別適合那種想要有實用 AI 工具、但又不需要申請 admin 級後台權限的環境。因為它可以搭配地端模型與共用 work folder 來運作，團隊能在本地優先的方式下使用，同時把敏感工作資料留在自己可控的環境裡——完全不需要提升權限。
 
-它特別適合那種想要有實用 AI 工具、但又不想申請 admin 級後台權限的環境。因為它可以搭配地端模型與共用 work folder 來運作，團隊能在本地優先的方式下使用，同時把敏感工作資料留在自己可控的環境裡。
 
 ## Screenshots | 畫面預覽 
 

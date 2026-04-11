@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title id="pageTitle">Edge AI Chat Settings</title>
+    <title id="pageTitle">Open Copilot Settings</title>
     <link rel="stylesheet" href="ui.css" />
   </head>
   <body class="settings-page">
@@ -11,7 +11,7 @@
     <main class="panel settings-panel">
       <div class="panel-header settings-header">
         <div>
-          <div id="settingsEyebrow" class="eyebrow">Edge AI Chat</div>
+          <div id="settingsEyebrow" class="eyebrow">Open Copilot</div>
           <h1 id="settingsTitle">Settings</h1>
           <p id="settingsDescription">Configure the Ollama endpoint, installed models, and the default reply language for browser-side chat.</p>
         </div>
@@ -28,6 +28,14 @@
       </div>
 
       <div class="actions settings-toolbar">
+        <label class="toolbar-field" for="settingsThemeToolbar">
+          <span id="settingsThemeToolbarLabel">Theme</span>
+          <select id="settingsThemeToolbar" aria-label="Settings theme">
+            <option id="settingsThemeToolbarSystemOption" value="system">Follow System</option>
+            <option id="settingsThemeToolbarDarkOption" value="dark">Dark</option>
+            <option id="settingsThemeToolbarLightOption" value="light">Light</option>
+          </select>
+        </label>
         <button id="testButton" class="secondary-button" type="button">Test Connection</button>
         <button id="saveButton" class="primary-button" type="button">Save Settings</button>
       </div>
@@ -61,6 +69,17 @@
               <span id="ollamaUrlLabel">Ollama URL</span>
               <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" />
             </label>
+            <section class="provider-support-card ollama-models-card">
+              <div class="status-header ollama-models-head">
+                <div>
+                  <span class="section-kicker">Telemetry</span>
+                  <h3 id="installedModelsTitle" class="starter-studio-title">Installed Models</h3>
+                </div>
+                <button id="refreshButton" class="secondary-button" type="button">Refresh</button>
+              </div>
+              <div id="statusMessage" class="status-message">Waiting for connection check.</div>
+              <div id="modelsList" class="models-grid ollama-models-grid"></div>
+            </section>
           </section>
 
           <section id="panel-lmStudio" class="provider-panel" role="tabpanel" hidden>
@@ -325,18 +344,33 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </section>
       </section>
 
-      <section class="status-card">
-        <div class="status-header">
-          <div>
-            <span class="section-kicker">Telemetry</span>
-            <h2 id="installedModelsTitle">Installed Models</h2>
-          </div>
-          <button id="refreshButton" class="secondary-button" type="button">Refresh</button>
-        </div>
-        <div id="statusMessage" class="status-message">Waiting for connection check.</div>
-        <div id="modelsList" class="models-grid"></div>
-      </section>
     </main>
+
+    <div id="starterAiEditorModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal" role="dialog" aria-modal="true" aria-labelledby="starterAiEditorTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="starterAiEditorKicker" class="section-kicker">AI Skill Editor</div>
+            <h3 id="starterAiEditorTitle" class="starter-studio-title">Refine Skill With AI</h3>
+            <p id="starterAiEditorHint" class="field-hint">Use plain language to improve an existing skill, then apply the AI-updated version.</p>
+          </div>
+          <button id="starterAiEditorClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div class="starter-ai-editor-current">
+          <div id="starterAiEditorCurrentLabel" class="starter-ai-editor-current-label">Current Skill</div>
+          <div id="starterAiEditorCurrentCard" class="starter-preview-card"></div>
+        </div>
+        <div id="starterAiEditorConversation" class="starter-ai-editor-conversation empty-state">No discussion yet.</div>
+        <label class="field">
+          <span id="starterAiEditorInputLabel">What should AI improve?</span>
+          <textarea id="starterAiEditorInput" rows="5" placeholder="For example: make it stricter about regression risk and explicitly use the current GitHub page as context."></textarea>
+        </label>
+        <div class="actions settings-inline-actions starter-ai-editor-actions">
+          <button id="starterAiEditorDiscuss" class="secondary-button" type="button">Discuss With AI</button>
+          <button id="starterAiEditorApply" class="primary-button" type="button" disabled>Apply Update</button>
+        </div>
+      </section>
+    </div>
 
     <script src="options.js"></script>
   </body>

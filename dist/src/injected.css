@@ -755,6 +755,12 @@
   margin-top: 10px;
 }
 
+.ollama-quick-message-action-hint {
+  color: #dbe8fd;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .ollama-quick-message-body {
   font-size: 14px;
   line-height: 1.6;
@@ -894,11 +900,30 @@
   gap: 8px;
 }
 
+.ollama-quick-code-block-starter-json pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .ollama-quick-code-block-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.ollama-quick-code-block-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ollama-quick-code-block-hint {
+  color: #dbe8fd;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .ollama-quick-code-block-language {
@@ -1857,6 +1882,23 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.ollama-quick-custom-starter-discussion {
+  display: grid;
+  gap: 12px;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+  padding: 4px 4px 4px 0;
+}
+
+.ollama-quick-custom-starter-empty {
+  padding: 16px 18px;
+  border: 1px dashed rgba(154, 176, 255, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 241, 255, 0.78);
+  line-height: 1.55;
+}
+
 .ollama-quick-custom-starter-scopes {
   display: flex;
   flex-wrap: wrap;
@@ -2252,6 +2294,33 @@
   margin-top: 12px;
 }
 
+.ollama-quick-starter-draft-import-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ollama-quick-starter-draft-import-text {
+  color: #dbe8fd;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ollama-quick-starter-draft-json {
+  overflow-x: auto;
+  padding: 12px 14px;
+  border: 1px solid rgba(126, 233, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(7, 14, 27, 0.42);
+  color: #f0f6fc;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .ollama-quick-starter-draft-card {
   padding: 12px;
   border: 1px solid rgba(126, 233, 255, 0.14);
@@ -2297,6 +2366,14 @@
   font-weight: 800;
 }
 
+.ollama-quick-starter-draft-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ollama-quick-starter-draft-meta {
   display: flex;
   flex-direction: column;
@@ -2325,20 +2402,11 @@
   font-weight: 700;
 }
 
-.ollama-quick-starter-draft-prompt {
-  margin-top: 10px;
-  padding: 10px 11px;
-  border-radius: 12px;
-  background: rgba(7, 14, 27, 0.42);
-  color: #f0f6fc;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
 .ollama-quick-starter-draft-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ollama-quick-message.is-assistant .ollama-quick-message-body.rendered-markdown > * {
