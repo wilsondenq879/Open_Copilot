@@ -82,6 +82,36 @@ const EMAIL_BODY_SELECTORS = [
   "[role='textbox'][g_editable='true']",
   ".ProseMirror[contenteditable='true']",
 ];
+const GITHUB_FILE_CONTAINER_SELECTORS = [
+  "[data-testid='diff-view']",
+  "[data-testid='diff-file']",
+  "[data-testid='commit-file']",
+  "[data-testid='file-diff-container']",
+  ".file",
+  ".js-file",
+  ".file-box",
+  ".prc-PageLayout-PageLayoutContent-BneH9",
+];
+const GITHUB_CODE_TEXT_SELECTORS = [
+  "[data-code-text]",
+  "[data-testid='diffline']",
+  "[data-testid='code-cell']",
+  "[data-testid='diff-line-content']",
+  ".diff-text",
+  ".diff-text-inner",
+  ".blob-code-addition",
+  ".blob-code-deletion",
+  ".blob-code-context",
+  ".react-code-text",
+  ".react-code-line-contents",
+  ".blob-code-inner",
+  "td.blob-code",
+  "td.blob-code-addition",
+  "td.blob-code-deletion",
+  "td.blob-code-context",
+  "pre code",
+  ".highlight pre",
+];
 const OFFICE_DOCUMENT_TEXT_SELECTORS = [
   "[role='document']",
   "[role='textbox']",
@@ -2123,6 +2153,16 @@ function getNodeVisibleText(node) {
   }
 
   if (node instanceof Element) {
+    const githubCodeText = [
+      node.getAttribute("data-code-text"),
+      node.getAttribute("data-testid") === "diffline" ? node.getAttribute("aria-label") : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (githubCodeText) {
+      return normalizeExtractedText(githubCodeText);
+    }
+
     const richLabel = [
       node.getAttribute("aria-label"),
       node.getAttribute("title"),
@@ -2436,6 +2476,148 @@ function collectOfficeDocumentTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEX
   return blocks.slice(0, maxBlocks);
 }
 
+function getGithubFilePathFromNode(node) {
+  if (!(node instanceof Element)) {
+    return "";
+  }
+
+  const directCandidates = [
+    node.getAttribute("data-path"),
+    node.getAttribute("title"),
+    node.getAttribute("aria-label"),
+  ];
+  for (const candidate of directCandidates) {
+    const match = extractGithubPathCandidates(candidate || "")[0];
+    if (match) {
+      return match;
+    }
+  }
+
+  const header = node.querySelector?.(
+    "[data-path], .file-header, .js-file-header, .file-info, [data-testid='diff-view-file-header'], [data-testid='commit-file-header'], a[href*='#diff-']"
+  );
+  if (header instanceof Element) {
+    const headerCandidates = [
+      header.getAttribute("data-path"),
+      header.getAttribute("title"),
+      header.getAttribute("aria-label"),
+      getNodeVisibleText(header),
+    ];
+    for (const candidate of headerCandidates) {
+      const match = extractGithubPathCandidates(candidate || "")[0];
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return "";
+}
+
+function collectGithubTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+  try {
+    const hostname = doc.location?.hostname || window.location.hostname;
+    const pathname = doc.location?.pathname || window.location.pathname;
+    if (hostname !== "github.com" || !/\/pull\/|\/commit\/|\/compare\/|\/blob\//.test(pathname)) {
+      return [];
+    }
+
+    const blocks = [];
+    const seen = new Set();
+    const containers = queryAllIncludingShadow(doc, GITHUB_FILE_CONTAINER_SELECTORS, Math.max(maxBlocks * 8, 40));
+
+    containers.forEach((container) => {
+      if (!(container instanceof Element) || !isElementVisible(container) || blocks.length >= maxBlocks) {
+        return;
+      }
+
+      const path = getGithubFilePathFromNode(container);
+      const codeNodes = queryAllIncludingShadow(container, GITHUB_CODE_TEXT_SELECTORS, 1200);
+      const codeLines = codeNodes
+        .map((node) => {
+          if (node instanceof Element) {
+            return normalizeExtractedText(
+              node.getAttribute("data-code-text") ||
+              node.getAttribute("aria-label") ||
+              node.innerText ||
+              node.textContent ||
+              ""
+            );
+          }
+          return getNodeVisibleText(node);
+        })
+        .filter(Boolean)
+        .filter((line, index, list) => list.indexOf(line) === index);
+      const codeText = normalizeExtractedText(codeLines.join("\n"));
+      if (!codeText) {
+        const fallbackBlockText = normalizeExtractedText(container.innerText || container.textContent || "");
+        if (fallbackBlockText) {
+          appendUniqueTextBlock(
+            blocks,
+            seen,
+            `${path ? `GitHub file: ${path}\n` : ""}${fallbackBlockText}`,
+            5000
+          );
+        }
+        return;
+      }
+
+      appendUniqueTextBlock(
+        blocks,
+        seen,
+        `${path ? `GitHub file: ${path}\n` : ""}${codeText}`,
+        5000
+      );
+    });
+
+    if (blocks.length) {
+      return blocks.slice(0, maxBlocks);
+    }
+
+    const fallbackNodes = queryAllIncludingShadow(doc, GITHUB_CODE_TEXT_SELECTORS, maxBlocks * 120);
+    fallbackNodes.forEach((node) => {
+      if (blocks.length >= maxBlocks) {
+        return;
+      }
+      appendUniqueTextBlock(blocks, seen, getNodeVisibleText(node), 2000);
+    });
+
+    if (!blocks.length) {
+      const broadContainers = queryAllIncludingShadow(doc, [
+        ".prc-PageLayout-PageLayoutContent-BneH9",
+        "[data-testid='diff-view']",
+        "main",
+      ], 6);
+      broadContainers.forEach((node) => {
+        if (!(node instanceof Element) || blocks.length >= maxBlocks) {
+          return;
+        }
+        appendUniqueTextBlock(blocks, seen, normalizeExtractedText(node.innerText || node.textContent || ""), 6000);
+      });
+    }
+
+    return blocks.slice(0, maxBlocks);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function getGithubVisibleCodeContext() {
+  if (!isGithubAdapterActive()) {
+    return "";
+  }
+
+  const blocks = collectGithubTextBlocksFromDocument(document, 10);
+  if (!blocks.length) {
+    return "";
+  }
+
+  return [
+    "CURRENT GITHUB VISIBLE CODE",
+    ...blocks,
+  ].join("\n\n");
+}
+
 function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   const blocks = [];
   const seen = new Set();
@@ -2460,6 +2642,11 @@ function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
       if (officeBlocks.length) {
         return officeBlocks;
       }
+    }
+
+    const githubBlocks = collectGithubTextBlocksFromDocument(doc, maxBlocks);
+    if (githubBlocks.length) {
+      return githubBlocks;
     }
 
     const primaryNode =
@@ -5725,6 +5912,9 @@ function shouldIncludePageContext() {
   if (pageContextMode === "never") {
     return false;
   }
+  if (isGithubAdapterActive()) {
+    return true;
+  }
   const userTurnCount = chatMessages.filter((message) => String(message?.role || "").toLowerCase() === "user").length;
   return userTurnCount <= 1;
 }
@@ -5745,6 +5935,7 @@ async function buildPrompt(userMessage) {
   const includePageContext = shouldIncludePageContext();
   const context = includePageContext ? await getAggregatedPageContext() : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
+  const githubVisibleCodeContext = includePageContext && isGithubAdapterActive() ? getGithubVisibleCodeContext() : "";
   const githubContext = await getSelectedGithubContext();
   const attachedDocumentsContext = getAttachedDocumentsContext();
   const browserTabsContext = attachedBrowserTabs.map((item) => summarizeBrowserTabContext(item)).filter(Boolean).join("\n\n---\n\n");
@@ -5778,6 +5969,7 @@ async function buildPrompt(userMessage) {
     ? wrapUntrustedPromptSection("current page context", contextBlock)
     : contextBlock;
   const wrappedGithubPageContext = wrapUntrustedPromptSection("current github page metadata", githubPageContext);
+  const wrappedGithubVisibleCodeContext = wrapUntrustedPromptSection("current github visible code", githubVisibleCodeContext);
   const wrappedGithubContext = wrapUntrustedPromptSection("github source context", githubContext);
   const wrappedAttachedDocumentsContext = wrapUntrustedPromptSection("attached documents", attachedDocumentsContext);
   const wrappedBrowserTabsContext = wrapUntrustedPromptSection("browser tab context", browserTabsContext);
@@ -5804,6 +5996,14 @@ async function buildPrompt(userMessage) {
         "Write label and prompt in the user's requested language.",
       ].join("\n")
     : "";
+  const githubContextInstruction = includePageContext && isGithubAdapterActive()
+    ? [
+        "GITHUB PAGE CONTEXT IS AVAILABLE IN THIS REQUEST.",
+        "Use CURRENT GITHUB PAGE METADATA and CURRENT GITHUB VISIBLE CODE as primary evidence when they are present.",
+        "Do not claim that no GitHub page content was provided if those sections are included.",
+        "If the visible GitHub code is partial, analyze the visible portion first and clearly state that the analysis is based on visible diff or code only.",
+      ].join("\n")
+    : "";
 
   if (starterRequest) {
     return [
@@ -5820,11 +6020,13 @@ async function buildPrompt(userMessage) {
     buildUntrustedContentSafetyRules(),
     wrappedContextBlock,
     wrappedGithubPageContext,
+    wrappedGithubVisibleCodeContext,
     wrappedGithubContext,
     wrappedAttachedDocumentsContext,
     wrappedBrowserTabsContext,
     wrappedHistory,
     starterBuilderInstruction,
+    githubContextInstruction,
     `USER MESSAGE\n${userMessage}`,
   ]
     .filter(Boolean)
