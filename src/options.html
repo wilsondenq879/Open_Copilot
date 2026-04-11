@@ -40,7 +40,15 @@
         <button id="saveButton" class="primary-button" type="button">Save Settings</button>
       </div>
 
-      <section class="settings-layout">
+      <div class="utility-tabs settings-page-tabs" role="tablist" aria-label="Settings sections">
+        <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="settings">General</button>
+        <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
+        <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
+      </div>
+
+      <section class="settings-tab-panels">
+      <section id="generalTabPanel" class="settings-tab-panel is-active" role="tabpanel">
+        <section class="settings-layout">
         <article class="setting-card provider-card">
           <div class="setting-card-head">
             <div>
@@ -201,6 +209,35 @@
               <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
             </div>
 
+            <div class="provider-support-card provider-support-wide">
+              <div class="setting-card-head provider-panel-head">
+                <div>
+                  <span id="starterRoutingKicker" class="section-kicker">Starter Routing</span>
+                  <h2 id="starterRoutingTitle">Starter Model Routing</h2>
+                </div>
+                <span id="starterRoutingTag" class="section-tag">Code Review Bias</span>
+              </div>
+              <label class="checkbox-field">
+                <input id="starterModelRoutingEnabled" type="checkbox" />
+                <span id="starterModelRoutingEnabledLabel">Enable starter-based model routing</span>
+              </label>
+              <div class="split-fields settings-compact-fields">
+                <label class="field">
+                  <span id="starterQuickModelLabel">Quick reply model</span>
+                  <input id="starterQuickModel" type="text" disabled placeholder="Uses selected model" />
+                </label>
+                <label class="field">
+                  <span id="starterReasoningModelLabel">Deeper-thinking model</span>
+                  <input id="starterReasoningModel" type="text" placeholder="gemma4:e4b" />
+                </label>
+                <label class="field">
+                  <span id="starterVisionModelLabel">Vision model</span>
+                  <input id="starterVisionModel" type="text" placeholder="qwen2.5vl:latest" />
+                </label>
+              </div>
+              <p id="starterRoutingHint" class="field-hint">Use the currently selected model as the default quick-reply model, and automatically switch code-analysis or GitHub review starters to a heavier model for that run only.</p>
+            </div>
+
             <div class="provider-support-card">
               <label class="field">
                 <span id="githubApiKeyLabel">GitHub API Key</span>
@@ -263,12 +300,6 @@
             </div>
             <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
           </div>
-          <div class="utility-tabs" role="tablist" aria-label="Settings workspace tabs">
-            <button id="tabExperience" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-experience" data-utility-tab="experience">Experience</button>
-            <button id="tabStarterSkills" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-starter-skills" data-utility-tab="starterSkills">Starter Skills</button>
-            <button id="tabAgentFlows" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-agent-flows" data-utility-tab="agentFlows">Agent Flows</button>
-          </div>
-
           <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
             <div class="side-stack">
               <div class="provider-support-card">
@@ -292,92 +323,162 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
             <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
           </section>
-
-          <section id="panel-starter-skills" class="utility-panel starter-library-panel" role="tabpanel" hidden>
-            <div class="starter-library-hero">
-              <div class="starter-library-copy">
-                <span id="starterLibraryKicker" class="section-kicker">Starter Skills</span>
-                <h3 id="starterLibraryTitle">Starter Skill Library</h3>
-                <p id="starterLibraryDescription">Store reusable custom starter skills here. Import new JSON, update an existing skill by ID, and keep a strong library ready for the in-page chat panel.</p>
-              </div>
-              <div class="starter-library-metrics" aria-hidden="true">
-                <article class="starter-library-metric">
-                  <span id="starterLibraryStoredLabel" class="starter-library-metric-label">Stored</span>
-                  <strong id="customStartersCount" class="starter-library-metric-value">0 / 20</strong>
-                </article>
-                <article class="starter-library-metric">
-                  <span id="starterLibraryCapacityLabel" class="starter-library-metric-label">Capacity</span>
-                  <strong id="starterLibraryCapacityValue" class="starter-library-metric-value">20</strong>
-                </article>
-              </div>
-            </div>
-
-            <div class="starter-studio-shell">
-              <section class="starter-studio-intake">
-                <div class="starter-studio-head">
-                  <div>
-                    <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
-                    <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
-                  </div>
-                  <span id="starterLibraryLimitHint" class="starter-library-limit">Up to 20 starter skills</span>
-                </div>
-                <label class="field starter-json-field">
-                  <span id="customStartersInputLabel">Paste Starter JSON</span>
-                  <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
-                </label>
-                <div class="actions settings-inline-actions starter-studio-actions">
-                  <button id="createStartersButton" class="primary-button" type="button">Create</button>
-                  <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
-                </div>
-              </section>
-
-              <section class="starter-studio-library">
-                <div class="starter-studio-library-head">
-                  <div>
-                    <div id="starterLibraryGridTitle" class="starter-studio-title">Starter Skill Collection</div>
-                    <p id="starterLibraryGridDescription" class="field-hint">Each skill stays available to the quick chat panel and can be updated or removed here.</p>
-                  </div>
-                </div>
-                <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
-              </section>
-            </div>
-          </section>
-
-          <section id="panel-agent-flows" class="utility-panel starter-library-panel" role="tabpanel" hidden>
-            <div class="starter-library-hero">
-              <div class="starter-library-copy">
-                <span id="agentFlowLibraryKicker" class="section-kicker">Agent Flow</span>
-                <h3 id="agentFlowLibraryTitle">Agent Flow Library</h3>
-                <p id="agentFlowLibraryDescription">Manage saved Agent Flows here. Each flow can be edited, reordered, and reused directly from the in-page starter list.</p>
-              </div>
-              <div class="starter-library-metrics" aria-hidden="true">
-                <article class="starter-library-metric">
-                  <span id="agentFlowLibraryStoredLabel" class="starter-library-metric-label">Stored</span>
-                  <strong id="agentFlowsCount" class="starter-library-metric-value">0</strong>
-                </article>
-                <article class="starter-library-metric">
-                  <span id="agentFlowLibrarySkillsLabel" class="starter-library-metric-label">Linked Skills</span>
-                  <strong id="agentFlowLibrarySkillsValue" class="starter-library-metric-value">0</strong>
-                </article>
-              </div>
-            </div>
-
-            <div class="starter-studio-shell">
-              <section class="starter-studio-library starter-studio-library-full">
-                <div class="starter-studio-library-head">
-                  <div>
-                    <div id="agentFlowLibraryGridTitle" class="starter-studio-title">Agent Flow Collection</div>
-                    <p id="agentFlowLibraryGridDescription" class="field-hint">Flows are managed separately from single starter skills so the settings page stays easier to scan.</p>
-                  </div>
-                </div>
-                <div id="agentFlowsPreview" class="starter-preview-list empty-state">No Agent Flows yet.</div>
-              </section>
-            </div>
-          </section>
         </section>
+      </section>
+      </section>
+
+      <section id="starterTabPanel" class="settings-tab-panel library-page" role="tabpanel" hidden>
+        <div class="library-page-head">
+          <div>
+            <div id="starterLibraryKicker" class="section-kicker">Starter Skills</div>
+            <h2 id="skillsPageTitle">Skills Library</h2>
+            <p id="skillsPageDescription">Browse every built-in and custom skill in one full page. Built-in skills stay visible but locked from deletion.</p>
+          </div>
+        </div>
+
+        <div class="starter-library-hero">
+          <div class="starter-library-copy">
+            <h3 id="starterLibraryTitlePage">AI Skills Collection</h3>
+            <p id="starterLibraryGridDescription">Each skill stays available to the quick chat panel and can be updated or removed here.</p>
+          </div>
+          <div class="starter-library-metrics" aria-hidden="true">
+            <article class="starter-library-metric">
+              <span id="skillsTotalCountLabel" class="starter-library-metric-label">Total</span>
+              <strong id="skillsTotalCount" class="starter-library-metric-value">0</strong>
+            </article>
+            <article class="starter-library-metric">
+              <span id="skillsBuiltInCountLabel" class="starter-library-metric-label">Built-in</span>
+              <strong id="skillsBuiltInCount" class="starter-library-metric-value">0</strong>
+            </article>
+            <article class="starter-library-metric">
+              <span id="skillsCustomCountLabel" class="starter-library-metric-label">Custom</span>
+              <strong id="skillsCustomCount" class="starter-library-metric-value">0 / 20</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="starter-studio-shell library-page-shell">
+          <section class="starter-studio-intake">
+            <div class="starter-studio-head">
+              <div>
+                <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
+                <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+              </div>
+              <span id="starterLibraryLimitHint" class="starter-library-limit">Up to 20 starter skills</span>
+            </div>
+            <label class="field starter-json-field">
+              <span id="customStartersInputLabel">Paste Starter JSON</span>
+              <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+            </label>
+            <div class="actions settings-inline-actions starter-studio-actions">
+              <button id="createStartersButton" class="primary-button" type="button">Create</button>
+              <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
+            </div>
+          </section>
+
+          <section class="starter-studio-library starter-studio-library-full">
+            <div class="starter-studio-library-head">
+              <div>
+                <div id="starterLibraryGridTitle" class="starter-studio-title">Starter Skill Collection</div>
+                <p id="skillsPageGridHint" class="field-hint">Built-in skills are listed too, but only custom skills can be deleted.</p>
+              </div>
+            </div>
+            <div id="customStartersPreview" class="starter-preview-list empty-state">No imported starters yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="flowTabPanel" class="settings-tab-panel library-page" role="tabpanel" hidden>
+        <div class="library-page-head">
+          <div>
+            <div id="agentFlowLibraryKicker" class="section-kicker">Agent Flow</div>
+            <h2 id="flowsPageTitle">Agent Flows</h2>
+            <p id="flowsPageDescription">Manage every saved Agent Flow in a full-page workspace with enough room for summaries and step structure.</p>
+          </div>
+        </div>
+
+        <div class="starter-library-hero">
+          <div class="starter-library-copy">
+            <h3 id="agentFlowLibraryTitlePage">Agent Flow Collection</h3>
+            <p id="agentFlowLibraryGridDescription">Flows are managed separately from single starter skills so the settings page stays easier to scan.</p>
+          </div>
+          <div class="starter-library-metrics" aria-hidden="true">
+            <article class="starter-library-metric">
+              <span id="flowsTotalCountLabel" class="starter-library-metric-label">Stored</span>
+              <strong id="flowsTotalCount" class="starter-library-metric-value">0</strong>
+            </article>
+            <article class="starter-library-metric">
+              <span id="flowsLinkedCountLabel" class="starter-library-metric-label">Linked Skills</span>
+              <strong id="flowsLinkedCount" class="starter-library-metric-value">0</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="starter-studio-shell library-page-shell">
+          <section class="starter-studio-library starter-studio-library-full">
+            <div class="starter-studio-library-head">
+              <div>
+                <div id="agentFlowLibraryGridTitle" class="starter-studio-title">Agent Flow Collection</div>
+                <p id="flowsPageGridHint" class="field-hint">Click a flow card to inspect every step before editing.</p>
+              </div>
+            </div>
+            <div id="agentFlowsPreview" class="starter-preview-list empty-state">No Agent Flows yet.</div>
+          </section>
+        </div>
+      </section>
       </section>
 
     </main>
+
+    <div id="skillDetailModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal starter-detail-modal" role="dialog" aria-modal="true" aria-labelledby="skillDetailTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="skillDetailKicker" class="section-kicker">Skill Details</div>
+            <h3 id="skillDetailTitle" class="starter-studio-title">Skill</h3>
+            <p id="skillDetailHint" class="field-hint">Full skill content appears here after you open a card.</p>
+          </div>
+          <button id="skillDetailClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="skillDetailCurrentCard" class="starter-preview-card"></div>
+        <div class="starter-detail-grid">
+          <div class="starter-detail-block">
+            <div id="skillDetailMetaLabel" class="starter-ai-editor-current-label">Metadata</div>
+            <div id="skillDetailMeta" class="starter-ai-editor-conversation"></div>
+          </div>
+          <div class="starter-detail-block">
+            <div id="skillDetailPromptLabel" class="starter-ai-editor-current-label">Full Content</div>
+            <pre id="skillDetailPrompt" class="starter-detail-pre"></pre>
+          </div>
+        </div>
+        <div id="skillDetailActions" class="actions settings-inline-actions starter-ai-editor-actions"></div>
+      </section>
+    </div>
+
+    <div id="flowDetailModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal starter-detail-modal" role="dialog" aria-modal="true" aria-labelledby="flowDetailTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="flowDetailKicker" class="section-kicker">Flow Details</div>
+            <h3 id="flowDetailTitle" class="starter-studio-title">Flow</h3>
+            <p id="flowDetailHint" class="field-hint">Review the full step list here before editing.</p>
+          </div>
+          <button id="flowDetailClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="flowDetailCurrentCard" class="starter-preview-card"></div>
+        <div class="starter-detail-grid">
+          <div class="starter-detail-block">
+            <div id="flowDetailMetaLabel" class="starter-ai-editor-current-label">Metadata</div>
+            <div id="flowDetailMeta" class="starter-ai-editor-conversation"></div>
+          </div>
+          <div class="starter-detail-block">
+            <div id="flowDetailStepsLabel" class="starter-ai-editor-current-label">Flow Steps</div>
+            <div id="flowDetailSteps" class="starter-flow-editor-steps"></div>
+          </div>
+        </div>
+        <div id="flowDetailActions" class="actions settings-inline-actions starter-ai-editor-actions"></div>
+      </section>
+    </div>
 
     <div id="starterAiEditorModal" class="starter-ai-editor-backdrop" hidden>
       <section class="starter-ai-editor-modal" role="dialog" aria-modal="true" aria-labelledby="starterAiEditorTitle">

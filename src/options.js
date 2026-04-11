@@ -75,6 +75,14 @@ const OPTION_I18N = {
     googleDriveMissingClientId: "請先填入 Google OAuth Client ID 並儲存設定。",
     defaultProviderLabel: "預設提供者",
     defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI 提供者。",
+    starterRoutingKicker: "Starter 路由",
+    starterRoutingTitle: "Starter 模型路由",
+    starterRoutingTag: "能力導向",
+    starterModelRoutingEnabledLabel: "啟用 starter 自動模型路由",
+    starterQuickModelLabel: "快速回答模型",
+    starterReasoningModelLabel: "更思考模型",
+    starterVisionModelLabel: "Vision 模型",
+    starterRoutingHint: "目前選取的模型會作為預設快速回答模型。Auto 模式會先看任務需要的是 quick、reasoning 還是 vision，再從你已安裝模型中挑最符合能力的模型；若你有手動指定對應角色模型，會優先使用手動指定值。",
     replyLanguageLabel: "回覆語言",
     settingsThemeLabel: "設定頁主題",
     settingsThemeHint: "只影響這個 settings 頁面；預設會跟隨系統外觀。",
@@ -251,6 +259,14 @@ const OPTION_I18N = {
     googleDriveMissingClientId: "Enter and save a Google OAuth Client ID first.",
     defaultProviderLabel: "Default Provider",
     defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
+    starterRoutingKicker: "Starter Routing",
+    starterRoutingTitle: "Starter Model Routing",
+    starterRoutingTag: "Capability Based",
+    starterModelRoutingEnabledLabel: "Enable starter-based model routing",
+    starterQuickModelLabel: "Quick reply model",
+    starterReasoningModelLabel: "Deeper-thinking model",
+    starterVisionModelLabel: "Vision model",
+    starterRoutingHint: "The currently selected model stays your default quick-reply model. Auto mode first decides whether the task needs quick, reasoning, or vision capability, then picks the best fit from the models the user has installed. If you manually set a role model here, that manual choice wins.",
     replyLanguageLabel: "Reply Language",
     settingsThemeLabel: "Settings Theme",
     settingsThemeHint: "Only changes this settings page. System follows your OS appearance.",
@@ -1588,12 +1604,20 @@ const LOCALIZED_DEFAULT_MULTI_PERSPECTIVE_PROFILES = {
 
 let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
-let activeUtilityTab = "experience";
+let activeSettingsView = "settings";
 let currentCustomStarters = [];
 let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
 let latestWorkFolderStatus = null;
 let latestGoogleDriveStatus = null;
+let skillDetailState = {
+  open: false,
+  starterId: "",
+};
+let flowDetailState = {
+  open: false,
+  starterId: "",
+};
 let starterAiEditorState = {
   open: false,
   starterId: "",
@@ -1668,6 +1692,236 @@ async function clearPersistedWorkFolderHandle() {
   await chrome.storage.local.remove(LOCAL_META_KEY);
 }
 const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "email", "github", "collaboration", "document", "market", "entertainment"];
+const BUILTIN_STARTER_KEYS = [
+  "pageSummary",
+  "translatePage",
+  "reflectionArticle",
+  "codeExplain",
+  "imageAnalysis",
+  "imageAnalysisMarkdown",
+  "landingHtml",
+  "articleTimeline",
+  "articleBiasCheck",
+  "codeRiskReview",
+  "codeTeachBack",
+  "emailSummary",
+  "multiPerspective",
+  "githubRepoPurpose",
+  "githubSummary",
+  "githubReviewFocus",
+  "githubNextSteps",
+  "githubCrossCheck",
+  "githubSpecCoverage",
+  "githubDriftCheck",
+  "githubReviewChecklist",
+  "githubTestGap",
+  "githubDocReview",
+  "githubRequirementMap",
+  "githubSecurityRequirementCheck",
+  "githubWebReview",
+  "githubAccessibilityReview",
+  "githubFrontendSecurityReview",
+  "githubCodeReviewDeep",
+  "githubContractCheck",
+  "githubSecurityReview",
+  "githubRegressionHotspots",
+  "githubMemorySafetyReview",
+  "githubAttackSurfaceReview",
+  "githubConfigReview",
+  "githubSecretAndPermissionReview",
+  "githubOperationalRiskReview",
+  "githubArchitectureMap",
+  "githubImpactSurfaceMap",
+  "githubRepoSecurityReview",
+  "chatWeeklyDigest",
+  "chatActionItems",
+  "docExecutiveBrief",
+  "docOutline",
+  "bullVsBear",
+  "catalystMap",
+  "pricedIn",
+  "tickerImpact",
+  "memeCaption",
+  "darkMeme",
+  "xPost",
+  "templateIdeas",
+  "lowIqMeme",
+  "createCustomStarter",
+  "createAgentFlow",
+];
+const BUILTIN_STARTER_SCOPE_MAP = {
+  pageSummary: ["generic", "article", "document", "collaboration", "market", "entertainment"],
+  translatePage: ["all"],
+  reflectionArticle: ["article"],
+  codeExplain: ["code", "github"],
+  imageAnalysis: ["all"],
+  imageAnalysisMarkdown: ["all"],
+  landingHtml: ["article", "document", "generic"],
+  articleTimeline: ["article"],
+  articleBiasCheck: ["article"],
+  codeRiskReview: ["code", "github"],
+  codeTeachBack: ["code"],
+  emailSummary: ["email"],
+  multiPerspective: ["generic", "article", "code", "github"],
+  githubRepoPurpose: ["github"],
+  githubSummary: ["github"],
+  githubReviewFocus: ["github"],
+  githubNextSteps: ["github"],
+  githubCrossCheck: ["github"],
+  githubSpecCoverage: ["github"],
+  githubDriftCheck: ["github"],
+  githubReviewChecklist: ["github"],
+  githubTestGap: ["github"],
+  githubDocReview: ["github", "document"],
+  githubRequirementMap: ["github", "document"],
+  githubSecurityRequirementCheck: ["github", "document"],
+  githubWebReview: ["github", "code"],
+  githubAccessibilityReview: ["github", "code"],
+  githubFrontendSecurityReview: ["github", "code"],
+  githubCodeReviewDeep: ["github", "code"],
+  githubContractCheck: ["github", "code"],
+  githubSecurityReview: ["github", "code"],
+  githubRegressionHotspots: ["github", "code"],
+  githubMemorySafetyReview: ["github", "code"],
+  githubAttackSurfaceReview: ["github", "code"],
+  githubConfigReview: ["github", "code"],
+  githubSecretAndPermissionReview: ["github", "code"],
+  githubOperationalRiskReview: ["github", "code"],
+  githubArchitectureMap: ["github"],
+  githubImpactSurfaceMap: ["github"],
+  githubRepoSecurityReview: ["github"],
+  chatWeeklyDigest: ["collaboration"],
+  chatActionItems: ["collaboration"],
+  docExecutiveBrief: ["document"],
+  docOutline: ["document"],
+  bullVsBear: ["market"],
+  catalystMap: ["market"],
+  pricedIn: ["market"],
+  tickerImpact: ["market"],
+  memeCaption: ["entertainment"],
+  darkMeme: ["entertainment"],
+  xPost: ["entertainment"],
+  templateIdeas: ["entertainment"],
+  lowIqMeme: ["entertainment"],
+  createCustomStarter: ["all"],
+  createAgentFlow: ["all"],
+};
+const BUILTIN_STARTER_DESCRIPTION_MAP = {
+  "zh-TW": {
+    pageSummary: "快速整理目前頁面的重點、脈絡與關鍵資訊。",
+    translatePage: "把目前頁面內容翻成指定語言，方便直接閱讀。",
+    reflectionArticle: "根據頁面內容整理重點，並延伸成一篇有觀點的心得文。",
+    codeExplain: "把目前看到的程式碼或技術內容用白話方式講清楚。",
+    imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
+    imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
+    landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
+    articleTimeline: "把文章或頁面中的事件依時間順序整理出來。",
+    articleBiasCheck: "分析主張依據、隱含假設，以及可能忽略的反面觀點。",
+    codeRiskReview: "用 code review 角度盤點潛在 bug、風險與可改進處。",
+    codeTeachBack: "把技術內容重寫成比較容易吸收的學習筆記。",
+    emailSummary: "抓出信件重點、待回覆事項與重要人物時間。",
+    multiPerspective: "從多個角色或立場切入，同時看同一件事。",
+    githubRepoPurpose: "快速判斷這個 repository 想解決什麼問題、主要在做什麼。",
+    githubSummary: "摘要目前 GitHub 頁面的背景、重點與狀態。",
+    githubReviewFocus: "站在 reviewer 角度指出最值得優先檢查的地方。",
+    githubNextSteps: "根據目前內容整理最合理的後續行動。",
+    githubCrossCheck: "拿目前頁面和你加入的文件做交叉比對，找出對得上或對不上的地方。",
+    githubSpecCoverage: "檢查目前實作或變更是否有被規格與文件完整覆蓋。",
+    githubDriftCheck: "找出程式、PR 或頁面內容和加入文件之間的不一致。",
+    githubReviewChecklist: "整理一份可以逐項確認的 review checklist。",
+    githubTestGap: "盤點目前缺少哪些測試、驗證情境或證據。",
+    githubDocReview: "檢查文件是否清楚、正確，還有哪些地方需要補強。",
+    githubRequirementMap: "把需求、規格與目前內容逐項對照整理。",
+    githubSecurityRequirementCheck: "確認安全需求有沒有被目前內容或實作覆蓋到。",
+    githubWebReview: "專看前端結構、HTML 語意與頁面組成是否合理。",
+    githubAccessibilityReview: "檢查可近用性、語意標記與互動是否友善。",
+    githubFrontendSecurityReview: "聚焦前端常見安全風險，像是 XSS、注入或敏感資料暴露。",
+    githubCodeReviewDeep: "做更深入的程式碼檢查，挖出隱性問題與設計風險。",
+    githubContractCheck: "檢查模組、API 或資料介面的契約是否一致。",
+    githubSecurityReview: "從整體安全角度盤點可能的漏洞與風險點。",
+    githubRegressionHotspots: "找出這次變更最容易引發回歸問題的區域。",
+    githubMemorySafetyReview: "檢查可能的記憶體安全問題與危險操作。",
+    githubAttackSurfaceReview: "盤點系統暴露出的攻擊面與可能被濫用的入口。",
+    githubConfigReview: "專看設定檔、環境參數與預設值有沒有風險。",
+    githubSecretAndPermissionReview: "檢查 secrets、token、權限設定是否過寬或暴露。",
+    githubOperationalRiskReview: "盤點部署、維運與操作層面的潛在風險。",
+    githubArchitectureMap: "整理專案架構、模組分工與關聯。",
+    githubImpactSurfaceMap: "評估這頁內容或變更會影響到哪些模組、流程與使用者。",
+    githubRepoSecurityReview: "從 repository 層級檢查設定、流程與管理上的安全風險。",
+    chatWeeklyDigest: "把最近幾天的對談濃縮成一份短報告。",
+    chatActionItems: "從對話中抓出待辦、負責人與時程。",
+    docExecutiveBrief: "把文件濃縮成適合快速決策閱讀的高層摘要。",
+    docOutline: "把目前內容重新整理成結構清楚的大綱。",
+    bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
+    catalystMap: "整理推動事件、觸發因子與可能影響路徑。",
+    pricedIn: "判斷市場是否已經把某些預期反映進價格。",
+    tickerImpact: "列出事件可能影響到的股票或標的與原因。",
+    memeCaption: "把目前內容轉成適合做梗圖的短文案。",
+    darkMeme: "產出更黑色幽默、偏地獄梗風格的版本。",
+    xPost: "把內容改寫成適合發在 X 上的貼文格式。",
+    templateIdeas: "根據內容推薦適合套用的梗圖模板方向。",
+    lowIqMeme: "把內容改成更直白、誇張、低智商風格的梗圖文案。",
+    createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
+    createAgentFlow: "把多個技能串成一條可重複執行的 Agent Flow。",
+  },
+  en: {
+    pageSummary: "Pull out the main points, context, and key details from the current page.",
+    translatePage: "Translate the current page into the selected language for quick reading.",
+    reflectionArticle: "Turn the page into a short reflection piece with takeaways and perspective.",
+    codeExplain: "Explain the visible code or technical content in plain language.",
+    imageAnalysis: "Describe the image, key elements, and likely meaning.",
+    imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
+    landingHtml: "Turn the current material into a single downloadable HTML page.",
+    articleTimeline: "Reconstruct the events on the page in time order.",
+    articleBiasCheck: "Analyze the main claims, assumptions, and possible blind spots.",
+    codeRiskReview: "Scan the visible code for bugs, risky areas, and improvement opportunities.",
+    codeTeachBack: "Rewrite technical content into easier-to-learn study notes.",
+    emailSummary: "Summarize the email, including key points, follow-ups, and important details.",
+    multiPerspective: "Analyze the same topic from multiple roles or perspectives.",
+    githubRepoPurpose: "Figure out what problem this repository solves and what it is mainly for.",
+    githubSummary: "Summarize the current GitHub page, its context, and its current state.",
+    githubReviewFocus: "Point out the most important things a reviewer should inspect first.",
+    githubNextSteps: "Suggest the most reasonable next actions based on the current page.",
+    githubCrossCheck: "Compare the current page against the added source and highlight matches or mismatches.",
+    githubSpecCoverage: "Check whether the current work is properly covered by specs or docs.",
+    githubDriftCheck: "Find where the page and the added source have drifted apart.",
+    githubReviewChecklist: "Generate a practical checklist for reviewing the current work.",
+    githubTestGap: "Spot missing tests, validation steps, or proof points.",
+    githubDocReview: "Review the docs for clarity, correctness, and missing pieces.",
+    githubRequirementMap: "Map the current work back to requirements and documentation.",
+    githubSecurityRequirementCheck: "Verify whether security requirements are actually covered.",
+    githubWebReview: "Review frontend structure, HTML semantics, and page composition.",
+    githubAccessibilityReview: "Check accessibility, semantic markup, and interaction quality.",
+    githubFrontendSecurityReview: "Look for common frontend security issues like XSS or unsafe exposure.",
+    githubCodeReviewDeep: "Do a deeper pass on code quality, design risks, and subtle issues.",
+    githubContractCheck: "Check whether APIs, interfaces, and data contracts stay consistent.",
+    githubSecurityReview: "Review the current work from an overall security-risk perspective.",
+    githubRegressionHotspots: "Identify the areas most likely to break or regress.",
+    githubMemorySafetyReview: "Check for memory-safety problems and dangerous patterns.",
+    githubAttackSurfaceReview: "Map the exposed attack surface and likely abuse points.",
+    githubConfigReview: "Inspect configs, defaults, and environment settings for risk.",
+    githubSecretAndPermissionReview: "Look for overbroad permissions, exposed secrets, or unsafe access.",
+    githubOperationalRiskReview: "Review deployment and operational risks around the current work.",
+    githubArchitectureMap: "Lay out the project structure, modules, and relationships.",
+    githubImpactSurfaceMap: "Show what modules, flows, or users are likely to be affected.",
+    githubRepoSecurityReview: "Review repository-level security risks in setup and workflow.",
+    chatWeeklyDigest: "Condense recent conversation history into a short digest.",
+    chatActionItems: "Extract action items, owners, and deadlines from the conversation.",
+    docExecutiveBrief: "Turn the document into a concise, decision-friendly brief.",
+    docOutline: "Reorganize the current content into a clearer outline.",
+    bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
+    catalystMap: "Map the events, triggers, and likely impact paths around a topic.",
+    pricedIn: "Judge whether expectations already seem reflected in the price.",
+    tickerImpact: "List the tickers or assets most likely to be affected and why.",
+    memeCaption: "Turn the current content into meme-ready caption ideas.",
+    darkMeme: "Generate a darker, more brutal joke version of the meme idea.",
+    xPost: "Rewrite the current content into a post format suited for X.",
+    templateIdeas: "Suggest meme template directions that fit the current content.",
+    lowIqMeme: "Rewrite the idea into an intentionally blunt, chaotic low-IQ meme style.",
+    createCustomStarter: "Help teach your AI a new reusable skill.",
+    createAgentFlow: "Combine multiple skills into a reusable Agent Flow.",
+  },
+};
 const STARTER_SCOPE_ALIASES = {
   "*": "all",
   any: "all",
@@ -1688,6 +1942,84 @@ function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
 }
 
+Object.assign(OPTION_I18N["zh-TW"], {
+  utilityTabGeneral: "General",
+  utilityTabStarterLibrary: "Starter",
+  utilityTabAgentFlowLibrary: "Agent Flow",
+  skillsPageTitle: "Skills Library",
+  skillsPageDescription: "這裡會列出所有內建與自訂 skill。內建 skill 也會顯示，但不能刪除。",
+  flowsPageTitle: "Agent Flows",
+  flowsPageDescription: "用完整頁面管理所有 Agent Flow，檢視摘要、步驟與串接技能。",
+  skillsPageGridHint: "內建 skill 也會列出，但只有 custom skill 可以刪除。",
+  flowsPageGridHint: "點卡片先看完整 flow 步驟，再決定要不要編輯。",
+  builtinSkillsCountLabel: "內建",
+  skillsTotalCountLabel: "總數",
+  skillsBuiltInCountLabel: "內建",
+  skillsCustomCountLabel: "自訂",
+  flowsTotalCountLabel: "已儲存",
+  flowsLinkedCountLabel: "串接技能",
+  skillDetailKicker: "Skill 詳情",
+  skillDetailTitle: "Skill",
+  skillDetailHint: "點選卡片後，完整內容會在這裡顯示。",
+  skillDetailMetaLabel: "Metadata",
+  skillDetailPromptLabel: "完整內容",
+  flowDetailKicker: "Flow 詳情",
+  flowDetailTitle: "Flow",
+  flowDetailHint: "這裡會顯示整條 flow 的完整步驟。",
+  flowDetailMetaLabel: "Metadata",
+  flowDetailStepsLabel: "Flow Steps",
+  skillMetaIdLabel: "ID",
+  skillMetaSourceLabel: "來源",
+  skillMetaModeLabel: "模式",
+  skillMetaScopesLabel: "適用範圍",
+  skillMetaSummaryLabel: "摘要",
+  flowMetaStepCountLabel: "步驟數",
+  builtinSkillBadge: "內建",
+  customSkillBadge: "自訂",
+  openDetailsButton: "查看完整內容",
+  duplicateBuiltinSkill: "複製成自訂 skill",
+  builtinSkillDuplicated: "已複製內建 skill：{name}",
+});
+
+Object.assign(OPTION_I18N.en, {
+  utilityTabGeneral: "General",
+  utilityTabStarterLibrary: "Starter",
+  utilityTabAgentFlowLibrary: "Agent Flow",
+  skillsPageTitle: "Skills Library",
+  skillsPageDescription: "Browse every built-in and custom skill here. Built-in skills are visible too, but cannot be deleted.",
+  flowsPageTitle: "Agent Flows",
+  flowsPageDescription: "Manage every Agent Flow in a full-page workspace with more room for summaries and step structure.",
+  skillsPageGridHint: "Built-in skills are listed too, but only custom skills can be deleted.",
+  flowsPageGridHint: "Open a card to inspect the full flow before editing.",
+  builtinSkillsCountLabel: "Built-in",
+  skillsTotalCountLabel: "Total",
+  skillsBuiltInCountLabel: "Built-in",
+  skillsCustomCountLabel: "Custom",
+  flowsTotalCountLabel: "Stored",
+  flowsLinkedCountLabel: "Linked Skills",
+  skillDetailKicker: "Skill Details",
+  skillDetailTitle: "Skill",
+  skillDetailHint: "Open a card to view the full content here.",
+  skillDetailMetaLabel: "Metadata",
+  skillDetailPromptLabel: "Full Content",
+  flowDetailKicker: "Flow Details",
+  flowDetailTitle: "Flow",
+  flowDetailHint: "Review the full flow steps here.",
+  flowDetailMetaLabel: "Metadata",
+  flowDetailStepsLabel: "Flow Steps",
+  skillMetaIdLabel: "ID",
+  skillMetaSourceLabel: "Source",
+  skillMetaModeLabel: "Mode",
+  skillMetaScopesLabel: "Scopes",
+  skillMetaSummaryLabel: "Summary",
+  flowMetaStepCountLabel: "Steps",
+  builtinSkillBadge: "Built-in",
+  customSkillBadge: "Custom",
+  openDetailsButton: "Open Details",
+  duplicateBuiltinSkill: "Duplicate as Custom",
+  builtinSkillDuplicated: "Duplicated built-in skill: {name}",
+});
+
 function t(key, vars = {}) {
   const template = currentLocale[key] || OPTION_I18N.en[key] || key;
   return template.replace(/\{(\w+)\}/g, (_match, name) => String(vars[name] ?? ""));
@@ -1700,6 +2032,60 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function humanizeStarterKey(key) {
+  const normalized = String(key || "").trim();
+  if (!normalized) {
+    return "Skill";
+  }
+
+  return normalized
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^github/i, "GitHub ")
+    .replace(/^x Post$/i, "X Post")
+    .replace(/\bHtml\b/g, "HTML")
+    .replace(/\bIq\b/g, "IQ")
+    .replace(/\bApi\b/g, "API")
+    .replace(/\bAi\b/g, "AI")
+    .replace(/\bPr\b/g, "PR")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function getBuiltinSkillLabel(key) {
+  return humanizeStarterKey(key);
+}
+
+function getBuiltinSkillDescription(key) {
+  const language = currentReplyLanguage === "zh-TW" ? "zh-TW" : "en";
+  return BUILTIN_STARTER_DESCRIPTION_MAP[language]?.[key] || BUILTIN_STARTER_DESCRIPTION_MAP.en[key] || "";
+}
+
+function getBuiltinSkillPrompt(key) {
+  const description = getBuiltinSkillDescription(key);
+  const languageLabel = currentReplyLanguage || "en";
+  if (description) {
+    return currentReplyLanguage === "zh-TW"
+      ? `請直接使用目前頁面或附件內容完成這個內建技能。\n\n目標：${description}\n\n回覆語言：${languageLabel}`
+      : `Use the current page or attached context to execute this built-in skill.\n\nGoal: ${description}\n\nReply language: ${languageLabel}`;
+  }
+  return getBuiltinSkillLabel(key);
+}
+
+function getBuiltinSkillEntries() {
+  return BUILTIN_STARTER_KEYS.map((key) => ({
+    id: `builtin:${key}`,
+    starterKey: key,
+    label: getBuiltinSkillLabel(key),
+    prompt: getBuiltinSkillPrompt(key),
+    description: getBuiltinSkillDescription(key),
+    scopes: BUILTIN_STARTER_SCOPE_MAP[key] || ["all"],
+    mode: key === "multiPerspective" ? "perspective" : "chat",
+    sourceType: "builtin",
+    isBuiltin: true,
+  }));
 }
 
 function getLocalizedDefaultSystemPrompt(locale) {
@@ -1795,6 +2181,14 @@ function applyTranslations() {
   document.getElementById("googleDriveRedirectLabel").textContent = t("googleDriveRedirectLabel");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
+  document.getElementById("starterRoutingKicker").textContent = t("starterRoutingKicker");
+  document.getElementById("starterRoutingTitle").textContent = t("starterRoutingTitle");
+  document.getElementById("starterRoutingTag").textContent = t("starterRoutingTag");
+  document.getElementById("starterModelRoutingEnabledLabel").textContent = t("starterModelRoutingEnabledLabel");
+  document.getElementById("starterQuickModelLabel").textContent = t("starterQuickModelLabel");
+  document.getElementById("starterReasoningModelLabel").textContent = t("starterReasoningModelLabel");
+  document.getElementById("starterVisionModelLabel").textContent = t("starterVisionModelLabel");
+  document.getElementById("starterRoutingHint").textContent = t("starterRoutingHint");
   document.getElementById("replyLanguageLabel").textContent = t("replyLanguageLabel");
   document.getElementById("settingsThemeToolbarLabel").textContent = t("settingsThemeLabel");
   document.getElementById("settingsThemeToolbarSystemOption").textContent = t("settingsThemeSystem");
@@ -1807,27 +2201,51 @@ function applyTranslations() {
   renderTaskExtractionWindowChoices();
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
-  document.getElementById("tabExperience").textContent = t("utilityTabExperience");
-  document.getElementById("tabStarterSkills").textContent = t("utilityTabStarterSkills");
-  document.getElementById("tabAgentFlows").textContent = t("utilityTabAgentFlows");
   document.getElementById("customStartersLabel").textContent = t("customStartersLabel");
   document.getElementById("customStartersInputLabel").textContent = t("customStartersInputLabel");
   document.getElementById("starterLibraryKicker").textContent = t("starterLibraryKicker");
-  document.getElementById("starterLibraryTitle").textContent = t("starterLibraryTitle");
-  document.getElementById("starterLibraryDescription").textContent = t("starterLibraryDescription");
-  document.getElementById("starterLibraryStoredLabel").textContent = t("starterLibraryStoredLabel");
-  document.getElementById("starterLibraryCapacityLabel").textContent = t("starterLibraryCapacityLabel");
+  const starterLibraryTitle = document.getElementById("starterLibraryTitle");
+  if (starterLibraryTitle) starterLibraryTitle.textContent = t("starterLibraryTitle");
+  const starterLibraryDescription = document.getElementById("starterLibraryDescription");
+  if (starterLibraryDescription) starterLibraryDescription.textContent = t("starterLibraryDescription");
+  document.getElementById("starterLibraryTitlePage").textContent = t("starterLibraryGridTitle");
+  const starterLibraryStoredLabel = document.getElementById("starterLibraryStoredLabel");
+  if (starterLibraryStoredLabel) starterLibraryStoredLabel.textContent = t("starterLibraryStoredLabel");
+  const starterLibraryCapacityLabel = document.getElementById("starterLibraryCapacityLabel");
+  if (starterLibraryCapacityLabel) starterLibraryCapacityLabel.textContent = t("starterLibraryCapacityLabel");
   document.getElementById("starterLibraryLimitHint").textContent = t("starterLibraryLimitHint");
   document.getElementById("starterLibraryGridTitle").textContent = t("starterLibraryGridTitle");
   document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
+  document.getElementById("tabGeneral").textContent = t("utilityTabGeneral");
+  document.getElementById("tabStarterLibrary").textContent = t("utilityTabStarterLibrary");
+  document.getElementById("tabAgentFlowLibrary").textContent = t("utilityTabAgentFlowLibrary");
   document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
-  document.getElementById("agentFlowLibraryTitle").textContent = t("agentFlowLibraryTitle");
-  document.getElementById("agentFlowLibraryDescription").textContent = t("agentFlowLibraryDescription");
-  document.getElementById("agentFlowLibraryStoredLabel").textContent = t("agentFlowLibraryStoredLabel");
-  document.getElementById("agentFlowLibrarySkillsLabel").textContent = t("agentFlowLibrarySkillsLabel");
+  const agentFlowLibraryTitle = document.getElementById("agentFlowLibraryTitle");
+  if (agentFlowLibraryTitle) agentFlowLibraryTitle.textContent = t("agentFlowLibraryTitle");
+  const agentFlowLibraryDescription = document.getElementById("agentFlowLibraryDescription");
+  if (agentFlowLibraryDescription) agentFlowLibraryDescription.textContent = t("agentFlowLibraryDescription");
+  document.getElementById("agentFlowLibraryTitlePage").textContent = t("agentFlowLibraryGridTitle");
+  const agentFlowLibraryStoredLabel = document.getElementById("agentFlowLibraryStoredLabel");
+  if (agentFlowLibraryStoredLabel) agentFlowLibraryStoredLabel.textContent = t("agentFlowLibraryStoredLabel");
+  const agentFlowLibrarySkillsLabel = document.getElementById("agentFlowLibrarySkillsLabel");
+  if (agentFlowLibrarySkillsLabel) agentFlowLibrarySkillsLabel.textContent = t("agentFlowLibrarySkillsLabel");
   document.getElementById("agentFlowLibraryGridTitle").textContent = t("agentFlowLibraryGridTitle");
   document.getElementById("agentFlowLibraryGridDescription").textContent = t("agentFlowLibraryGridDescription");
-  document.getElementById("starterLibraryCapacityValue").textContent = String(MAX_CUSTOM_STARTERS);
+  const starterLibraryCapacityValue = document.getElementById("starterLibraryCapacityValue");
+  if (starterLibraryCapacityValue) starterLibraryCapacityValue.textContent = String(MAX_CUSTOM_STARTERS);
+  document.getElementById("skillsPageTitle").textContent = t("skillsPageTitle");
+  document.getElementById("skillsPageDescription").textContent = t("skillsPageDescription");
+  document.getElementById("flowsPageTitle").textContent = t("flowsPageTitle");
+  document.getElementById("flowsPageDescription").textContent = t("flowsPageDescription");
+  document.getElementById("skillsPageGridHint").textContent = t("skillsPageGridHint");
+  document.getElementById("flowsPageGridHint").textContent = t("flowsPageGridHint");
+  const builtinSkillsCountLabel = document.getElementById("builtinSkillsCountLabel");
+  if (builtinSkillsCountLabel) builtinSkillsCountLabel.textContent = t("builtinSkillsCountLabel");
+  document.getElementById("skillsTotalCountLabel").textContent = t("skillsTotalCountLabel");
+  document.getElementById("skillsBuiltInCountLabel").textContent = t("skillsBuiltInCountLabel");
+  document.getElementById("skillsCustomCountLabel").textContent = t("skillsCustomCountLabel");
+  document.getElementById("flowsTotalCountLabel").textContent = t("flowsTotalCountLabel");
+  document.getElementById("flowsLinkedCountLabel").textContent = t("flowsLinkedCountLabel");
   document.getElementById("systemPromptHint").textContent = t("systemPromptHint");
   document.getElementById("multiPerspectiveProfilesHint").textContent = t("multiPerspectiveProfilesHint");
   document.getElementById("customStartersHint").textContent = t("customStartersHint");
@@ -1868,14 +2286,28 @@ function applyTranslations() {
   if (starterFlowEditorAvailableLabel) starterFlowEditorAvailableLabel.textContent = t("starterFlowEditorAvailableLabel");
   const starterFlowEditorSave = document.getElementById("starterFlowEditorSave");
   if (starterFlowEditorSave) starterFlowEditorSave.textContent = t("starterFlowEditorSave");
+  document.getElementById("skillDetailKicker").textContent = t("skillDetailKicker");
+  document.getElementById("skillDetailTitle").textContent = t("skillDetailTitle");
+  document.getElementById("skillDetailHint").textContent = t("skillDetailHint");
+  document.getElementById("skillDetailClose").textContent = t("starterAiEditorClose");
+  document.getElementById("skillDetailMetaLabel").textContent = t("skillDetailMetaLabel");
+  document.getElementById("skillDetailPromptLabel").textContent = t("skillDetailPromptLabel");
+  document.getElementById("flowDetailKicker").textContent = t("flowDetailKicker");
+  document.getElementById("flowDetailTitle").textContent = t("flowDetailTitle");
+  document.getElementById("flowDetailHint").textContent = t("flowDetailHint");
+  document.getElementById("flowDetailClose").textContent = t("starterAiEditorClose");
+  document.getElementById("flowDetailMetaLabel").textContent = t("flowDetailMetaLabel");
+  document.getElementById("flowDetailStepsLabel").textContent = t("flowDetailStepsLabel");
   document.getElementById("saveButton").textContent = t("saveSettings");
   document.getElementById("testButton").textContent = t("testConnection");
   document.getElementById("installedModelsTitle").textContent = t("installedModels");
   document.getElementById("refreshButton").textContent = t("refresh");
-  setActiveUtilityTab(activeUtilityTab);
+  setActiveSettingsView(activeSettingsView);
   renderCustomStartersPreview();
   renderStarterAiEditorModal();
   renderStarterFlowEditorModal();
+  renderSkillDetailModal();
+  renderFlowDetailModal();
 }
 
 function slugifyStarterId(value, fallback = "starter") {
@@ -2032,7 +2464,12 @@ function moveArrayItem(list, fromIndex, toIndex) {
   return source;
 }
 
-function renderStarterCardMarkup(starter, { includeEditButton = false, includeDeleteButton = true } = {}) {
+function renderStarterCardMarkup(starter, {
+  includeEditButton = false,
+  includeDeleteButton = true,
+  includeOpenButton = false,
+  isBuiltin = false,
+} = {}) {
   const orderedScopes = [...starter.scopes].sort((left, right) => {
     const leftIndex = STARTER_SCOPE_ORDER.indexOf(left);
     const rightIndex = STARTER_SCOPE_ORDER.indexOf(right);
@@ -2049,7 +2486,7 @@ function renderStarterCardMarkup(starter, { includeEditButton = false, includeDe
   });
 
   return `
-    <article class="starter-preview-card">
+    <article class="starter-preview-card ${includeOpenButton ? "is-clickable" : ""}" ${includeOpenButton ? `data-action="${starter.mode === "flow" ? "open-flow-detail" : "open-skill-detail"}" data-starter-id="${escapeHtml(starter.id)}"` : ""}>
       <div class="starter-preview-head">
         <div class="starter-preview-skill-meta">
           <div class="starter-preview-skill-kicker">${escapeHtml(starter.id)}</div>
@@ -2057,6 +2494,8 @@ function renderStarterCardMarkup(starter, { includeEditButton = false, includeDe
         </div>
         <div class="starter-preview-actions">
           <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
+          ${isBuiltin ? `<div class="starter-preview-lock">${escapeHtml(t("builtinSkillBadge"))}</div>` : `<div class="starter-preview-lock">${escapeHtml(t("customSkillBadge"))}</div>`}
+          ${includeOpenButton ? `<button class="secondary-button starter-preview-edit" type="button" data-action="${starter.mode === "flow" ? "open-flow-detail" : "open-skill-detail"}" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("openDetailsButton"))}</button>` : ""}
           ${includeEditButton && starter.mode === "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>` : ""}
           ${includeEditButton && starter.mode !== "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editStarterWithAi"))}</button>` : ""}
           ${includeDeleteButton ? `<button class="secondary-button danger-button starter-preview-delete" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>` : ""}
@@ -2065,7 +2504,6 @@ function renderStarterCardMarkup(starter, { includeEditButton = false, includeDe
       <div class="starter-preview-scopes">
         ${orderedScopes.map((scope) => `<span class="starter-preview-scope">${escapeHtml(getScopeLabel(scope))}</span>`).join("")}
       </div>
-      <div class="starter-preview-prompt">${escapeHtml(starter.mode === "flow" ? starter.flowSteps.map((step, index) => `${index + 1}. ${step.label || step.starterId}`).join(" -> ") : starter.prompt)}</div>
     </article>
   `;
 }
@@ -2310,6 +2748,7 @@ async function saveStarterFlowEditorDraft() {
   currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
   renderCustomStartersPreview();
   await persistCustomStarters(currentCustomStarters);
+  closeFlowDetail();
 }
 
 async function runAiSkillEditorGenerate(prompt) {
@@ -2441,6 +2880,14 @@ function getAgentFlowStarters() {
   return currentCustomStarters.filter((item) => item.mode === "flow");
 }
 
+function getSkillLibraryEntries() {
+  return [...getBuiltinSkillEntries(), ...getSkillStarters().map((item) => ({
+    ...item,
+    sourceType: "custom",
+    isBuiltin: false,
+  }))];
+}
+
 function renderCustomStarterLibraryMeta() {
   const skillCountNode = document.getElementById("customStartersCount");
   if (skillCountNode) {
@@ -2456,6 +2903,37 @@ function renderCustomStarterLibraryMeta() {
   if (linkedSkillsNode) {
     const linkedSkillCount = getAgentFlowStarters().reduce((total, flow) => total + (Array.isArray(flow.flowSteps) ? flow.flowSteps.length : 0), 0);
     linkedSkillsNode.textContent = String(linkedSkillCount);
+  }
+
+  const builtinSkillsCountNode = document.getElementById("builtinSkillsCount");
+  if (builtinSkillsCountNode) {
+    builtinSkillsCountNode.textContent = String(getBuiltinSkillEntries().length);
+  }
+
+  const skillsTotalCountNode = document.getElementById("skillsTotalCount");
+  if (skillsTotalCountNode) {
+    skillsTotalCountNode.textContent = String(getSkillLibraryEntries().length);
+  }
+
+  const skillsBuiltInCountNode = document.getElementById("skillsBuiltInCount");
+  if (skillsBuiltInCountNode) {
+    skillsBuiltInCountNode.textContent = String(getBuiltinSkillEntries().length);
+  }
+
+  const skillsCustomCountNode = document.getElementById("skillsCustomCount");
+  if (skillsCustomCountNode) {
+    skillsCustomCountNode.textContent = `${getSkillStarters().length} / ${MAX_CUSTOM_STARTERS}`;
+  }
+
+  const flowsTotalCountNode = document.getElementById("flowsTotalCount");
+  if (flowsTotalCountNode) {
+    flowsTotalCountNode.textContent = String(getAgentFlowStarters().length);
+  }
+
+  const flowsLinkedCountNode = document.getElementById("flowsLinkedCount");
+  if (flowsLinkedCountNode) {
+    const linkedSkillCount = getAgentFlowStarters().reduce((total, flow) => total + (Array.isArray(flow.flowSteps) ? flow.flowSteps.length : 0), 0);
+    flowsLinkedCountNode.textContent = String(linkedSkillCount);
   }
 }
 
@@ -2478,24 +2956,40 @@ function mergeImportedStarters(existingStarters, importedStarters) {
   return nextStarters;
 }
 
-function setActiveUtilityTab(tab) {
-  activeUtilityTab = ["experience", "starterSkills", "agentFlows"].includes(tab) ? tab : "experience";
+function buildDuplicatedBuiltinStarter(starter) {
+  const baseLabel = `${starter.label} Copy`;
+  return normalizeImportedStarter({
+    id: slugifyStarterId(`${starter.starterKey || starter.id}-copy`, `custom-${Date.now()}`),
+    label: baseLabel,
+    prompt: starter.prompt,
+    description: starter.description,
+    scopes: starter.scopes,
+    mode: starter.mode,
+  }, currentCustomStarters.length);
+}
 
-  document.querySelectorAll("[data-utility-tab]").forEach((button) => {
-    const isActive = button.dataset.utilityTab === activeUtilityTab;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-selected", String(isActive));
+function setActiveSettingsView(view) {
+  activeSettingsView = ["settings", "skills", "flows"].includes(view) ? view : "settings";
+  const viewMap = {
+    settings: "generalTabPanel",
+    skills: "starterTabPanel",
+    flows: "flowTabPanel",
+  };
+
+  Object.entries(viewMap).forEach(([key, id]) => {
+    const node = document.getElementById(id);
+    if (!node) {
+      return;
+    }
+    const isActive = key === activeSettingsView;
+    node.classList.toggle("is-active", isActive);
+    node.hidden = !isActive;
   });
 
-  document.querySelectorAll(".utility-panel").forEach((panel) => {
-    const panelIdByTab = {
-      experience: "panel-experience",
-      starterSkills: "panel-starter-skills",
-      agentFlows: "panel-agent-flows",
-    };
-    const isActive = panel.id === panelIdByTab[activeUtilityTab];
-    panel.classList.toggle("is-active", isActive);
-    panel.hidden = !isActive;
+  document.querySelectorAll("[data-settings-view]").forEach((button) => {
+    const isActive = button.dataset.settingsView === activeSettingsView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
   });
 }
 
@@ -2505,14 +2999,19 @@ function renderCustomStartersPreview() {
   renderCustomStarterLibraryMeta();
 
   if (skillNode) {
-    const starters = getSkillStarters();
+    const starters = getSkillLibraryEntries();
     if (!starters.length) {
       skillNode.className = "starter-preview-list empty-state";
       skillNode.textContent = t("noCustomStarters");
     } else {
       skillNode.className = "starter-preview-list";
       skillNode.innerHTML = starters
-        .map((starter) => renderStarterCardMarkup(starter, { includeEditButton: true }))
+        .map((starter) => renderStarterCardMarkup(starter, {
+          includeEditButton: !starter.isBuiltin,
+          includeDeleteButton: !starter.isBuiltin,
+          includeOpenButton: true,
+          isBuiltin: Boolean(starter.isBuiltin),
+        }))
         .join("");
     }
   }
@@ -2525,10 +3024,153 @@ function renderCustomStartersPreview() {
     } else {
       flowNode.className = "starter-preview-list";
       flowNode.innerHTML = flows
-        .map((starter) => renderStarterCardMarkup(starter, { includeEditButton: true }))
+        .map((starter) => renderStarterCardMarkup(starter, {
+          includeEditButton: true,
+          includeDeleteButton: true,
+          includeOpenButton: true,
+          isBuiltin: false,
+        }))
         .join("");
     }
   }
+}
+
+function getSkillEntryById(starterId) {
+  return getSkillLibraryEntries().find((item) => item.id === starterId) || null;
+}
+
+function getFlowEntryById(starterId) {
+  return getAgentFlowStarters().find((item) => item.id === starterId) || null;
+}
+
+function renderDetailMetaList(items) {
+  return `
+    <div class="starter-detail-meta-list">
+      ${items.map((item) => `
+        <article class="starter-detail-meta-item">
+          <span class="starter-detail-meta-label">${escapeHtml(item.label)}</span>
+          <div class="starter-detail-meta-value">${escapeHtml(item.value)}</div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function openSkillDetail(starterId) {
+  skillDetailState = {
+    open: true,
+    starterId,
+  };
+  renderSkillDetailModal();
+}
+
+function closeSkillDetail() {
+  skillDetailState = {
+    open: false,
+    starterId: "",
+  };
+  renderSkillDetailModal();
+}
+
+function renderSkillDetailModal() {
+  const backdrop = document.getElementById("skillDetailModal");
+  const currentCard = document.getElementById("skillDetailCurrentCard");
+  const metaNode = document.getElementById("skillDetailMeta");
+  const promptNode = document.getElementById("skillDetailPrompt");
+  const actionsNode = document.getElementById("skillDetailActions");
+  if (!(backdrop instanceof HTMLElement) || !(currentCard instanceof HTMLElement) || !(metaNode instanceof HTMLElement) || !(promptNode instanceof HTMLElement) || !(actionsNode instanceof HTMLElement)) {
+    return;
+  }
+
+  const starter = getSkillEntryById(skillDetailState.starterId);
+  backdrop.hidden = !skillDetailState.open;
+  if (!skillDetailState.open || !starter) {
+    return;
+  }
+
+  currentCard.innerHTML = renderStarterCardMarkup(starter, {
+    includeEditButton: false,
+    includeDeleteButton: false,
+    includeOpenButton: false,
+    isBuiltin: Boolean(starter.isBuiltin),
+  });
+  document.getElementById("skillDetailTitle").textContent = starter.label;
+  metaNode.innerHTML = renderDetailMetaList([
+    { label: t("skillMetaIdLabel"), value: starter.id },
+    { label: t("skillMetaSourceLabel"), value: starter.isBuiltin ? t("builtinSkillBadge") : t("customSkillBadge") },
+    { label: t("skillMetaModeLabel"), value: getModeLabel(starter.mode) },
+    { label: t("skillMetaScopesLabel"), value: starter.scopes.map((scope) => getScopeLabel(scope)).join(", ") || t("starterPreviewScopeAll") },
+    { label: t("skillMetaSummaryLabel"), value: starter.description || starter.label },
+  ]);
+  promptNode.textContent = starter.prompt || starter.description || starter.label;
+  actionsNode.innerHTML = starter.isBuiltin
+    ? `<button class="secondary-button" type="button" data-action="duplicate-builtin-skill" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("duplicateBuiltinSkill"))}</button>`
+    : `
+      <button class="secondary-button" type="button" data-action="edit-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editStarterWithAi"))}</button>
+      <button class="secondary-button danger-button" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
+    `;
+}
+
+function openFlowDetail(starterId) {
+  flowDetailState = {
+    open: true,
+    starterId,
+  };
+  renderFlowDetailModal();
+}
+
+function closeFlowDetail() {
+  flowDetailState = {
+    open: false,
+    starterId: "",
+  };
+  renderFlowDetailModal();
+}
+
+function renderFlowDetailModal() {
+  const backdrop = document.getElementById("flowDetailModal");
+  const currentCard = document.getElementById("flowDetailCurrentCard");
+  const metaNode = document.getElementById("flowDetailMeta");
+  const stepsNode = document.getElementById("flowDetailSteps");
+  const actionsNode = document.getElementById("flowDetailActions");
+  if (!(backdrop instanceof HTMLElement) || !(currentCard instanceof HTMLElement) || !(metaNode instanceof HTMLElement) || !(stepsNode instanceof HTMLElement) || !(actionsNode instanceof HTMLElement)) {
+    return;
+  }
+
+  const starter = getFlowEntryById(flowDetailState.starterId);
+  backdrop.hidden = !flowDetailState.open;
+  if (!flowDetailState.open || !starter) {
+    return;
+  }
+
+  currentCard.innerHTML = renderStarterCardMarkup(starter, {
+    includeEditButton: false,
+    includeDeleteButton: false,
+    includeOpenButton: false,
+    isBuiltin: false,
+  });
+  document.getElementById("flowDetailTitle").textContent = starter.label;
+  metaNode.innerHTML = renderDetailMetaList([
+    { label: t("skillMetaIdLabel"), value: starter.id },
+    { label: t("skillMetaModeLabel"), value: getModeLabel(starter.mode) },
+    { label: t("skillMetaScopesLabel"), value: starter.scopes.map((scope) => getScopeLabel(scope)).join(", ") || t("starterPreviewScopeAll") },
+    { label: t("flowMetaStepCountLabel"), value: String(Array.isArray(starter.flowSteps) ? starter.flowSteps.length : 0) },
+  ]);
+  stepsNode.innerHTML = (Array.isArray(starter.flowSteps) ? starter.flowSteps : []).map((step, index) => `
+    <article class="starter-flow-editor-step">
+      <div class="starter-flow-editor-step-main">
+        <div class="starter-flow-editor-step-index">${index + 1}</div>
+        <div class="starter-flow-editor-step-copy">
+          <div class="starter-preview-name">${escapeHtml(step.label || step.starterId)}</div>
+          <div class="starter-preview-skill-kicker">${escapeHtml(step.starterId)}</div>
+        </div>
+      </div>
+    </article>
+  `).join("");
+  actionsNode.innerHTML = `
+    <button class="secondary-button" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>
+    <button class="secondary-button danger-button" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
+  `;
 }
 
 async function persistCustomStarters(starters) {
@@ -2580,6 +3222,7 @@ async function selectModel(model) {
     throw new Error(result?.error || t("saveFailed"));
   }
   currentSelectedModel = String(model || "").trim();
+  document.getElementById("starterQuickModel").value = currentSelectedModel;
   await refreshModels();
 }
 
@@ -2695,6 +3338,10 @@ async function loadConfig() {
     document.getElementById("googleDriveSyncEnabled").checked = Boolean(result.config.googleDriveSyncEnabled);
     document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
+    document.getElementById("starterModelRoutingEnabled").checked = result.config.starterModelRoutingEnabled !== false;
+    document.getElementById("starterQuickModel").value = String(result.config.selectedModel || "").trim();
+    document.getElementById("starterReasoningModel").value = result.config.starterReasoningModel || "";
+    document.getElementById("starterVisionModel").value = result.config.starterVisionModel || "";
     document.getElementById("replyLanguage").value = replyLanguage;
     document.getElementById("settingsThemeToolbar").value = settingsTheme;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
@@ -2743,6 +3390,9 @@ async function saveConfig() {
   const googleDriveSyncEnabled = document.getElementById("googleDriveSyncEnabled").checked;
   const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
+  const starterModelRoutingEnabled = document.getElementById("starterModelRoutingEnabled").checked;
+  const starterReasoningModel = document.getElementById("starterReasoningModel").value.trim();
+  const starterVisionModel = document.getElementById("starterVisionModel").value.trim();
   const replyLanguage = document.getElementById("replyLanguage").value;
   const settingsTheme = normalizeSettingsTheme(document.getElementById("settingsThemeToolbar").value);
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
@@ -2770,6 +3420,9 @@ async function saveConfig() {
       googleDriveSyncEnabled,
       googleDriveAutoSync,
       defaultProvider,
+      starterModelRoutingEnabled,
+      starterReasoningModel,
+      starterVisionModel,
       replyLanguage,
       settingsTheme,
       taskExtractionWindowDays,
@@ -2796,6 +3449,7 @@ async function refreshModels() {
   }
 
   renderModels(result.models || [], result.config || {});
+  document.getElementById("starterQuickModel").value = String(result?.config?.selectedModel || currentSelectedModel || "").trim();
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
 
@@ -2885,12 +3539,41 @@ async function handleStarterPreviewAction(event) {
     return;
   }
 
+  if (actionNode.dataset.action === "open-skill-detail") {
+    openSkillDetail(starterId);
+    return;
+  }
+
+  if (actionNode.dataset.action === "open-flow-detail") {
+    openFlowDetail(starterId);
+    return;
+  }
+
+  if (actionNode.dataset.action === "duplicate-builtin-skill") {
+    const starter = getSkillEntryById(starterId);
+    if (!starter || !starter.isBuiltin) {
+      return;
+    }
+    try {
+      currentCustomStarters = mergeImportedStarters(currentCustomStarters, [buildDuplicatedBuiltinStarter(starter)]);
+      renderCustomStartersPreview();
+      await persistCustomStarters(currentCustomStarters);
+      closeSkillDetail();
+      setStatus(t("builtinSkillDuplicated", { name: starter.label }));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
   if (actionNode.dataset.action === "edit-custom-starter") {
+    closeSkillDetail();
     openStarterAiEditor(starterId);
     return;
   }
 
   if (actionNode.dataset.action === "edit-flow-starter") {
+    closeFlowDetail();
     openStarterFlowEditor(starterId);
     return;
   }
@@ -2909,6 +3592,8 @@ async function handleStarterPreviewAction(event) {
       return;
     }
     currentCustomStarters = currentCustomStarters.filter((item) => item.id !== starterId);
+    closeSkillDetail();
+    closeFlowDetail();
     renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
     setStatus(t("customStarterDeleted", { name: starter.label }));
@@ -2919,6 +3604,14 @@ async function handleStarterPreviewAction(event) {
 
 document.getElementById("customStartersPreview").addEventListener("click", handleStarterPreviewAction);
 document.getElementById("agentFlowsPreview").addEventListener("click", handleStarterPreviewAction);
+document.getElementById("skillDetailActions").addEventListener("click", handleStarterPreviewAction);
+document.getElementById("flowDetailActions").addEventListener("click", handleStarterPreviewAction);
+
+document.querySelectorAll("[data-settings-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveSettingsView(button.dataset.settingsView || "settings");
+  });
+});
 
 document.getElementById("starterAiEditorClose").addEventListener("click", () => {
   closeStarterAiEditor();
@@ -2996,6 +3689,7 @@ document.getElementById("starterAiEditorApply").addEventListener("click", async 
     currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
     renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
+    closeSkillDetail();
     closeStarterAiEditor();
     setStatus(t("starterAiEditorUpdated", { name: updatedStarter.label }));
   } catch (error) {
@@ -3014,6 +3708,26 @@ document.getElementById("starterAiEditorApply").addEventListener("click", async 
 
 document.getElementById("starterFlowEditorClose").addEventListener("click", () => {
   closeStarterFlowEditor();
+});
+
+document.getElementById("skillDetailClose").addEventListener("click", () => {
+  closeSkillDetail();
+});
+
+document.getElementById("flowDetailClose").addEventListener("click", () => {
+  closeFlowDetail();
+});
+
+document.getElementById("skillDetailModal").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) {
+    closeSkillDetail();
+  }
+});
+
+document.getElementById("flowDetailModal").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) {
+    closeFlowDetail();
+  }
 });
 
 document.getElementById("starterFlowEditorModal").addEventListener("click", (event) => {
@@ -3206,12 +3920,6 @@ document.getElementById("googleDrivePullButton").addEventListener("click", async
 document.querySelectorAll("[data-provider-tab]").forEach((button) => {
   button.addEventListener("click", () => {
     setActiveProviderTab(button.dataset.providerTab || "ollama");
-  });
-});
-
-document.querySelectorAll("[data-utility-tab]").forEach((button) => {
-  button.addEventListener("click", () => {
-    setActiveUtilityTab(button.dataset.utilityTab || "experience");
   });
 });
 

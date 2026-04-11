@@ -786,6 +786,54 @@ textarea:focus {
   gap: 12px;
 }
 
+.settings-tab-panels {
+  display: grid;
+}
+
+.settings-tab-panel {
+  display: none;
+}
+
+.settings-tab-panel[hidden] {
+  display: none !important;
+}
+
+.settings-tab-panel.is-active {
+  display: block;
+}
+
+.library-entry-stack {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.library-entry-card {
+  display: grid;
+  gap: 14px;
+}
+
+.library-page {
+  display: grid;
+  gap: 18px;
+}
+
+.library-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.library-page-shell {
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+}
+
+.settings-page-tabs {
+  margin-bottom: 18px;
+}
+
 .utility-tabs {
   display: flex;
   gap: 10px;
@@ -1036,6 +1084,20 @@ textarea:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.starter-preview-card.is-clickable {
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.starter-preview-card.is-clickable:hover,
+.starter-preview-card.is-clickable:focus-within {
+  transform: translateY(-2px);
+  border-color: rgba(105, 234, 255, 0.34);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
 .starter-preview-head {
   display: flex;
   justify-content: space-between;
@@ -1078,6 +1140,16 @@ textarea:focus {
   color: #7fdcff;
 }
 
+.starter-preview-lock {
+  padding: 6px 9px;
+  border: 1px solid rgba(104, 187, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(7, 22, 40, 0.76);
+  color: #def9ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .starter-preview-delete {
   padding: 7px 10px;
   font-size: 12px;
@@ -1109,6 +1181,11 @@ textarea:focus {
 
 .starter-library-panel .starter-preview-list {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+#customStartersPreview.starter-preview-list,
+#agentFlowsPreview.starter-preview-list {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
 .starter-ai-editor-backdrop {
@@ -1301,6 +1378,64 @@ textarea:focus {
   width: min(980px, 100%);
 }
 
+.starter-detail-modal {
+  width: min(1080px, 100%);
+}
+
+.starter-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.starter-detail-block {
+  padding: 18px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 20px;
+  background: rgba(6, 17, 31, 0.48);
+}
+
+.starter-detail-pre {
+  margin: 0;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: rgba(225, 241, 255, 0.86);
+}
+
+.starter-detail-meta-list {
+  display: grid;
+  gap: 10px;
+}
+
+.starter-detail-meta-item {
+  padding: 12px 14px;
+  border: 1px solid rgba(104, 187, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(10, 29, 49, 0.58);
+}
+
+.starter-detail-meta-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(151, 214, 255, 0.72);
+}
+
+.starter-detail-meta-value {
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(225, 241, 255, 0.84);
+}
+
 .starter-flow-editor-steps,
 .starter-flow-editor-available {
   display: grid;
@@ -1358,12 +1493,30 @@ body[data-theme="light"] .starter-flow-editor-available-card {
   background: rgba(247, 251, 255, 0.86);
 }
 
+body[data-theme="light"] .starter-detail-block,
+body[data-theme="light"] .starter-detail-meta-item {
+  border-color: rgba(91, 143, 181, 0.18);
+  background: rgba(247, 251, 255, 0.86);
+}
+
+body[data-theme="light"] .starter-preview-lock {
+  border-color: rgba(111, 152, 185, 0.24);
+  background: rgba(239, 247, 252, 0.92);
+  color: #163249;
+}
+
+body[data-theme="light"] .starter-detail-pre,
+body[data-theme="light"] .starter-detail-meta-value {
+  color: #163249;
+}
+
 @media (max-width: 720px) {
   .settings-layout,
   .provider-support-grid,
   .split-fields,
   .behavior-grid,
-  .starter-studio-shell {
+  .starter-studio-shell,
+  .starter-detail-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1403,10 +1556,6 @@ body[data-theme="light"] .starter-flow-editor-available-card {
   }
 
   .starter-library-metrics {
-    width: 100%;
-  }
-
-  .utility-tabs {
     width: 100%;
   }
 

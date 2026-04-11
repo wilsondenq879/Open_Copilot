@@ -360,6 +360,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(126, 233, 255, 0.14);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
@@ -373,6 +375,18 @@
   max-width: 100%;
   white-space: nowrap;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.ollama-quick-starter::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.18) 45%, transparent 70%);
+  transform: translateX(-135%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
 }
 
 .ollama-quick-starter:hover,
@@ -414,18 +428,19 @@
 
 .ollama-quick-starter.is-agent-flow-builder,
 .ollama-quick-starter.is-agent-flow {
+  color: #effff2;
+}
+
+.ollama-quick-starter.is-agent-flow-builder {
   border-color: rgba(126, 255, 157, 0.4);
   background:
     linear-gradient(135deg, rgba(66, 205, 102, 0.22), rgba(24, 121, 54, 0.2)),
     rgba(255, 255, 255, 0.06);
-  color: #effff2;
   box-shadow: inset 0 0 0 1px rgba(158, 255, 186, 0.1);
 }
 
 .ollama-quick-starter.is-agent-flow-builder:hover,
-.ollama-quick-starter.is-agent-flow-builder:focus-visible,
-.ollama-quick-starter.is-agent-flow:hover,
-.ollama-quick-starter.is-agent-flow:focus-visible {
+.ollama-quick-starter.is-agent-flow-builder:focus-visible {
   border-color: rgba(149, 255, 177, 0.6);
   background:
     linear-gradient(135deg, rgba(66, 205, 102, 0.28), rgba(24, 121, 54, 0.24)),
@@ -433,6 +448,32 @@
   box-shadow:
     inset 0 0 0 1px rgba(199, 255, 212, 0.16),
     0 10px 20px rgba(74, 205, 96, 0.12);
+  animation: ollama-quick-agent-flow-builder-glow 1.4s ease-in-out infinite;
+}
+
+.ollama-quick-starter.is-agent-flow-builder:hover::after,
+.ollama-quick-starter.is-agent-flow-builder:focus-visible::after {
+  opacity: 1;
+  animation: ollama-quick-starter-sheen 900ms ease-out;
+}
+
+.ollama-quick-starter.is-agent-flow {
+  border-color: rgba(88, 215, 255, 0.4);
+  background:
+    linear-gradient(135deg, rgba(46, 125, 255, 0.2), rgba(39, 207, 191, 0.16)),
+    rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(143, 232, 255, 0.12);
+}
+
+.ollama-quick-starter.is-agent-flow:hover,
+.ollama-quick-starter.is-agent-flow:focus-visible {
+  border-color: rgba(122, 228, 255, 0.62);
+  background:
+    linear-gradient(135deg, rgba(57, 142, 255, 0.28), rgba(39, 207, 191, 0.22)),
+    rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(190, 246, 255, 0.16),
+    0 10px 20px rgba(54, 146, 255, 0.12);
 }
 
 .ollama-quick-starter.is-highlighted {
@@ -463,11 +504,47 @@
   }
 }
 
+@keyframes ollama-quick-starter-sheen {
+  0% {
+    transform: translateX(-135%);
+  }
+  100% {
+    transform: translateX(135%);
+  }
+}
+
+@keyframes ollama-quick-agent-flow-builder-glow {
+  0% {
+    box-shadow:
+      inset 0 0 0 1px rgba(199, 255, 212, 0.16),
+      0 10px 20px rgba(74, 205, 96, 0.12);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(218, 255, 227, 0.24),
+      0 14px 24px rgba(74, 205, 96, 0.18),
+      0 0 0 3px rgba(126, 255, 157, 0.08);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(199, 255, 212, 0.16),
+      0 10px 20px rgba(74, 205, 96, 0.12);
+  }
+}
+
 .ollama-quick-starter-custom-mark {
   color: rgba(226, 237, 255, 0.72);
   font-size: 10px;
   line-height: 1;
   flex: 0 0 auto;
+}
+
+.ollama-quick-starter.is-agent-flow-builder .ollama-quick-starter-custom-mark {
+  color: rgba(215, 255, 225, 0.86);
+}
+
+.ollama-quick-starter.is-agent-flow .ollama-quick-starter-custom-mark {
+  color: rgba(201, 244, 255, 0.84);
 }
 
 .ollama-quick-starter-custom-tag {
@@ -482,6 +559,11 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   flex: 0 0 auto;
+}
+
+.ollama-quick-starter.is-agent-flow .ollama-quick-starter-custom-tag {
+  background: rgba(116, 226, 255, 0.16);
+  color: #bff3ff;
 }
 
 .ollama-quick-starter-dot {
@@ -506,6 +588,13 @@
   padding: 2px 2px 0;
   font-size: 12px;
   line-height: 1.25;
+}
+
+.ollama-quick-model-control {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
 
 .ollama-quick-secondary {
@@ -536,6 +625,49 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px 0;
+}
+
+.ollama-quick-starter-route-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(126, 233, 255, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(6, 23, 46, 0.82), rgba(17, 53, 89, 0.68));
+}
+
+.ollama-quick-starter-route-copy {
+  min-width: 0;
+}
+
+.ollama-quick-starter-route-kicker {
+  color: #8fddff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ollama-quick-starter-route-title {
+  margin-top: 4px;
+  color: #eff8ff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ollama-quick-starter-route-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ollama-quick-starter-route-actions .ollama-quick-secondary {
+  min-height: 38px;
+  white-space: nowrap;
 }
 
 .ollama-quick-attachment {
@@ -1471,6 +1603,14 @@
   gap: 10px;
 }
 
+.ollama-quick-task-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ollama-quick-task-panel-hint {
   margin-top: 4px;
   font-size: 12px;
@@ -2324,6 +2464,13 @@
   background:
     linear-gradient(180deg, rgba(12, 18, 32, 0.82), rgba(8, 13, 24, 0.74)),
     rgba(255, 255, 255, 0.02);
+}
+
+.ollama-quick-panel.is-open.is-maximized .ollama-quick-icon-button.is-active {
+  border-color: rgba(121, 227, 255, 0.38);
+  background: rgba(58, 122, 168, 0.3);
+  color: #eef9ff;
+  box-shadow: inset 0 0 0 1px rgba(126, 233, 255, 0.08);
 }
 
 .ollama-quick-panel.is-open.is-maximized .ollama-quick-controls,

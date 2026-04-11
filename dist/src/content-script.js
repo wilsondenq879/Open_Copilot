@@ -231,13 +231,53 @@ let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
 let taskInboxExpanded = false;
+let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
+let pendingStarterExecution = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const HTML_LAYOUT_GUARD_STYLE_ID = "edge-ai-chat-layout-guard";
 const HTML_MERMAID_RUNTIME_SCRIPT_ID = "edge-ai-chat-mermaid-runtime";
 const HTML_MERMAID_MODULE_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 const HTML_IMAGE_QUERY_ATTRIBUTE = "data-edge-ai-image-query";
 const MAX_HTML_IMAGE_SEARCHES = 4;
+const STARTER_REASONING_GITHUB_CONTEXT_SET = new Set(["codeView", "pullRequestOverview", "repository"]);
+const STARTER_REASONING_BUILTIN_KEY_SET = new Set([
+  "codeRiskReview",
+  "githubRepoPurpose",
+  "githubSummary",
+  "githubReviewFocus",
+  "githubCrossCheck",
+  "githubSpecCoverage",
+  "githubDriftCheck",
+  "githubReviewChecklist",
+  "githubTestGap",
+  "githubDocReview",
+  "githubRequirementMap",
+  "githubSecurityRequirementCheck",
+  "githubWebReview",
+  "githubAccessibilityReview",
+  "githubFrontendSecurityReview",
+  "githubCodeReviewDeep",
+  "githubContractCheck",
+  "githubSecurityReview",
+  "githubRegressionHotspots",
+  "githubMemorySafetyReview",
+  "githubAttackSurfaceReview",
+  "githubConfigReview",
+  "githubSecretAndPermissionReview",
+  "githubOperationalRiskReview",
+  "githubArchitectureMap",
+  "githubImpactSurfaceMap",
+  "githubRepoSecurityReview",
+]);
+const STARTER_REASONING_REVIEW_PATTERN = /(review|checklist|spec coverage|test gap|regression|security|risk|contract|architecture|impact surface|memory safety|attack surface|operational|cross-check|drift|requirement map|審查|审查|檢查|检查|測試缺口|测试缺口|回歸|回归|風險|风险|安全|規格覆蓋|规格覆盖|對照|对照|一致性|影響面|影响面)/i;
+const STARTER_VISION_BUILTIN_KEY_SET = new Set([
+  "imageAnalysis",
+  "imageAnalysisMarkdown",
+  "githubWebReview",
+  "githubAccessibilityReview",
+]);
+const STARTER_VISION_KEYWORD_PATTERN = /(image|images|screenshot|screen shot|visual|vision|ux|ui|layout|readability|clarity|contrast|spacing|hierarchy|design|圖片|图像|影像|截圖|截图|畫面|界面|介面|視覺|视觉|版面|排版|可讀性|可读性|對比|对比|設計|设计|清楚)/i;
 const HTML_LAYOUT_GUARD_CSS = [
   "html { overflow-x: hidden; }",
   "body { max-width: 100%; overflow-x: hidden; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }",
@@ -475,6 +515,8 @@ const CONTENT_I18N = {
     collapse: "收合",
     maximize: "最大化",
     restore: "還原視窗",
+    showTaskRail: "顯示任務匣",
+    hideTaskRail: "收合任務匣",
     refreshModels: "重新整理模型",
     useSelection: "使用選取內容",
     clearChat: "清除對話",
@@ -532,6 +574,20 @@ const CONTENT_I18N = {
     removedAttachment: "已移除附件。",
     confirmRemoveAttachment: "確定要移除這個附件嗎？",
     starterReady: "已填入範本：{starter}",
+    starterReasoningModelReady: "這個 starter 會優先使用更思考的模型：{model}。你也可以改成快速回答。",
+    starterReasoningModelHint: "{starter} 預設會用 {model} 做較深入的分析。",
+    starterReasoningModelAction: "使用更思考模型",
+    starterVisionModelReady: "這個任務會優先使用 vision 模型：{model}。",
+    starterVisionModelHint: "{starter} 預設會用 {model} 看圖與檢查視覺細節。",
+    starterVisionModelAction: "使用 vision 模型",
+    starterQuickReplyAction: "快速回答",
+    modelLabel: "Model",
+    modelAutoOption: "Auto",
+    modelAutoSelected: "目前模型模式：Auto",
+    modelAutoResolved: "目前模型模式：Auto -> {route} -> {model}",
+    modelRouteQuick: "Quick",
+    modelRouteReasoning: "Reasoning",
+    modelRouteVision: "Vision",
     starterTools: "快捷指令",
     pageCopilot: "Page Copilot",
     siteAdapter: "Site Adapter",
@@ -878,6 +934,8 @@ const CONTENT_I18N = {
     collapse: "Collapse",
     maximize: "Maximize",
     restore: "Restore window",
+    showTaskRail: "Show task rail",
+    hideTaskRail: "Hide task rail",
     refreshModels: "Refresh models",
     useSelection: "Use selection",
     clearChat: "Clear chat",
@@ -980,6 +1038,20 @@ const CONTENT_I18N = {
     customStarterBuilderNeedDiscussion: "Discuss it with AI first, then create the skill once it looks right.",
     customStarterBuilderSaved: "Skill created: {name}",
     customStarterBuilderPromptReady: "Starter request prepared. You can send it to AI now.",
+    starterReasoningModelReady: "This starter is set to use a deeper-thinking model first: {model}. You can switch back to a quick reply.",
+    starterReasoningModelHint: "{starter} will use {model} for deeper analysis by default.",
+    starterReasoningModelAction: "Use deeper model",
+    starterVisionModelReady: "This task is set to use a vision model first: {model}.",
+    starterVisionModelHint: "{starter} will use {model} to inspect images and visual details by default.",
+    starterVisionModelAction: "Use vision model",
+    starterQuickReplyAction: "Quick reply",
+    modelLabel: "Model",
+    modelAutoOption: "Auto",
+    modelAutoSelected: "Current model mode: Auto",
+    modelAutoResolved: "Current model mode: Auto -> {route} -> {model}",
+    modelRouteQuick: "Quick",
+    modelRouteReasoning: "Reasoning",
+    modelRouteVision: "Vision",
     modelSelected: "Using model: {model}",
     modelSelectFailed: "Failed to select model.",
     pageContextModeUpdated: "Updated webpage context mode: {mode}.",
@@ -2124,6 +2196,37 @@ function getGithubReviewSubjectType() {
 
   if (["js", "mjs", "cjs", "ts", "py", "go", "rs", "java", "kt", "swift", "rb", "php", "cs", "scala", "sh", "bash", "zsh"].includes(extension)) {
     return "code";
+  }
+
+  return "generic";
+}
+
+function getGithubStarterContext() {
+  if (!isGithubAdapterActive()) {
+    return "generic";
+  }
+
+  const pathname = window.location.pathname;
+  const reviewType = getGithubReviewSubjectType();
+
+  if (/\/pull\/\d+\/files(?:$|[/?#])/.test(pathname) || /\/commit\/[^/]+(?:$|[/?#])/.test(pathname) || /\/compare\/[^/]+/.test(pathname)) {
+    return "codeView";
+  }
+
+  if (/\/blob\/[^/]+/.test(pathname)) {
+    return ["code", "nativeCode", "web", "config", "document"].includes(reviewType) ? "codeView" : "generic";
+  }
+
+  if (/\/pull\/\d+(?:$|[/?#])/.test(pathname)) {
+    return "pullRequestOverview";
+  }
+
+  if (/\/issues\/\d+(?:$|[/?#])/.test(pathname)) {
+    return "issue";
+  }
+
+  if (reviewType === "repository") {
+    return "repository";
   }
 
   return "generic";
@@ -3376,7 +3479,14 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [...baseKeys];
 
   if (isGithubAdapterActive(pageCopilot)) {
-    nextKeys = ["codeExplain", ...nextKeys];
+    const githubStarterContext = getGithubStarterContext();
+    if (githubStarterContext === "codeView") {
+      nextKeys = ["codeExplain", ...nextKeys];
+    } else if (githubStarterContext === "repository") {
+      nextKeys = ["githubRepoPurpose", "githubSummary", ...nextKeys];
+    } else if (githubStarterContext === "pullRequestOverview" || githubStarterContext === "issue") {
+      nextKeys = ["githubSummary", ...nextKeys];
+    }
     if (includedGithubSources.length) {
       nextKeys = [...nextKeys, ...GITHUB_INCLUDED_STARTERS];
     }
@@ -3397,7 +3507,15 @@ function getHighlightedStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [...baseKeys];
 
   if (isGithubAdapterActive(pageCopilot)) {
-    nextKeys = ["codeExplain", ...nextKeys, ...GITHUB_INCLUDED_STARTERS, ...getGithubTypeSpecificStarterKeys()];
+    const githubStarterContext = getGithubStarterContext();
+    if (githubStarterContext === "codeView") {
+      nextKeys = ["codeExplain", ...nextKeys];
+    } else if (githubStarterContext === "repository") {
+      nextKeys = ["githubRepoPurpose", "githubSummary", ...nextKeys];
+    } else if (githubStarterContext === "pullRequestOverview" || githubStarterContext === "issue") {
+      nextKeys = ["githubSummary", ...nextKeys];
+    }
+    nextKeys = [...nextKeys, ...GITHUB_INCLUDED_STARTERS, ...getGithubTypeSpecificStarterKeys()];
   }
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
@@ -3641,6 +3759,284 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
       }
       return left.sortIndex - right.sortIndex;
     });
+}
+
+function getDefaultQuickReplyModel() {
+  return String(currentConfig?.selectedModel || "").trim();
+}
+
+function getModelSelectionMode() {
+  return String(currentConfig?.modelSelectionMode || "auto").trim().toLowerCase() === "manual" ? "manual" : "auto";
+}
+
+function isAutoModelSelectionEnabled() {
+  return getModelSelectionMode() === "auto";
+}
+
+function getAvailableModelNames() {
+  return Array.isArray(cachedModels)
+    ? cachedModels.map((item) => String(item?.name || "").trim()).filter(Boolean)
+    : [];
+}
+
+function getModelSizeHint(modelName) {
+  const value = String(modelName || "").toLowerCase();
+  const matches = [...value.matchAll(/(\d+(?:\.\d+)?)b\b/g)];
+  if (!matches.length) {
+    return 0;
+  }
+  return Math.max(...matches.map((match) => Number.parseFloat(match[1]) || 0));
+}
+
+function modelLikelySupportsReasoning(modelName) {
+  const value = String(modelName || "").toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  return /(reason|reasoning|think|thinking|r1|r\d|coder|code|instruct|chat)/i.test(value)
+    || getModelSizeHint(value) >= 7;
+}
+
+function modelLikelyOptimizedForSpeed(modelName) {
+  const value = String(modelName || "").toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  return /(mini|small|flash|fast|turbo|2b|3b)\b/i.test(value) || (getModelSizeHint(value) > 0 && getModelSizeHint(value) <= 4);
+}
+
+function scoreReasoningCandidate(modelName, quickModel = "") {
+  const value = String(modelName || "").trim();
+  if (!value) {
+    return -Infinity;
+  }
+
+  let score = 0;
+  const lowerValue = value.toLowerCase();
+  const sizeHint = getModelSizeHint(lowerValue);
+
+  if (value === quickModel) {
+    score += 1;
+  }
+  if (modelLikelySupportsReasoning(value)) {
+    score += 5;
+  }
+  if (sizeHint >= 7) {
+    score += 4;
+  } else if (sizeHint >= 4) {
+    score += 2;
+  } else if (sizeHint > 0) {
+    score -= 1;
+  }
+  if (modelLikelySupportsVision(value)) {
+    score -= 1;
+  }
+  if (modelLikelyOptimizedForSpeed(value)) {
+    score -= 2;
+  }
+
+  return score;
+}
+
+function scoreVisionCandidate(modelName, { preferReasoning = false } = {}) {
+  const value = String(modelName || "").trim();
+  if (!value || !modelLikelySupportsVision(value)) {
+    return -Infinity;
+  }
+
+  let score = 0;
+  const lowerValue = value.toLowerCase();
+  const sizeHint = getModelSizeHint(lowerValue);
+
+  score += 6;
+  if (/(vision|vl|llava|bakllava|minicpm-v|moondream)/i.test(lowerValue)) {
+    score += 3;
+  }
+  if (preferReasoning && modelLikelySupportsReasoning(value)) {
+    score += 3;
+  }
+  if (sizeHint >= 7 && sizeHint <= 20) {
+    score += 2;
+  } else if (sizeHint > 20) {
+    score += 1;
+  } else if (sizeHint > 0 && sizeHint < 4) {
+    score -= 1;
+  }
+
+  return score;
+}
+
+function pickBestModelByScore(models, scorer) {
+  let bestModel = "";
+  let bestScore = -Infinity;
+  models.forEach((modelName) => {
+    const score = scorer(modelName);
+    if (score > bestScore) {
+      bestModel = modelName;
+      bestScore = score;
+    }
+  });
+  return bestModel;
+}
+
+function inferStarterReasoningModel(quickModel = getDefaultQuickReplyModel()) {
+  const availableModels = getAvailableModelNames();
+  if (!availableModels.length) {
+    return "";
+  }
+
+  return pickBestModelByScore(availableModels, (modelName) => scoreReasoningCandidate(modelName, quickModel));
+}
+
+function inferStarterVisionModel(options = {}) {
+  const availableModels = getAvailableModelNames();
+  if (!availableModels.length) {
+    return "";
+  }
+
+  return pickBestModelByScore(
+    availableModels,
+    (modelName) => scoreVisionCandidate(modelName, { preferReasoning: options.preferReasoning === true })
+  );
+}
+
+function getStarterReasoningModel() {
+  return String(currentConfig?.starterReasoningModel || "").trim() || inferStarterReasoningModel();
+}
+
+function getStarterVisionModel(options = {}) {
+  return String(currentConfig?.starterVisionModel || "").trim() || inferStarterVisionModel(options);
+}
+
+function isStarterReasoningRouteEnabled() {
+  return currentConfig?.starterModelRoutingEnabled !== false && isAutoModelSelectionEnabled();
+}
+
+function starterNeedsReasoningModel(starter, pageCopilot = currentPageCopilot) {
+  if (!starter || !isStarterReasoningRouteEnabled()) {
+    return false;
+  }
+
+  const reasoningModel = getStarterReasoningModel();
+  const quickModel = getDefaultQuickReplyModel();
+  if (!reasoningModel || reasoningModel === quickModel) {
+    return false;
+  }
+
+  if (!isGithubAdapterActive(pageCopilot)) {
+    return false;
+  }
+
+  const githubStarterContext = getGithubStarterContext();
+  if (!STARTER_REASONING_GITHUB_CONTEXT_SET.has(githubStarterContext)) {
+    return false;
+  }
+
+  const starterId = String(starter.id || "").trim().replace(/^builtin:/, "");
+  if (STARTER_REASONING_BUILTIN_KEY_SET.has(starterId)) {
+    return true;
+  }
+
+  const routingText = [starter.id, starter.label, starter.prompt, starter.description]
+    .filter(Boolean)
+    .join(" ");
+  return STARTER_REASONING_REVIEW_PATTERN.test(routingText);
+}
+
+function taskNeedsVisionModel(userMessage = "", starter = null) {
+  const visionModel = getStarterVisionModel({ preferReasoning: taskNeedsVisionReasoning(userMessage, starter) });
+  if (!isAutoModelSelectionEnabled() || !visionModel) {
+    return false;
+  }
+
+  if (attachedImages.length) {
+    return true;
+  }
+
+  const starterId = String(starter?.id || "").trim().replace(/^builtin:/, "");
+  if (STARTER_VISION_BUILTIN_KEY_SET.has(starterId)) {
+    return true;
+  }
+
+  const routingText = [
+    userMessage,
+    starter?.label,
+    starter?.prompt,
+    starter?.description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return STARTER_VISION_KEYWORD_PATTERN.test(routingText);
+}
+
+function taskNeedsVisionReasoning(userMessage = "", starter = null) {
+  const routingText = [
+    userMessage,
+    starter?.label,
+    starter?.prompt,
+    starter?.description,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return /(ux|ui|layout|readability|hierarchy|contrast|design|accessibility|視覺|视觉|版面|排版|可讀性|可读性|層級|层级|對比|对比|設計|设计|可近用)/i.test(routingText);
+}
+
+function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {}) {
+  const quickModel = getDefaultQuickReplyModel();
+  const preferVisionReasoning = taskNeedsVisionReasoning(userMessage, starter);
+  const visionModel = getStarterVisionModel({ preferReasoning: preferVisionReasoning });
+  const reasoningModel = getStarterReasoningModel();
+
+  if (taskNeedsVisionModel(userMessage, starter) && visionModel) {
+    return {
+      kind: "vision",
+      model: visionModel,
+      quickModel,
+      reasoningModel,
+      visionModel,
+    };
+  }
+
+  if (starterNeedsReasoningModel(starter) && reasoningModel) {
+    return {
+      kind: "reasoning",
+      model: reasoningModel,
+      quickModel,
+      reasoningModel,
+      visionModel,
+    };
+  }
+
+  return {
+    kind: "quick",
+    model: quickModel,
+    quickModel,
+    reasoningModel,
+    visionModel,
+  };
+}
+
+function resolveStarterExecutionPlan(starter, preferredModel = "") {
+  const resolved = resolveExecutionModelForTask({ starter, userMessage: starter?.prompt || "" });
+  const suggestedModel = String(preferredModel || resolved.model || resolved.quickModel).trim();
+  return {
+    starter,
+    routeKind: resolved.kind,
+    quickModel: resolved.quickModel,
+    suggestedModel,
+    reasoningModel: resolved.reasoningModel,
+    visionModel: resolved.visionModel,
+  };
+}
+
+function setPendingStarterExecution(plan) {
+  pendingStarterExecution = plan || null;
+}
+
+function clearPendingStarterExecution() {
+  pendingStarterExecution = null;
 }
 
 function normalizeStarterDraftCollection(parsedValue) {
@@ -6659,7 +7055,8 @@ async function attachImageFiles(files) {
   attachedImages = [...attachedImages, ...nextImages];
   renderAttachments();
 
-  if (!modelLikelySupportsVision(currentConfig?.selectedModel)) {
+  const resolvedModel = resolveExecutionModelForTask({ userMessage: "" }).model || currentConfig?.selectedModel;
+  if (!modelLikelySupportsVision(resolvedModel)) {
     setStatus(tl("attachedImagesVisionWarning", { count: nextImages.length }));
     return;
   }
@@ -7268,10 +7665,12 @@ function renderTaskInbox() {
           <div class="ollama-quick-starters-label">${escapeHtml(tl("taskInbox"))}</div>
           <div class="ollama-quick-task-panel-hint">${escapeHtml(tl("taskInboxHint"))}</div>
         </div>
-        <button class="ollama-quick-secondary ollama-quick-task-extract" type="button" data-action="extract-chat-tasks" title="${escapeHtml(canExtractTasks ? tl("extractChatTasks") : tl("taskExtractDisabledHint"))}" ${isExtractingTasks || !canExtractTasks ? "disabled" : ""}>
-          ${isExtractingTasks ? `<span class="ollama-quick-task-spinner" aria-hidden="true"></span>` : ""}
-          <span>${escapeHtml(tl("extractChatTasks"))}</span>
-        </button>
+        <div class="ollama-quick-task-panel-actions">
+          <button class="ollama-quick-secondary ollama-quick-task-extract" type="button" data-action="extract-chat-tasks" title="${escapeHtml(canExtractTasks ? tl("extractChatTasks") : tl("taskExtractDisabledHint"))}" ${isExtractingTasks || !canExtractTasks ? "disabled" : ""}>
+            ${isExtractingTasks ? `<span class="ollama-quick-task-spinner" aria-hidden="true"></span>` : ""}
+            <span>${escapeHtml(tl("extractChatTasks"))}</span>
+          </button>
+        </div>
       </div>
       ${!canExtractTasks ? `<div class="ollama-quick-task-disabled-hint">${escapeHtml(tl("taskExtractUnavailable"))}</div>` : ""}
       <button class="ollama-quick-task-section-toggle" type="button" data-action="toggle-task-inbox" aria-expanded="${taskInboxExpanded ? "true" : "false"}">
@@ -7483,6 +7882,24 @@ function setStatus(text) {
   }
 }
 
+function getRouteLabel(routeKind = "quick") {
+  if (routeKind === "vision") {
+    return tl("modelRouteVision");
+  }
+  if (routeKind === "reasoning") {
+    return tl("modelRouteReasoning");
+  }
+  return tl("modelRouteQuick");
+}
+
+function getAutoModelStatusText(task = {}) {
+  const resolved = resolveExecutionModelForTask(task);
+  if (!resolved?.model) {
+    return tl("modelAutoSelected");
+  }
+  return tl("modelAutoResolved", { route: getRouteLabel(resolved.kind), model: resolved.model });
+}
+
 function setDragState(active) {
   isDragActive = active;
   const dropzone = ensureHost().querySelector("[data-role='dropzone']");
@@ -7501,7 +7918,8 @@ function renderShell() {
   const startersExpanded = areStartersExpanded || isPanelMaximized;
   const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
   const showTaskInbox = isTaskInboxVisible(currentPageCopilot);
-  const showDetachedTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
+  const canDetachTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
+  const showDetachedTaskRail = canDetachTaskRail && !isTaskRailCollapsed;
   const localDocuments = getLocalWorkFolderAttachedDocuments();
   if (!showGithubIncludePanel) {
     includePickerOpen = false;
@@ -7509,13 +7927,16 @@ function renderShell() {
   const activeStarterEntries = getActiveStarterEntries(currentPageCopilot);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
+  const modelSelectionMode = getModelSelectionMode();
   const modelOptions = cachedModels.length
-    ? cachedModels
+    ? [
+        `<option value="__auto__" ${modelSelectionMode === "auto" ? "selected" : ""}>${escapeHtml(tl("modelAutoOption"))}</option>`,
+        ...cachedModels
         .map((model) => {
-          const selected = currentConfig?.selectedModel === model.name ? "selected" : "";
+          const selected = modelSelectionMode === "manual" && currentConfig?.selectedModel === model.name ? "selected" : "";
           return `<option value="${escapeHtml(model.name)}" ${selected}>${escapeHtml(model.name)}</option>`;
         })
-        .join("")
+      ].join("")
     : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`;
 
   host.innerHTML = `
@@ -7530,7 +7951,16 @@ function renderShell() {
           <h2>${escapeHtml(tl("liveChat"))}</h2>
         </div>
         <div class="ollama-quick-header-actions">
-          ${showTaskInbox ? `<button class="ollama-quick-icon-button" type="button" data-action="open-task-inbox" title="${escapeHtml(tl("openTaskInbox"))}" aria-label="${escapeHtml(tl("openTaskInbox"))}">☰</button>` : ""}
+          ${showTaskInbox ? `
+            <button
+              class="ollama-quick-icon-button ${showDetachedTaskRail ? "is-active" : ""}"
+              type="button"
+              data-action="${canDetachTaskRail ? "toggle-task-rail" : "open-task-inbox"}"
+              title="${escapeHtml(tl(canDetachTaskRail ? (showDetachedTaskRail ? "hideTaskRail" : "showTaskRail") : "openTaskInbox"))}"
+              aria-label="${escapeHtml(tl(canDetachTaskRail ? (showDetachedTaskRail ? "hideTaskRail" : "showTaskRail") : "openTaskInbox"))}"
+              aria-pressed="${canDetachTaskRail ? String(showDetachedTaskRail) : "false"}"
+            >☰</button>
+          ` : ""}
           <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
             <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -7552,6 +7982,18 @@ function renderShell() {
             <span class="ollama-quick-status-indicator" data-role="status-indicator"></span>
             <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
           </div>
+          ${pendingStarterExecution?.starter && pendingStarterExecution?.suggestedModel ? `
+            <div class="ollama-quick-starter-route-banner">
+              <div class="ollama-quick-starter-route-copy">
+                <div class="ollama-quick-starter-route-kicker">${escapeHtml(tl(pendingStarterExecution.routeKind === "vision" ? "starterVisionModelAction" : "starterReasoningModelAction"))}</div>
+                <div class="ollama-quick-starter-route-title">${escapeHtml(tl(pendingStarterExecution.routeKind === "vision" ? "starterVisionModelHint" : "starterReasoningModelHint", { starter: pendingStarterExecution.starter.label, model: pendingStarterExecution.suggestedModel }))}</div>
+              </div>
+              <div class="ollama-quick-starter-route-actions">
+                <button class="ollama-quick-secondary" type="button" data-action="use-starter-default-route">${escapeHtml(tl(pendingStarterExecution.routeKind === "vision" ? "starterVisionModelAction" : "starterReasoningModelAction"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="use-starter-quick-reply">${escapeHtml(tl("starterQuickReplyAction"))}</button>
+              </div>
+            </div>
+          ` : ""}
           <div class="ollama-quick-messages" data-role="messages"></div>
           <div class="ollama-quick-compose">
             <div class="ollama-quick-dropzone" data-role="dropzone">${escapeHtml(tl("dropzone"))}</div>
@@ -7575,7 +8017,10 @@ function renderShell() {
         ` : ""}
         <aside class="ollama-quick-sidebar">
           <div class="ollama-quick-controls">
-            <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
+            <label class="ollama-quick-toggle ollama-quick-toggle-below ollama-quick-model-control">
+              <span>${escapeHtml(tl("modelLabel"))}</span>
+              <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
+            </label>
             <label class="ollama-quick-toggle ollama-quick-toggle-below">
               <span>${escapeHtml(pageContextControlLabel)}</span>
               <select class="ollama-quick-select" data-role="page-context-mode">
@@ -8312,7 +8757,7 @@ async function saveAgentFlowStarterFromDraft() {
   return flowId;
 }
 
-async function runAgentFlow(starter) {
+async function runAgentFlow(starter, modelOverride = "") {
   if (!starter?.isAgentFlow || !Array.isArray(starter.flowSteps) || starter.flowSteps.length < MIN_AGENT_FLOW_STEPS) {
     setStatus(tl("agentFlowInvalid"));
     return;
@@ -8323,7 +8768,8 @@ async function runAgentFlow(starter) {
     return;
   }
 
-  if (!currentConfig?.selectedModel) {
+  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
   }
@@ -8400,7 +8846,7 @@ async function runAgentFlow(starter) {
 
       const response = await runGenerate(
         await buildAgentFlowStepPrompt(starter, step, collectedOutputs, index + 1, resolvedSteps.length),
-        currentConfig.selectedModel
+        effectiveModel
       );
 
       updateAgentFlowMessage(assistantMessageId, (run, message) => {
@@ -8433,7 +8879,7 @@ async function runAgentFlow(starter) {
       run.finalContent = String(lastStep?.output || "").trim();
       message.content = run.finalContent;
     });
-    setStatus(tl("agentFlowDone", { name: starter.label }));
+    setStatus(tl("doneWithModel", { model: effectiveModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     updateAgentFlowMessage(assistantMessageId, (run, chatMessage) => {
@@ -8452,18 +8898,24 @@ async function runAgentFlow(starter) {
     isGenerating = false;
     composeMode = "chat";
     attachedDocuments = [];
+    clearPendingStarterExecution();
     renderAttachments();
     scheduleConversationSave();
   }
 }
 
-async function runMultiPerspectiveAnalysis(userMessage) {
+async function runMultiPerspectiveAnalysis(userMessage, modelOverride = "") {
   if (attachedImages.length) {
     setStatus(tl("perspectiveImagesUnsupported"));
     return;
   }
 
   const promptText = userMessage || tl("perspectiveInputFallback");
+  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  if (!effectiveModel) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
   const preset = getPerspectivePreset();
   latestPerspectiveRun = {
     id: Date.now(),
@@ -8485,7 +8937,7 @@ async function runMultiPerspectiveAnalysis(userMessage) {
       renderMessages();
       scheduleConversationSave();
       setStatus(tl("perspectiveStageRunning", { label: stage.label }));
-      stage.content = await runGenerate(await buildPerspectivePrompt(promptText, stage.instruction, collected), currentConfig.selectedModel);
+      stage.content = await runGenerate(await buildPerspectivePrompt(promptText, stage.instruction, collected), effectiveModel);
       stage.status = "done";
       collected.push({ label: stage.label, content: stage.content });
       renderMessages();
@@ -8498,7 +8950,7 @@ async function runMultiPerspectiveAnalysis(userMessage) {
         tl("perspectiveSynthesisInstruction"),
         collected
       ),
-      currentConfig.selectedModel
+      effectiveModel
     );
     latestPerspectiveRun.isComplete = true;
     renderMessages();
@@ -8514,7 +8966,44 @@ async function runMultiPerspectiveAnalysis(userMessage) {
   } finally {
     isGenerating = false;
     composeMode = "chat";
+    clearPendingStarterExecution();
   }
+}
+
+async function startStarterExecution(plan, modelOverride = "") {
+  if (!plan?.starter) {
+    return;
+  }
+
+  const effectiveModel = String(modelOverride || plan.suggestedModel || getDefaultQuickReplyModel()).trim();
+  if (!effectiveModel) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
+
+  const starter = plan.starter;
+  const prompt = ensureHost().querySelector("[data-role='prompt']");
+  if (!(prompt instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  composeMode = starter.composeMode;
+  prompt.value = starter.prompt || "";
+  renderShell();
+
+  if (starter.isAgentFlow) {
+    await runAgentFlow(starter, effectiveModel);
+    return;
+  }
+
+  setStatus(
+    plan.routeKind === "vision" && effectiveModel === plan.visionModel
+      ? tl("starterVisionModelReady", { model: effectiveModel })
+      : plan.routeKind === "reasoning" && effectiveModel === plan.reasoningModel
+        ? tl("starterReasoningModelReady", { model: effectiveModel })
+        : (starter.composeMode === "perspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter: starter.label }))
+  );
+  await sendCurrentPrompt({ modelOverride: effectiveModel });
 }
 
 async function handleClick(event) {
@@ -8550,6 +9039,7 @@ async function handleClick(event) {
   }
 
   if (action === "open-task-inbox") {
+    isTaskRailCollapsed = false;
     taskInboxExpanded = true;
     if (!extractedTaskCandidates.length && savedTaskReminders.length) {
       taskInboxView = "saved";
@@ -8558,6 +9048,22 @@ async function handleClick(event) {
     }
     togglePanel(true);
     togglePanelMaximize(true);
+    renderShell();
+    return;
+  }
+
+  if (action === "toggle-task-rail") {
+    isTaskRailCollapsed = !isTaskRailCollapsed;
+    if (!isTaskRailCollapsed) {
+      taskInboxExpanded = true;
+      if (!extractedTaskCandidates.length && savedTaskReminders.length) {
+        taskInboxView = "saved";
+      } else {
+        taskInboxView = "candidates";
+      }
+      togglePanel(true);
+      togglePanelMaximize(true);
+    }
     renderShell();
     return;
   }
@@ -9103,16 +9609,34 @@ async function handleClick(event) {
       return;
     }
 
-    if (starter.isAgentFlow) {
-      await runAgentFlow(starter);
+    const executionPlan = resolveStarterExecutionPlan(starter);
+    if (executionPlan.routeKind === "vision" || executionPlan.routeKind === "reasoning") {
+      setPendingStarterExecution(executionPlan);
+      composeMode = starter.composeMode;
+      prompt.value = starter.prompt || "";
+      renderShell();
+      setStatus(tl(executionPlan.routeKind === "vision" ? "starterVisionModelReady" : "starterReasoningModelReady", { model: executionPlan.suggestedModel }));
       return;
     }
 
-    composeMode = starter.composeMode;
-    prompt.value = starter.prompt;
-    renderShell();
-    setStatus(starter.composeMode === "perspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter: starter.label }));
-    await sendCurrentPrompt();
+    clearPendingStarterExecution();
+    await startStarterExecution(executionPlan, executionPlan.suggestedModel);
+    return;
+  }
+
+  if (action === "use-starter-default-route") {
+    if (!pendingStarterExecution?.starter) {
+      return;
+    }
+    await startStarterExecution(pendingStarterExecution, pendingStarterExecution.suggestedModel);
+    return;
+  }
+
+  if (action === "use-starter-quick-reply") {
+    if (!pendingStarterExecution?.starter) {
+      return;
+    }
+    await startStarterExecution(pendingStarterExecution, pendingStarterExecution.quickModel);
     return;
   }
 
@@ -9479,6 +10003,7 @@ async function handleClick(event) {
     chatMessages = [];
     latestPerspectiveRun = null;
     composeMode = "chat";
+    clearPendingStarterExecution();
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
     attachedDocuments = [];
@@ -9518,10 +10043,20 @@ async function handleClick(event) {
 async function handleChange(event) {
   const target = event.target;
   if (target instanceof HTMLSelectElement && target.dataset.role === "model-select") {
-    const result = await runtimeMessage({ type: "ollama:select-model", model: target.value });
+    const result = target.value === "__auto__"
+      ? await runtimeMessage({ type: "ollama:set-config", config: { modelSelectionMode: "auto" } })
+      : await runtimeMessage({ type: "ollama:set-config", config: { selectedModel: target.value, modelSelectionMode: "manual" } });
     if (result?.ok) {
       currentConfig = result.config;
-      setStatus(tl("modelSelected", { model: currentConfig.selectedModel || "none" }));
+      if (pendingStarterExecution?.starter) {
+        setPendingStarterExecution(resolveStarterExecutionPlan(pendingStarterExecution.starter));
+        renderShell();
+      }
+      setStatus(
+        getModelSelectionMode() === "auto"
+          ? getAutoModelStatusText({ starter: pendingStarterExecution?.starter || null })
+          : tl("modelSelected", { model: currentConfig.selectedModel || "none" })
+      );
     } else {
       setStatus(result?.error || tl("modelSelectFailed"));
     }
@@ -9639,7 +10174,7 @@ async function handlePaste(event) {
   }
 }
 
-async function sendCurrentPrompt() {
+async function sendCurrentPrompt(options = {}) {
   const promptNode = ensureHost().querySelector("[data-role='prompt']");
   if (!(promptNode instanceof HTMLTextAreaElement)) {
     return;
@@ -9651,16 +10186,24 @@ async function sendCurrentPrompt() {
     return;
   }
 
-  if (!currentConfig?.selectedModel) {
+  const autoRoute = resolveExecutionModelForTask({ starter: pendingStarterExecution?.starter || null, userMessage });
+  const pendingStarter = pendingStarterExecution?.starter || null;
+  const effectiveModel = String(options.modelOverride || pendingStarterExecution?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
+  if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
   }
 
-  if (attachedImages.length && !modelLikelySupportsVision(currentConfig.selectedModel)) {
-    setStatus(tl("sendingVisionWarning", { count: attachedImages.length, model: currentConfig.selectedModel }));
+  if (attachedImages.length && !modelLikelySupportsVision(effectiveModel)) {
+    setStatus(tl("sendingVisionWarning", { count: attachedImages.length, model: effectiveModel }));
   }
 
-  setStatus(tl("preparingRequest", { model: currentConfig.selectedModel }));
+  clearPendingStarterExecution();
+  setStatus(
+    getModelSelectionMode() === "auto"
+      ? getAutoModelStatusText({ starter: pendingStarter, userMessage })
+      : tl("preparingRequest", { model: effectiveModel })
+  );
   const displayMessage = userMessage || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
   const outgoingAttachments = {
     images: attachedImages.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
@@ -9679,7 +10222,7 @@ async function sendCurrentPrompt() {
     renderShell();
     renderMessages();
     scheduleConversationSave();
-    await runMultiPerspectiveAnalysis(userMessage);
+    await runMultiPerspectiveAnalysis(userMessage, effectiveModel);
     attachedDocuments = [];
     renderAttachments();
     return;
@@ -9699,17 +10242,17 @@ async function sendCurrentPrompt() {
   if (attachedDocuments.length) {
     waitingParts.push(`${attachedDocuments.length} ${tl("attachedFileLabel").toLowerCase()}${attachedDocuments.length > 1 ? "s" : ""}`);
   }
-  setStatus(tl("waitingForModel", { model: currentConfig.selectedModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
+  setStatus(tl("waitingForModel", { model: effectiveModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(await buildChatMessages(displayMessage), currentConfig.selectedModel);
+    await startStreamingChat(await buildChatMessages(displayMessage), effectiveModel);
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
     attachedDocuments = [];
     renderAttachments();
     isGenerating = false;
     scheduleConversationSave();
-    setStatus(tl("doneWithModel", { model: currentConfig.selectedModel }));
+    setStatus(tl("doneWithModel", { model: effectiveModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
@@ -9924,7 +10467,11 @@ async function bootstrap() {
     await loadSavedTaskReminders().catch(() => {});
     await loadLauncherPosition();
     renderShell();
-    setStatus(currentConfig?.selectedModel ? tl("usingModel", { model: currentConfig.selectedModel }) : tl("pickModelToStart"));
+    setStatus(
+      currentConfig?.selectedModel
+        ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model: currentConfig.selectedModel }))
+        : tl("pickModelToStart")
+    );
   } catch (error) {
     renderShell();
     setStatus(error instanceof Error ? error.message : String(error));

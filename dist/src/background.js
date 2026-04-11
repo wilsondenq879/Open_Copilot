@@ -48,6 +48,10 @@ const DEFAULT_CONFIG = {
   azureOpenAiApiVersion: "2024-10-21",
   defaultProvider: "ollama",
   selectedModel: "",
+  modelSelectionMode: "auto",
+  starterModelRoutingEnabled: true,
+  starterReasoningModel: "",
+  starterVisionModel: "",
   replyLanguage: "zh-TW",
   settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
@@ -1459,6 +1463,23 @@ function normalizeBaseUrl(url) {
   return (url || "").trim().replace(/\/+$/, "");
 }
 
+function isDisconnectedPortError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /disconnected port object/i.test(message) || /message port closed/i.test(message);
+}
+
+function tryPostPortMessage(port, message) {
+  try {
+    port.postMessage(message);
+    return true;
+  } catch (error) {
+    if (!isDisconnectedPortError(error)) {
+      console.warn("[Edge AI Chat] Failed to post port message", error);
+    }
+    return false;
+  }
+}
+
 async function fetchJson(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -1870,6 +1891,38 @@ async function listBrowserTabs({ excludedTabId } = {}) {
     }));
 }
 
+function isHttpTabUrl(url) {
+  return /^https?:\/\//i.test(String(url || ""));
+}
+
+async function reinjectContentScriptsIntoOpenTabs() {
+  if (!chrome.scripting?.executeScript || !chrome.scripting?.insertCSS) {
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({});
+  const injectableTabIds = tabs
+    .filter((tab) => Number.isFinite(Number(tab?.id)) && isHttpTabUrl(tab?.url))
+    .map((tab) => Number(tab.id));
+
+  await Promise.all(
+    injectableTabIds.map(async (tabId) => {
+      try {
+        await chrome.scripting.insertCSS({
+          target: { tabId, allFrames: true },
+          files: ["src/injected.css"],
+        });
+        await chrome.scripting.executeScript({
+          target: { tabId, allFrames: true },
+          files: ["src/content-script.js"],
+        });
+      } catch (error) {
+        console.warn("[Edge AI Chat] Failed to re-inject content scripts", { tabId, error });
+      }
+    })
+  );
+}
+
 async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
   const ids = Array.from(
     new Set(
@@ -1986,10 +2039,12 @@ async function streamGenerateWithOllama(port, prompt, model) {
   const decoder = new TextDecoder();
   let buffer = "";
 
-  port.postMessage({
+  if (!tryPostPortMessage(port, {
     type: "ollama:stream-start",
     model: selectedModel,
-  });
+  })) {
+    return;
+  }
 
   while (true) {
     const { done, value } = await reader.read();
@@ -2008,27 +2063,31 @@ async function streamGenerateWithOllama(port, prompt, model) {
       }
 
       const json = JSON.parse(trimmed);
-      port.postMessage({
+      if (!tryPostPortMessage(port, {
         type: "ollama:stream-chunk",
         model: selectedModel,
         response: json.response || "",
         done: Boolean(json.done),
-      });
+      })) {
+        return;
+      }
     }
   }
 
   const trailing = buffer.trim();
   if (trailing) {
     const json = JSON.parse(trailing);
-    port.postMessage({
+    if (!tryPostPortMessage(port, {
       type: "ollama:stream-chunk",
       model: selectedModel,
       response: json.response || "",
       done: Boolean(json.done),
-    });
+    })) {
+      return;
+    }
   }
 
-  port.postMessage({
+  tryPostPortMessage(port, {
     type: "ollama:stream-complete",
     model: selectedModel,
   });
@@ -2072,10 +2131,12 @@ async function streamChatWithOllama(port, messages, model) {
   const decoder = new TextDecoder();
   let buffer = "";
 
-  port.postMessage({
+  if (!tryPostPortMessage(port, {
     type: "ollama:stream-start",
     model: selectedModel,
-  });
+  })) {
+    return;
+  }
 
   while (true) {
     const { done, value } = await reader.read();
@@ -2094,27 +2155,31 @@ async function streamChatWithOllama(port, messages, model) {
       }
 
       const json = JSON.parse(trimmed);
-      port.postMessage({
+      if (!tryPostPortMessage(port, {
         type: "ollama:stream-chunk",
         model: selectedModel,
         response: json.message?.content || "",
         done: Boolean(json.done),
-      });
+      })) {
+        return;
+      }
     }
   }
 
   const trailing = buffer.trim();
   if (trailing) {
     const json = JSON.parse(trailing);
-    port.postMessage({
+    if (!tryPostPortMessage(port, {
       type: "ollama:stream-chunk",
       model: selectedModel,
       response: json.message?.content || "",
       done: Boolean(json.done),
-    });
+    })) {
+      return;
+    }
   }
 
-  port.postMessage({
+  tryPostPortMessage(port, {
     type: "ollama:stream-complete",
     model: selectedModel,
   });
@@ -2125,6 +2190,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const config = await getConfig();
   await chrome.storage.sync.set(omitSecretConfig(config));
   await restoreTaskAlarms();
+  await reinjectContentScriptsIntoOpenTabs();
 });
 
 chrome.runtime.onStartup?.addListener(() => {
@@ -2133,6 +2199,9 @@ chrome.runtime.onStartup?.addListener(() => {
   });
   restoreTaskAlarms().catch((error) => {
     console.warn("[Edge AI Chat] Failed to restore task alarms on startup", error);
+  });
+  reinjectContentScriptsIntoOpenTabs().catch((error) => {
+    console.warn("[Edge AI Chat] Failed to re-inject content scripts on startup", error);
   });
 });
 
@@ -2354,7 +2423,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (message?.type === "ollama:stream-generate") {
       streamGenerateWithOllama(port, message.prompt || "", message.model)
         .catch((error) => {
-          port.postMessage({
+          tryPostPortMessage(port, {
             type: "ollama:stream-error",
             error: error instanceof Error ? error.message : String(error),
           });
@@ -2365,7 +2434,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (message?.type === "ollama:stream-chat") {
       streamChatWithOllama(port, message.messages || [], message.model)
         .catch((error) => {
-          port.postMessage({
+          tryPostPortMessage(port, {
             type: "ollama:stream-error",
             error: error instanceof Error ? error.message : String(error),
           });

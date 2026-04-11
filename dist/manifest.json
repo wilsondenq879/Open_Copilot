@@ -2,12 +2,13 @@
   "manifest_version": 3,
   "name": "Open Copilot",
   "description": "Floating browser-side AI chat with current-page context and local Ollama routing.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "permissions": [
     "storage",
     "alarms",
     "identity",
     "notifications",
+    "scripting",
     "tabs"
   ],
   "host_permissions": [
