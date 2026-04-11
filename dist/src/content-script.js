@@ -179,6 +179,7 @@ let isDragActive = false;
 let pendingMessageRenderFrame = 0;
 let pendingSessionSaveTimer = 0;
 let areStartersExpanded = false;
+let starterSearch = "";
 let highlightedStarterId = "";
 let isPanelOpen = false;
 let isPanelMaximized = false;
@@ -234,6 +235,7 @@ let taskInboxExpanded = false;
 let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
 let pendingStarterExecution = null;
+let confirmDialogState = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const HTML_LAYOUT_GUARD_STYLE_ID = "edge-ai-chat-layout-guard";
 const HTML_MERMAID_RUNTIME_SCRIPT_ID = "edge-ai-chat-mermaid-runtime";
@@ -521,6 +523,7 @@ const CONTENT_I18N = {
     useSelection: "使用選取內容",
     clearChat: "清除對話",
     confirmClearChat: "確定要清除目前對話嗎？",
+    confirmAction: "確認",
     openSettings: "開啟設定",
     downloadMarkdown: "下載 MD",
     downloadHtml: "下載 HTML",
@@ -552,6 +555,7 @@ const CONTENT_I18N = {
     confirmClearBrowserTabs: "確定要清除目前加入的分頁嗎？",
     selectBrowserTabs: "選擇分頁",
     searchBrowserTabs: "搜尋分頁標題或網址",
+    searchStarters: "搜尋快捷指令",
     loadingBrowserTabs: "正在載入已開啟分頁...",
     browserTabBadge: "分頁",
     localDocumentLimitReached: "最多只能加入 5 份文件。",
@@ -940,6 +944,7 @@ const CONTENT_I18N = {
     useSelection: "Use selection",
     clearChat: "Clear chat",
     confirmClearChat: "Clear the current conversation?",
+    confirmAction: "Confirm",
     openSettings: "Open settings",
     downloadMarkdown: "Download MD",
     downloadHtml: "Download HTML",
@@ -981,6 +986,7 @@ const CONTENT_I18N = {
     confirmClearLocalDocuments: "Clear the currently added documents?",
     selectLocalDocuments: "Select Local Documents",
     searchLocalFilesAndFolders: "Search files or folders",
+    searchStarters: "Search starters",
     loadingLocalFiles: "Loading local files...",
     noLocalFiles: "This folder does not contain any supported text files.",
     localDocumentSelectionSaved: "Updated local documents.",
@@ -3651,6 +3657,7 @@ function normalizeCustomStarter(item, index = 0) {
     prompt,
     description,
     scopes: scopes.length ? scopes : ["all"],
+    showInPopup: item.showInPopup !== false,
     composeMode,
     flowSteps,
   };
@@ -3709,6 +3716,7 @@ function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
       isAgentFlow: starter.composeMode === "flow",
       scopes: starter.scopes,
       flowSteps: starter.flowSteps,
+      showInPopup: starter.showInPopup !== false,
       isRecommended: getStarterScopeRank(starter.scopes, pageCopilot) === 0,
       recommendationRank: getStarterScopeRank(starter.scopes, pageCopilot),
     }));
@@ -3728,6 +3736,8 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       description: summarizeStarterDescription(getStarterDescription(starterKey), getStarterText(starterKey)),
       composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
       isCustomStarter: false,
+      starterKey,
+      showInPopup: !Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey),
       isRecommended: highlightedKeys.includes(starterKey),
       isCustomStarterBuilder: starterKey === "createCustomStarter",
       isAgentFlowBuilder: starterKey === "createAgentFlow",
@@ -3737,20 +3747,35 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
 }
 
 function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
+  function getStarterPriority(starter) {
+    if (starter.id === highlightedStarterId) {
+      return 0;
+    }
+    if (starter.isAgentFlowBuilder) {
+      return 1;
+    }
+    if (starter.isCustomStarterBuilder) {
+      return 2;
+    }
+    if (starter.isAgentFlow) {
+      return 3;
+    }
+    if (starter.isCustomStarter) {
+      return 4;
+    }
+    if (starter.isRecommended) {
+      return 5;
+    }
+    return 6;
+  }
+
   return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
     .map((starter, index) => ({ ...starter, sortIndex: index }))
     .sort((left, right) => {
-      if (left.id === highlightedStarterId || right.id === highlightedStarterId) {
-        return left.id === highlightedStarterId ? -1 : 1;
-      }
-      if (left.isRecommended !== right.isRecommended) {
-        return left.isRecommended ? -1 : 1;
-      }
-      if (left.isAgentFlow !== right.isAgentFlow) {
-        return left.isAgentFlow ? -1 : 1;
-      }
-      if (left.isCustomStarter !== right.isCustomStarter) {
-        return left.isCustomStarter ? -1 : 1;
+      const leftPriority = getStarterPriority(left);
+      const rightPriority = getStarterPriority(right);
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
       }
       const leftRank = Number.isFinite(left.recommendationRank) ? left.recommendationRank : 999;
       const rightRank = Number.isFinite(right.recommendationRank) ? right.recommendationRank : 999;
@@ -3759,6 +3784,21 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
       }
       return left.sortIndex - right.sortIndex;
     });
+}
+
+function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
+  const entries = getActiveStarterEntries(pageCopilot).filter((starter) => starter.showInPopup !== false);
+  const query = starterSearch.trim().toLowerCase();
+  if (!query) {
+    return entries;
+  }
+
+  return entries.filter((starter) => {
+    const label = String(starter.label || "").toLowerCase();
+    const description = String(starter.description || "").toLowerCase();
+    const prompt = String(starter.prompt || "").toLowerCase();
+    return label.includes(query) || description.includes(query) || prompt.includes(query);
+  });
 }
 
 function getDefaultQuickReplyModel() {
@@ -7920,11 +7960,12 @@ function renderShell() {
   const showTaskInbox = isTaskInboxVisible(currentPageCopilot);
   const canDetachTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
   const showDetachedTaskRail = canDetachTaskRail && !isTaskRailCollapsed;
+  const canExtractTaskCandidates = showTaskInbox && canExtractTasksFromCurrentPage(currentPageCopilot);
   const localDocuments = getLocalWorkFolderAttachedDocuments();
   if (!showGithubIncludePanel) {
     includePickerOpen = false;
   }
-  const activeStarterEntries = getActiveStarterEntries(currentPageCopilot);
+  const activeStarterEntries = getFilteredActiveStarterEntries(currentPageCopilot);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelSelectionMode = getModelSelectionMode();
@@ -7953,13 +7994,13 @@ function renderShell() {
         <div class="ollama-quick-header-actions">
           ${showTaskInbox ? `
             <button
-              class="ollama-quick-icon-button ${showDetachedTaskRail ? "is-active" : ""}"
+              class="ollama-quick-icon-button ${showDetachedTaskRail ? "is-active" : ""} ${canExtractTaskCandidates ? "has-notice" : ""}"
               type="button"
               data-action="${canDetachTaskRail ? "toggle-task-rail" : "open-task-inbox"}"
               title="${escapeHtml(tl(canDetachTaskRail ? (showDetachedTaskRail ? "hideTaskRail" : "showTaskRail") : "openTaskInbox"))}"
               aria-label="${escapeHtml(tl(canDetachTaskRail ? (showDetachedTaskRail ? "hideTaskRail" : "showTaskRail") : "openTaskInbox"))}"
               aria-pressed="${canDetachTaskRail ? String(showDetachedTaskRail) : "false"}"
-            >☰</button>
+            >☰${canExtractTaskCandidates ? `<span class="ollama-quick-icon-badge" aria-hidden="true"></span>` : ""}</button>
           ` : ""}
           <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
@@ -8064,6 +8105,7 @@ function renderShell() {
               </div>
               ${isPanelMaximized ? "" : `<button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${startersExpanded ? "true" : "false"}">${escapeHtml(startersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>`}
             </div>
+            ${isPanelMaximized ? `<input class="ollama-quick-starter-search" type="text" data-role="starter-search" value="${escapeHtml(starterSearch)}" aria-label="${escapeHtml(tl("searchStarters"))}" title="${escapeHtml(tl("searchStarters"))}" />` : ""}
             <div class="ollama-quick-starters">
             ${activeStarterEntries.map((starter) => {
               const title = starterHoverTipsEnabled ? ` title="${escapeHtml(starter.description || starter.prompt || starter.label)}"` : "";
@@ -8099,6 +8141,7 @@ function renderShell() {
       ${renderLocalDocumentPicker()}
       ${renderCustomStarterBuilder()}
       ${renderAgentFlowBuilder()}
+      ${renderConfirmDialog()}
       </section>
     </div>
   `;
@@ -8179,10 +8222,15 @@ function togglePanelMaximize(force) {
     return;
   }
 
+  const wasMaximized = panel.classList.contains("is-maximized");
   const next = typeof force === "boolean" ? force : !panel.classList.contains("is-maximized");
   isPanelMaximized = next;
+  if (next && !wasMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX) {
+    isTaskRailCollapsed = true;
+  }
   if (!next) {
     taskInboxExpanded = false;
+    starterSearch = "";
   }
   panel.classList.toggle("is-maximized", next);
   syncHostState(host);
@@ -8214,6 +8262,53 @@ function restorePickerInputFocus(role) {
     const end = input.value.length;
     input.setSelectionRange(end, end);
   });
+}
+
+function closeConfirmDialog(confirmed) {
+  if (!confirmDialogState) {
+    return;
+  }
+  const resolver = confirmDialogState.resolve;
+  confirmDialogState = null;
+  renderShell();
+  resolver(Boolean(confirmed));
+}
+
+function requestConfirmation(message, options = {}) {
+  return new Promise((resolve) => {
+    confirmDialogState = {
+      message: String(message || "").trim(),
+      confirmLabel: String(options.confirmLabel || tl("confirmAction")).trim() || tl("confirmAction"),
+      cancelLabel: String(options.cancelLabel || tl("cancelSelection")).trim() || tl("cancelSelection"),
+      title: String(options.title || tl("liveChat")).trim() || tl("liveChat"),
+      resolve,
+    };
+    renderShell();
+  });
+}
+
+function renderConfirmDialog() {
+  if (!confirmDialogState) {
+    return "";
+  }
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-confirm-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(confirmDialogState.title)}">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(confirmDialogState.title)}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(confirmDialogState.message)}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="cancel-confirm-dialog" aria-label="${escapeHtml(confirmDialogState.cancelLabel)}">×</button>
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="cancel-confirm-dialog">${escapeHtml(confirmDialogState.cancelLabel)}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="confirm-dialog">${escapeHtml(confirmDialogState.confirmLabel)}</button>
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 function renderIncludePicker() {
@@ -9038,6 +9133,16 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "cancel-confirm-dialog") {
+    closeConfirmDialog(false);
+    return;
+  }
+
+  if (action === "confirm-dialog") {
+    closeConfirmDialog(true);
+    return;
+  }
+
   if (action === "open-task-inbox") {
     isTaskRailCollapsed = false;
     taskInboxExpanded = true;
@@ -9180,7 +9285,7 @@ async function handleClick(event) {
 
   if (action === "delete-task-reminder") {
     const taskId = actionNode.dataset.taskId || actionNode.closest("[data-task-card]")?.dataset.taskId || "";
-    if (!taskId || !window.confirm(tl("taskConfirmDelete"))) {
+    if (!taskId || !(await requestConfirmation(tl("taskConfirmDelete"), { confirmLabel: tl("taskDelete") }))) {
       return;
     }
 
@@ -9221,7 +9326,7 @@ async function handleClick(event) {
   }
 
   if (action === "clear-local-documents") {
-    if (!window.confirm(tl("confirmClearLocalDocuments"))) {
+    if (!(await requestConfirmation(tl("confirmClearLocalDocuments"), { confirmLabel: tl("clearLocalDocuments") }))) {
       return;
     }
     attachedDocuments = attachedDocuments.filter((item) => item.source !== "local-work-folder");
@@ -9253,7 +9358,7 @@ async function handleClick(event) {
   }
 
   if (action === "clear-browser-tabs") {
-    if (!window.confirm(tl("confirmClearBrowserTabs"))) {
+    if (!(await requestConfirmation(tl("confirmClearBrowserTabs"), { confirmLabel: tl("clearBrowserTabs") }))) {
       return;
     }
     attachedBrowserTabs = [];
@@ -9363,7 +9468,7 @@ async function handleClick(event) {
   }
 
   if (action === "clear-include-source") {
-    if (!window.confirm(tl("confirmClearIncludedSource"))) {
+    if (!(await requestConfirmation(tl("confirmClearIncludedSource"), { confirmLabel: tl("clearIncludedSource") }))) {
       return;
     }
     includedGithubSources = [];
@@ -9554,7 +9659,7 @@ async function handleClick(event) {
   }
 
   if (action === "remove-attachment") {
-    if (!window.confirm(tl("confirmRemoveAttachment"))) {
+    if (!(await requestConfirmation(tl("confirmRemoveAttachment"), { confirmLabel: tl("confirmAction") }))) {
       return;
     }
     const imageId = actionNode.dataset.imageId;
@@ -9997,7 +10102,7 @@ async function handleClick(event) {
   }
 
   if (action === "clear-chat") {
-    if (!window.confirm(tl("confirmClearChat"))) {
+    if (!(await requestConfirmation(tl("confirmClearChat"), { confirmLabel: tl("clearChat") }))) {
       return;
     }
     chatMessages = [];
@@ -10123,6 +10228,13 @@ function handleInput(event) {
     includeFileSearch = target.value;
     renderShell();
     restorePickerInputFocus("include-file-search");
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "starter-search") {
+    starterSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("starter-search");
   }
 }
 

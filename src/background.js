@@ -64,6 +64,7 @@ const DEFAULT_CONFIG = {
   azureOpenAiApiKeyConfigured: false,
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
   customStarters: [],
+  hiddenBuiltinStarterIds: [],
   recentGithubFiles: [],
   systemPrompt: [
     "You are an Ollama quick assistant inside the user's browser.",

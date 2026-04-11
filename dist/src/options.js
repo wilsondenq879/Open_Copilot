@@ -1451,7 +1451,7 @@ Object.assign(OPTION_I18N.hi, {
 });
 
 Object.assign(OPTION_I18N["zh-TW"], {
-  customStartersLabel: "教 AI 一個新技能",
+  customStartersLabel: "手動建立ai新技能",
   customStartersInputLabel: "貼上技能 JSON",
   starterLibraryTitle: "AI 技能庫",
   starterLibraryDescription: "把你教給 AI 的可重複使用技能集中管理在這裡。貼上新的 JSON、依照 ID 更新既有技能，讓頁面內聊天面板隨時可用。",
@@ -1606,6 +1606,7 @@ let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
 let activeSettingsView = "settings";
 let currentCustomStarters = [];
+let currentHiddenBuiltinStarterIds = [];
 let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
 let latestWorkFolderStatus = null;
@@ -1922,6 +1923,65 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
     createAgentFlow: "Combine multiple skills into a reusable Agent Flow.",
   },
 };
+const BUILTIN_STARTER_LABEL_MAP = {
+  "zh-TW": {
+    pageSummary: "網頁內容精華",
+    translatePage: "網頁翻譯",
+    reflectionArticle: "依照網頁內容生成心得文",
+    codeExplain: "code 內容白話文解析",
+    imageAnalysis: "圖片分析",
+    imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
+    landingHtml: "轉成 HTML",
+    articleTimeline: "整理事件時間線",
+    articleBiasCheck: "檢查觀點與可能盲點",
+    codeRiskReview: "找出程式風險點",
+    codeTeachBack: "轉成教學筆記",
+    emailSummary: "Email內容摘要",
+    multiPerspective: "多視角分析",
+    githubRepoPurpose: "這個 Repo 是做什麼用的？",
+    githubSummary: "整理這個 GitHub 頁面",
+    githubReviewFocus: "建議 review 重點",
+    githubNextSteps: "列出下一步建議",
+    githubCrossCheck: "比對目前頁面與加入文件",
+    githubSpecCoverage: "檢查規格 / 文件覆蓋度",
+    githubDriftCheck: "找出與加入文件的不一致",
+    githubReviewChecklist: "產生交叉 review 清單",
+    githubTestGap: "找測試與驗證缺口",
+    githubDocReview: "文件 review",
+    githubRequirementMap: "需求 / 文件對照",
+    githubSecurityRequirementCheck: "安全需求覆蓋檢查",
+    githubWebReview: "HTML / 前端結構 review",
+    githubAccessibilityReview: "可近用性與語意檢查",
+    githubFrontendSecurityReview: "前端安全 review",
+    githubCodeReviewDeep: "程式碼深度 review",
+    githubContractCheck: "介面 / 契約一致性檢查",
+    githubSecurityReview: "安全風險 review",
+    githubRegressionHotspots: "回歸風險熱點",
+    githubMemorySafetyReview: "記憶體安全 review",
+    githubAttackSurfaceReview: "攻擊面檢查",
+    githubConfigReview: "設定檔風險 review",
+    githubSecretAndPermissionReview: "Secrets / 權限檢查",
+    githubOperationalRiskReview: "部署與操作風險檢查",
+    githubArchitectureMap: "專案架構對照",
+    githubImpactSurfaceMap: "影響面盤點",
+    githubRepoSecurityReview: "Repo 層級安全檢查",
+    chatWeeklyDigest: "近三天對談重點匯報",
+    chatActionItems: "抓待辦 / owner / deadline",
+    docExecutiveBrief: "文件高層摘要",
+    docOutline: "重建文件大綱",
+    bullVsBear: "Bull vs Bear",
+    catalystMap: "Catalyst Map",
+    pricedIn: "Priced In?",
+    tickerImpact: "Ticker Impact",
+    memeCaption: "梗圖文案",
+    darkMeme: "地獄梗版本",
+    xPost: "X 貼文版",
+    templateIdeas: "梗圖模板建議",
+    lowIqMeme: "低智商梗圖文案",
+    createCustomStarter: "教 AI 一個新技能",
+    createAgentFlow: "Create Agent Flow",
+  },
+};
 const STARTER_SCOPE_ALIASES = {
   "*": "all",
   any: "all",
@@ -1973,13 +2033,18 @@ Object.assign(OPTION_I18N["zh-TW"], {
   skillMetaModeLabel: "模式",
   skillMetaScopesLabel: "適用範圍",
   skillMetaSummaryLabel: "摘要",
-  flowMetaStepCountLabel: "步驟數",
-  builtinSkillBadge: "內建",
+    flowMetaStepCountLabel: "步驟數",
+    skillDetailNameLabel: "按鈕文字",
+    skillDetailSaveName: "儲存按鈕文字",
+    skillDetailNameSaved: "已更新技能按鈕文字：{name}",
+    builtinSkillBadge: "內建",
   customSkillBadge: "自訂",
   openDetailsButton: "查看完整內容",
-  duplicateBuiltinSkill: "複製成自訂 skill",
-  builtinSkillDuplicated: "已複製內建 skill：{name}",
-});
+    duplicateBuiltinSkill: "複製成自訂 skill",
+    builtinSkillDuplicated: "已複製內建 skill：{name}",
+    popupVisibilityShown: "工具列顯示",
+    popupVisibilityHidden: "工具列隱藏",
+  });
 
 Object.assign(OPTION_I18N.en, {
   utilityTabGeneral: "General",
@@ -2013,11 +2078,16 @@ Object.assign(OPTION_I18N.en, {
   skillMetaScopesLabel: "Scopes",
   skillMetaSummaryLabel: "Summary",
   flowMetaStepCountLabel: "Steps",
+  skillDetailNameLabel: "Button Text",
+  skillDetailSaveName: "Save Button Text",
+  skillDetailNameSaved: "Updated skill button text: {name}",
   builtinSkillBadge: "Built-in",
   customSkillBadge: "Custom",
   openDetailsButton: "Open Details",
   duplicateBuiltinSkill: "Duplicate as Custom",
   builtinSkillDuplicated: "Duplicated built-in skill: {name}",
+  popupVisibilityShown: "Shown In Toolbar",
+  popupVisibilityHidden: "Hidden From Toolbar",
 });
 
 function t(key, vars = {}) {
@@ -2055,6 +2125,9 @@ function humanizeStarterKey(key) {
 }
 
 function getBuiltinSkillLabel(key) {
+  if (currentReplyLanguage === "zh-TW") {
+    return BUILTIN_STARTER_LABEL_MAP["zh-TW"]?.[key] || humanizeStarterKey(key);
+  }
   return humanizeStarterKey(key);
 }
 
@@ -2082,6 +2155,7 @@ function getBuiltinSkillEntries() {
     prompt: getBuiltinSkillPrompt(key),
     description: getBuiltinSkillDescription(key),
     scopes: BUILTIN_STARTER_SCOPE_MAP[key] || ["all"],
+    showInPopup: !currentHiddenBuiltinStarterIds.includes(key),
     mode: key === "multiPerspective" ? "perspective" : "chat",
     sourceType: "builtin",
     isBuiltin: true,
@@ -2440,6 +2514,7 @@ function normalizeImportedStarter(item, index) {
     prompt,
     description,
     scopes: normalizeStarterScopes(item.scopes ?? item.scope ?? item.pageTypes ?? item.pageType),
+    showInPopup: item.showInPopup !== false,
     mode,
     flowSteps,
   };
@@ -2495,6 +2570,7 @@ function renderStarterCardMarkup(starter, {
         <div class="starter-preview-actions">
           <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
           ${isBuiltin ? `<div class="starter-preview-lock">${escapeHtml(t("builtinSkillBadge"))}</div>` : `<div class="starter-preview-lock">${escapeHtml(t("customSkillBadge"))}</div>`}
+          <button class="secondary-button starter-preview-visibility ${starter.showInPopup !== false ? "is-on" : "is-off"}" type="button" data-action="toggle-popup-visibility" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t(starter.showInPopup !== false ? "popupVisibilityShown" : "popupVisibilityHidden"))}</button>
           ${includeOpenButton ? `<button class="secondary-button starter-preview-edit" type="button" data-action="${starter.mode === "flow" ? "open-flow-detail" : "open-skill-detail"}" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("openDetailsButton"))}</button>` : ""}
           ${includeEditButton && starter.mode === "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>` : ""}
           ${includeEditButton && starter.mode !== "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editStarterWithAi"))}</button>` : ""}
@@ -2741,6 +2817,7 @@ async function saveStarterFlowEditorDraft() {
     label,
     description: draft.description || "",
     scopes: draft.scopes || starter.scopes,
+    showInPopup: starter.showInPopup !== false,
     mode: "flow",
     flowSteps: draft.flowSteps,
   }, currentCustomStarters.findIndex((item) => item.id === starter.id));
@@ -2964,6 +3041,7 @@ function buildDuplicatedBuiltinStarter(starter) {
     prompt: starter.prompt,
     description: starter.description,
     scopes: starter.scopes,
+    showInPopup: starter.showInPopup !== false,
     mode: starter.mode,
   }, currentCustomStarters.length);
 }
@@ -3078,7 +3156,19 @@ function renderSkillDetailModal() {
   const metaNode = document.getElementById("skillDetailMeta");
   const promptNode = document.getElementById("skillDetailPrompt");
   const actionsNode = document.getElementById("skillDetailActions");
-  if (!(backdrop instanceof HTMLElement) || !(currentCard instanceof HTMLElement) || !(metaNode instanceof HTMLElement) || !(promptNode instanceof HTMLElement) || !(actionsNode instanceof HTMLElement)) {
+  const editorBlock = document.getElementById("skillDetailEditorBlock");
+  const nameInput = document.getElementById("skillDetailNameInput");
+  const saveNameButton = document.getElementById("skillDetailSaveName");
+  if (
+    !(backdrop instanceof HTMLElement) ||
+    !(currentCard instanceof HTMLElement) ||
+    !(metaNode instanceof HTMLElement) ||
+    !(promptNode instanceof HTMLElement) ||
+    !(actionsNode instanceof HTMLElement) ||
+    !(editorBlock instanceof HTMLElement) ||
+    !(nameInput instanceof HTMLInputElement) ||
+    !(saveNameButton instanceof HTMLButtonElement)
+  ) {
     return;
   }
 
@@ -3095,6 +3185,11 @@ function renderSkillDetailModal() {
     isBuiltin: Boolean(starter.isBuiltin),
   });
   document.getElementById("skillDetailTitle").textContent = starter.label;
+  document.getElementById("skillDetailNameLabel").textContent = t("skillDetailNameLabel");
+  saveNameButton.textContent = t("skillDetailSaveName");
+  editorBlock.hidden = Boolean(starter.isBuiltin);
+  nameInput.value = starter.label || "";
+  saveNameButton.disabled = Boolean(starter.isBuiltin);
   metaNode.innerHTML = renderDetailMetaList([
     { label: t("skillMetaIdLabel"), value: starter.id },
     { label: t("skillMetaSourceLabel"), value: starter.isBuiltin ? t("builtinSkillBadge") : t("customSkillBadge") },
@@ -3178,6 +3273,7 @@ async function persistCustomStarters(starters) {
     type: "ollama:set-config",
     config: {
       customStarters: starters,
+      hiddenBuiltinStarterIds: currentHiddenBuiltinStarterIds,
     },
   });
 
@@ -3365,6 +3461,9 @@ async function loadConfig() {
     } catch (_error) {
       currentCustomStarters = [];
     }
+    currentHiddenBuiltinStarterIds = Array.isArray(result.config.hiddenBuiltinStarterIds)
+      ? result.config.hiddenBuiltinStarterIds.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
     renderCustomStartersPreview();
     applySettingsTheme(settingsTheme);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
@@ -3430,6 +3529,7 @@ async function saveConfig() {
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,
+      hiddenBuiltinStarterIds: currentHiddenBuiltinStarterIds,
     },
   });
 
@@ -3566,6 +3666,31 @@ async function handleStarterPreviewAction(event) {
     return;
   }
 
+  if (actionNode.dataset.action === "toggle-popup-visibility") {
+    try {
+      if (starterId.startsWith("builtin:")) {
+        const builtinId = starterId.replace(/^builtin:/, "").trim();
+        currentHiddenBuiltinStarterIds = currentHiddenBuiltinStarterIds.includes(builtinId)
+          ? currentHiddenBuiltinStarterIds.filter((item) => item !== builtinId)
+          : [...currentHiddenBuiltinStarterIds, builtinId];
+      } else {
+        currentCustomStarters = currentCustomStarters.map((item) => (
+          item.id === starterId
+            ? { ...item, showInPopup: item.showInPopup === false }
+            : item
+        ));
+      }
+      renderCustomStartersPreview();
+      renderSkillDetailModal();
+      renderFlowDetailModal();
+      await persistCustomStarters(currentCustomStarters);
+      setStatus(t("saveSuccess"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
   if (actionNode.dataset.action === "edit-custom-starter") {
     closeSkillDetail();
     openStarterAiEditor(starterId);
@@ -3684,7 +3809,10 @@ document.getElementById("starterAiEditorApply").addEventListener("click", async 
     if (!response) {
       throw new Error(t("starterAiEditorEmptyReply"));
     }
-    const updatedStarter = parseSingleStarter(response, currentCustomStarters.findIndex((item) => item.id === starter.id));
+    const updatedStarter = {
+      ...parseSingleStarter(response, currentCustomStarters.findIndex((item) => item.id === starter.id)),
+      showInPopup: starter.showInPopup !== false,
+    };
     starterAiEditorState.pendingStarter = updatedStarter;
     currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
     renderCustomStartersPreview();
@@ -3727,6 +3855,32 @@ document.getElementById("skillDetailModal").addEventListener("click", (event) =>
 document.getElementById("flowDetailModal").addEventListener("click", (event) => {
   if (event.target === event.currentTarget) {
     closeFlowDetail();
+  }
+});
+
+document.getElementById("skillDetailSaveName").addEventListener("click", async () => {
+  const starter = currentCustomStarters.find((item) => item.id === skillDetailState.starterId && item.mode !== "flow");
+  const input = document.getElementById("skillDetailNameInput");
+  if (!starter || !(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const nextLabel = input.value.trim();
+  if (!nextLabel) {
+    input.focus();
+    return;
+  }
+
+  try {
+    currentCustomStarters = currentCustomStarters.map((item) => (
+      item.id === starter.id ? { ...item, label: nextLabel } : item
+    ));
+    renderCustomStartersPreview();
+    renderSkillDetailModal();
+    await persistCustomStarters(currentCustomStarters);
+    setStatus(t("skillDetailNameSaved", { name: nextLabel }));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
   }
 });
 
@@ -3957,6 +4111,7 @@ document.getElementById("replyLanguage").addEventListener("change", (event) => {
 });
 
 async function initializeOptionsPage() {
+  applySettingsTheme("system");
   await loadConfig();
   try {
     await refreshModels();

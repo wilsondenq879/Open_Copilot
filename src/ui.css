@@ -1034,6 +1034,24 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
+.starter-studio-intake-horizontal {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.starter-studio-intake-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.starter-studio-head-compact {
+  margin-bottom: 0;
+}
+
 .starter-library-limit {
   display: inline-flex;
   align-items: center;
@@ -1050,16 +1068,25 @@ textarea:focus {
 
 .starter-studio-actions {
   justify-content: flex-start;
+  margin-top: auto;
 }
 
 .starter-json-field {
   margin-top: 12px;
 }
 
+.starter-json-field-side {
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .starter-json-field textarea {
   min-height: 180px;
   font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
   line-height: 1.55;
+  height: 100%;
 }
 
 .starter-preview-list {
@@ -1358,6 +1385,18 @@ textarea:focus {
   font-size: 12px;
 }
 
+.starter-preview-visibility.is-on {
+  border-color: rgba(105, 235, 156, 0.28);
+  background: rgba(24, 78, 55, 0.42);
+  color: #dffff0;
+}
+
+.starter-preview-visibility.is-off {
+  border-color: rgba(154, 176, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(211, 225, 247, 0.84);
+}
+
 .starter-ai-editor-modal .field textarea,
 .starter-ai-editor-modal .field input,
 .starter-ai-editor-modal .field select,
@@ -1553,6 +1592,14 @@ body[data-theme="light"] .starter-detail-meta-value {
   .starter-studio-head,
   .starter-studio-library-head {
     flex-direction: column;
+  }
+
+  .starter-studio-intake-horizontal {
+    grid-template-columns: 1fr;
+  }
+
+  .starter-json-field-side {
+    margin-top: 4px;
   }
 
   .starter-library-metrics {

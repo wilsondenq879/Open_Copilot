@@ -31,7 +31,7 @@
         <label class="toolbar-field" for="settingsThemeToolbar">
           <span id="settingsThemeToolbarLabel">Theme</span>
           <select id="settingsThemeToolbar" aria-label="Settings theme">
-            <option id="settingsThemeToolbarSystemOption" value="system">Follow System</option>
+            <option id="settingsThemeToolbarSystemOption" value="system" selected>Follow System</option>
             <option id="settingsThemeToolbarDarkOption" value="dark">Dark</option>
             <option id="settingsThemeToolbarLightOption" value="light">Light</option>
           </select>
@@ -358,22 +358,24 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </div>
 
         <div class="starter-studio-shell library-page-shell">
-          <section class="starter-studio-intake">
-            <div class="starter-studio-head">
-              <div>
-                <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
-                <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+          <section class="starter-studio-intake starter-studio-intake-horizontal">
+            <div class="starter-studio-intake-copy">
+              <div class="starter-studio-head starter-studio-head-compact">
+                <div>
+                  <div id="customStartersLabel" class="starter-studio-title">Custom Starters</div>
+                  <p id="customStartersHint" class="field-hint">Import a JSON array of starter objects with `label`, `prompt`, and optional `scopes` plus `mode`.</p>
+                </div>
               </div>
               <span id="starterLibraryLimitHint" class="starter-library-limit">Up to 20 starter skills</span>
+              <div class="actions settings-inline-actions starter-studio-actions">
+                <button id="createStartersButton" class="primary-button" type="button">Create</button>
+                <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
+              </div>
             </div>
-            <label class="field starter-json-field">
+            <label class="field starter-json-field starter-json-field-side">
               <span id="customStartersInputLabel">Paste Starter JSON</span>
               <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
             </label>
-            <div class="actions settings-inline-actions starter-studio-actions">
-              <button id="createStartersButton" class="primary-button" type="button">Create</button>
-              <button id="clearStartersButton" class="secondary-button danger-button" type="button">Clear Imported</button>
-            </div>
           </section>
 
           <section class="starter-studio-library starter-studio-library-full">
@@ -442,6 +444,15 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </div>
         <div id="skillDetailCurrentCard" class="starter-preview-card"></div>
         <div class="starter-detail-grid">
+          <div id="skillDetailEditorBlock" class="starter-detail-block" hidden>
+            <label class="field">
+              <span id="skillDetailNameLabel">Button Text</span>
+              <input id="skillDetailNameInput" type="text" />
+            </label>
+            <div class="actions settings-inline-actions starter-ai-editor-actions">
+              <button id="skillDetailSaveName" class="primary-button" type="button">Save Button Text</button>
+            </div>
+          </div>
           <div class="starter-detail-block">
             <div id="skillDetailMetaLabel" class="starter-ai-editor-current-label">Metadata</div>
             <div id="skillDetailMeta" class="starter-ai-editor-conversation"></div>
