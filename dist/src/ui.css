@@ -1020,6 +1020,10 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.starter-studio-library-full {
+  grid-column: 1 / -1;
+}
+
 .starter-preview-card {
   padding: 16px;
   border: 1px solid rgba(104, 187, 255, 0.16);
@@ -1291,6 +1295,67 @@ textarea:focus {
 .starter-ai-editor-modal .field input::placeholder,
 .starter-ai-editor-modal #starterAiEditorInput::placeholder {
   color: rgba(184, 218, 245, 0.58);
+}
+
+.starter-flow-editor-modal {
+  width: min(980px, 100%);
+}
+
+.starter-flow-editor-steps,
+.starter-flow-editor-available {
+  display: grid;
+  gap: 12px;
+}
+
+.starter-flow-editor-step,
+.starter-flow-editor-available-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(6, 17, 31, 0.48);
+}
+
+.starter-flow-editor-step-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.starter-flow-editor-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a8ff9a, #51c96e);
+  color: #0f3317;
+  font-size: 12px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.starter-flow-editor-step-copy {
+  min-width: 0;
+}
+
+.starter-flow-editor-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+body[data-theme="light"] .starter-flow-editor-step,
+body[data-theme="light"] .starter-flow-editor-available-card {
+  border-color: rgba(91, 143, 181, 0.18);
+  background: rgba(247, 251, 255, 0.86);
 }
 
 @media (max-width: 720px) {

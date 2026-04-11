@@ -10,6 +10,8 @@ const MAX_RECENT_GITHUB_FILES = 10;
 const MAX_GITHUB_VISIBLE_FILE_PATHS = 20;
 const MAX_ATTACHED_DOCUMENTS = 5;
 const MAX_CUSTOM_STARTERS = 20;
+const MIN_AGENT_FLOW_STEPS = 2;
+const MAX_AGENT_FLOW_STEPS = 5;
 const TASK_EXTRACTION_LIMIT = 8;
 const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
 const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
@@ -177,6 +179,7 @@ let isDragActive = false;
 let pendingMessageRenderFrame = 0;
 let pendingSessionSaveTimer = 0;
 let areStartersExpanded = false;
+let highlightedStarterId = "";
 let isPanelOpen = false;
 let isPanelMaximized = false;
 let launcherPosition = null;
@@ -222,6 +225,8 @@ let customStarterBuilderDraft = {
 let customStarterBuilderConversation = [];
 let customStarterBuilderIsGenerating = false;
 let customStarterBuilderIsSaving = false;
+let agentFlowBuilderOpen = false;
+let agentFlowBuilderDraft = null;
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
@@ -359,6 +364,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
     createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
+    createAgentFlow: "把多個技能串成一條可重複執行的 Agent Flow。",
   },
   en: {
     pageSummary: "Pull out the main points, context, and key details from the current page.",
@@ -415,6 +421,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
     createCustomStarter: "Help teach your AI a new reusable skill.",
+    createAgentFlow: "Combine multiple skills into a reusable Agent Flow.",
   },
 };
 const CUSTOM_STARTER_SCOPE_ALIASES = {
@@ -689,7 +696,9 @@ const CONTENT_I18N = {
     starter_multiPerspective: "多視角分析",
     starter_imageAnalysis: "圖片分析",
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
+    starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教 AI 一個新技能",
+    createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
@@ -755,6 +764,34 @@ const CONTENT_I18N = {
     perspectiveModeReady: "已切換為多視角分析模式。",
     perspectivePanelTitle: "Multi-View Answer",
     perspectiveFinalTitle: "整合結論",
+    agentFlowRole: "Agent Flow",
+    agentFlowPanelTitle: "Agent Flow",
+    agentFlowFinalTitle: "最終輸出",
+    agentFlowPendingStep: "等待執行這一步。",
+    agentFlowEmptyResult: "這條 flow 沒有產出可顯示的最終內容。",
+    agentFlowProgressSummary: "目前進度：第 {current} / {total} 步",
+    agentFlowRunningStep: "正在執行 Flow 第 {current}/{total} 步：{name}",
+    agentFlowDone: "Agent Flow「{name}」執行完成。",
+    agentFlowInvalid: "這個 Agent Flow 的設定不完整，暫時無法執行。",
+    agentFlowMissingSteps: "這條 Agent Flow 需要的 skill 目前不在可用清單中。",
+    agentFlowImagesUnsupported: "Agent Flow 第一版暫不支援圖片附件。",
+    agentFlowUserMessage: "執行 Agent Flow：{name}",
+    createAgentFlowTitle: "Create Agent Flow",
+    createAgentFlowHint: "選擇 2 到 5 個目前可用的 skills，排成一條會依序執行的 workflow。",
+    agentFlowNameLabel: "Flow 名稱",
+    agentFlowNamePlaceholder: "例如：PR 快速審查流程",
+    agentFlowSelectedStepsLabel: "已選步驟 {count} 個，至少 {min} 個，最多 {max} 個",
+    agentFlowAvailableSkills: "目前可加入的 skills",
+    agentFlowNoStepsSelected: "還沒有加入任何步驟。",
+    agentFlowNoAvailableSkills: "目前沒有可加入 flow 的 skill。",
+    agentFlowRemoveStep: "點一下可移除此步驟",
+    agentFlowMoveUp: "上移",
+    agentFlowMoveDown: "下移",
+    agentFlowSave: "儲存 Flow",
+    agentFlowSaved: "已儲存 Agent Flow：{name}",
+    agentFlowNeedName: "請先替這條 Agent Flow 命名。",
+    agentFlowNeedMoreSteps: "至少要選擇 {min} 個 skill 才能建立 Agent Flow。",
+    agentFlowTooManySteps: "目前最多只能放 {max} 個 skill。",
     perspectiveInputFallback: "請從摘要、質疑與行動建議三個角度分析這個頁面，最後整合成一份結論。",
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
@@ -1062,7 +1099,9 @@ const CONTENT_I18N = {
     starter_multiPerspective: "Multi-View Answer",
     starter_imageAnalysis: "Analyze Image",
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
+    starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
+    createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
     translationPrompt: "Translate this page into {language}.",
@@ -1128,6 +1167,34 @@ const CONTENT_I18N = {
     perspectiveModeReady: "Multi-view analysis mode is ready.",
     perspectivePanelTitle: "Multi-View Answer",
     perspectiveFinalTitle: "Final Synthesis",
+    agentFlowRole: "Agent Flow",
+    agentFlowPanelTitle: "Agent Flow",
+    agentFlowFinalTitle: "Final Output",
+    agentFlowPendingStep: "Waiting to run this step.",
+    agentFlowEmptyResult: "This flow did not produce a final result to show.",
+    agentFlowProgressSummary: "Progress: step {current} of {total}",
+    agentFlowRunningStep: "Running flow step {current}/{total}: {name}",
+    agentFlowDone: "Agent Flow \"{name}\" is complete.",
+    agentFlowInvalid: "This Agent Flow is incomplete and cannot run yet.",
+    agentFlowMissingSteps: "This Agent Flow depends on skills that are not currently available.",
+    agentFlowImagesUnsupported: "The first Agent Flow version does not support image attachments yet.",
+    agentFlowUserMessage: "Run Agent Flow: {name}",
+    createAgentFlowTitle: "Create Agent Flow",
+    createAgentFlowHint: "Pick 2 to 5 currently available skills and save them as a step-by-step workflow.",
+    agentFlowNameLabel: "Flow name",
+    agentFlowNamePlaceholder: "For example: Fast PR Review Flow",
+    agentFlowSelectedStepsLabel: "Selected steps: {count}. Minimum {min}, maximum {max}.",
+    agentFlowAvailableSkills: "Available skills",
+    agentFlowNoStepsSelected: "No steps selected yet.",
+    agentFlowNoAvailableSkills: "No skills are currently available for this flow.",
+    agentFlowRemoveStep: "Click to remove this step",
+    agentFlowMoveUp: "Move up",
+    agentFlowMoveDown: "Move down",
+    agentFlowSave: "Save Flow",
+    agentFlowSaved: "Saved Agent Flow: {name}",
+    agentFlowNeedName: "Name this Agent Flow before saving it.",
+    agentFlowNeedMoreSteps: "Select at least {min} skills to create an Agent Flow.",
+    agentFlowTooManySteps: "You can add at most {max} skills right now.",
     perspectiveInputFallback: "Analyze this page from summary, skepticism, and action-planning perspectives, then synthesize the result.",
     perspectivePreviewSuffix: "...",
     adapter_generic: "Generic",
@@ -3320,7 +3387,7 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "createCustomStarter"];
+  nextKeys = [...nextKeys, "createAgentFlow", "createCustomStarter"];
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
 }
@@ -3340,6 +3407,7 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
+    "createAgentFlow",
     "createCustomStarter",
   ];
 
@@ -3407,6 +3475,27 @@ function normalizeCustomStarterScope(value) {
   return CUSTOM_STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
 }
 
+function normalizeAgentFlowStepReference(step) {
+  if (typeof step === "string") {
+    const starterId = String(step).trim();
+    return starterId ? { starterId } : null;
+  }
+
+  if (!step || typeof step !== "object" || Array.isArray(step)) {
+    return null;
+  }
+
+  const starterId = String(step.starterId || step.refId || step.id || "").trim();
+  if (!starterId) {
+    return null;
+  }
+
+  return {
+    starterId,
+    label: String(step.label || "").trim(),
+  };
+}
+
 function normalizeCustomStarter(item, index = 0) {
   if (!item || typeof item !== "object" || Array.isArray(item)) {
     return null;
@@ -3414,7 +3503,19 @@ function normalizeCustomStarter(item, index = 0) {
 
   const label = String(item.label || item.title || item.name || "").trim();
   const prompt = String(item.prompt || item.instruction || item.text || "").trim();
-  if (!label || !prompt) {
+  const rawFlowSteps = Array.isArray(item.flowSteps) ? item.flowSteps : Array.isArray(item.steps) ? item.steps : [];
+  const flowSteps = rawFlowSteps
+    .map((step) => normalizeAgentFlowStepReference(step))
+    .filter(Boolean)
+    .slice(0, MAX_AGENT_FLOW_STEPS);
+  const composeModeValue = String(item.mode || item.composeMode || (flowSteps.length ? "flow" : "chat")).trim().toLowerCase();
+  const composeMode = composeModeValue === "perspective"
+    ? "perspective"
+    : composeModeValue === "flow"
+      ? "flow"
+      : "chat";
+
+  if (!label || (composeMode === "flow" ? flowSteps.length < MIN_AGENT_FLOW_STEPS : !prompt)) {
     return null;
   }
 
@@ -3424,7 +3525,6 @@ function normalizeCustomStarter(item, index = 0) {
     .map((scope) => normalizeCustomStarterScope(scope))
     .filter(Boolean)
     .filter((scope, scopeIndex, list) => list.indexOf(scope) === scopeIndex);
-  const composeModeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
   const description = String(item.description || item.summary || item.hint || "").trim();
 
   return {
@@ -3433,7 +3533,8 @@ function normalizeCustomStarter(item, index = 0) {
     prompt,
     description,
     scopes: scopes.length ? scopes : ["all"],
-    composeMode: composeModeValue === "perspective" ? "perspective" : "chat",
+    composeMode,
+    flowSteps,
   };
 }
 
@@ -3456,9 +3557,16 @@ function summarizeStarterDescription(value, fallback = "") {
 function getGenericCustomStarterDescription(starter) {
   const label = String(starter?.label || "").trim() || "Teach Your AI a New Skill";
   if (getUiLanguage() === "zh-TW") {
+    if (starter?.composeMode === "flow") {
+      return `用這個 Agent Flow 依序執行「${label}」的多步驟流程。`;
+    }
     return starter?.composeMode === "perspective"
       ? `用這個 starter 快速展開「${label}」的多視角分析。`
       : `用這個 starter 快速開始「${label}」這類任務。`;
+  }
+
+  if (starter?.composeMode === "flow") {
+    return `Use this Agent Flow to run the "${label}" workflow step by step.`;
   }
 
   return starter?.composeMode === "perspective"
@@ -3480,7 +3588,9 @@ function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
       description: summarizeStarterDescription(starter.description, getGenericCustomStarterDescription(starter)),
       composeMode: starter.composeMode,
       isCustomStarter: true,
+      isAgentFlow: starter.composeMode === "flow",
       scopes: starter.scopes,
+      flowSteps: starter.flowSteps,
       isRecommended: getStarterScopeRank(starter.scopes, pageCopilot) === 0,
       recommendationRank: getStarterScopeRank(starter.scopes, pageCopilot),
     }));
@@ -3502,6 +3612,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       isCustomStarter: false,
       isRecommended: highlightedKeys.includes(starterKey),
       isCustomStarterBuilder: starterKey === "createCustomStarter",
+      isAgentFlowBuilder: starterKey === "createAgentFlow",
       recommendationRank,
     };
   });
@@ -3511,8 +3622,17 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
   return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
     .map((starter, index) => ({ ...starter, sortIndex: index }))
     .sort((left, right) => {
+      if (left.id === highlightedStarterId || right.id === highlightedStarterId) {
+        return left.id === highlightedStarterId ? -1 : 1;
+      }
       if (left.isRecommended !== right.isRecommended) {
         return left.isRecommended ? -1 : 1;
+      }
+      if (left.isAgentFlow !== right.isAgentFlow) {
+        return left.isAgentFlow ? -1 : 1;
+      }
+      if (left.isCustomStarter !== right.isCustomStarter) {
+        return left.isCustomStarter ? -1 : 1;
       }
       const leftRank = Number.isFinite(left.recommendationRank) ? left.recommendationRank : 999;
       const rightRank = Number.isFinite(right.recommendationRank) ? right.recommendationRank : 999;
@@ -4445,7 +4565,13 @@ function serializeStarterDraftsForExport(starters) {
     .map((starter) => ({
       id: starter.id,
       label: starter.label,
-      prompt: starter.prompt,
+      ...(starter.composeMode === "flow"
+        ? {
+            flowSteps: starter.flowSteps,
+          }
+        : {
+            prompt: starter.prompt,
+          }),
       scopes: starter.scopes,
       mode: starter.composeMode,
     }));
@@ -4490,6 +4616,10 @@ function getStarterPrompt(starterKey) {
 
   if (starterKey === "createCustomStarter") {
     return tl("createCustomStarterPrompt");
+  }
+
+  if (starterKey === "createAgentFlow") {
+    return tl("createAgentFlowPrompt");
   }
 
   if (starterKey === "emailSummary") {
@@ -4689,6 +4819,13 @@ function createDefaultCustomStarterBuilderDraft() {
   };
 }
 
+function createDefaultAgentFlowBuilderDraft() {
+  return {
+    name: "",
+    steps: [],
+  };
+}
+
 function resetCustomStarterBuilderState() {
   customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
   customStarterBuilderConversation = [];
@@ -4696,11 +4833,57 @@ function resetCustomStarterBuilderState() {
   customStarterBuilderIsSaving = false;
 }
 
+function resetAgentFlowBuilderState() {
+  agentFlowBuilderDraft = createDefaultAgentFlowBuilderDraft();
+}
+
 function ensureCustomStarterBuilderDraft() {
   if (!customStarterBuilderDraft || typeof customStarterBuilderDraft !== "object") {
     customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
   }
   return customStarterBuilderDraft;
+}
+
+function ensureAgentFlowBuilderDraft() {
+  if (!agentFlowBuilderDraft || typeof agentFlowBuilderDraft !== "object") {
+    agentFlowBuilderDraft = createDefaultAgentFlowBuilderDraft();
+  }
+  if (!Array.isArray(agentFlowBuilderDraft.steps)) {
+    agentFlowBuilderDraft.steps = [];
+  }
+  return agentFlowBuilderDraft;
+}
+
+function getFlowBaseStarterEntries(pageCopilot = currentPageCopilot) {
+  return getActiveStarterEntries(pageCopilot).filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder && !starter.isAgentFlow);
+}
+
+function getFlowStarterStepLabel(step, pageCopilot = currentPageCopilot) {
+  if (!step?.starterId) {
+    return "";
+  }
+  const starter = getFlowBaseStarterEntries(pageCopilot).find((item) => item.id === step.starterId);
+  return starter?.label || step.label || step.starterId;
+}
+
+function buildAgentFlowSummary(starter, pageCopilot = currentPageCopilot) {
+  const steps = Array.isArray(starter?.flowSteps) ? starter.flowSteps : [];
+  if (!steps.length) {
+    return "";
+  }
+  return steps
+    .map((step, index) => `${index + 1}. ${getFlowStarterStepLabel(step, pageCopilot)}`)
+    .join(" -> ");
+}
+
+function moveArrayItem(list, fromIndex, toIndex) {
+  const source = Array.isArray(list) ? [...list] : [];
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= source.length || toIndex >= source.length) {
+    return source;
+  }
+  const [item] = source.splice(fromIndex, 1);
+  source.splice(toIndex, 0, item);
+  return source;
 }
 
 function hasCustomStarterBuilderDiscussion() {
@@ -7142,12 +7325,16 @@ function renderMessages() {
     .map((message) => {
       try {
         const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
-        const isTypingAssistant = message.role === "assistant" && !message.content.trim() && isGenerating;
+        const isTypingAssistant = message.role === "assistant" && !message.flowRun && !message.content.trim() && isGenerating;
         const messageIndex = getMessageIndexById(message.id);
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
         const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
+        const hasAgentFlowPanel = message.role === "assistant" && message.flowRun && !message.flowRun.isComplete;
         const body =
+          hasAgentFlowPanel
+            ? renderAgentFlowPanel(message.flowRun)
+            :
           isTypingAssistant
             ? `
               <div class="ollama-quick-typing">
@@ -7440,14 +7627,21 @@ function renderShell() {
                 starter.isRecommended ? "is-recommended" : "",
                 starter.isCustomStarter ? "is-custom" : "",
                 starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+                starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
+                starter.isAgentFlow ? "is-agent-flow" : "",
+                starter.id === highlightedStarterId ? "is-highlighted" : "",
               ].filter(Boolean).join(" ");
               const prefix = starter.isRecommended
                 ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
+                : starter.isAgentFlow || starter.isAgentFlowBuilder
+                  ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
                 : starter.isCustomStarter
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
                   : "";
-              const suffix = starter.isCustomStarter && !starter.isCustomStarterBuilder
-                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
+              const suffix = starter.isAgentFlow
+                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
+                : starter.isCustomStarter && !starter.isCustomStarterBuilder
+                  ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
                 : "";
               return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
             }).join("")}
@@ -7459,6 +7653,7 @@ function renderShell() {
       ${renderBrowserTabPicker()}
       ${renderLocalDocumentPicker()}
       ${renderCustomStarterBuilder()}
+      ${renderAgentFlowBuilder()}
       </section>
     </div>
   `;
@@ -7502,6 +7697,15 @@ function renderShell() {
     if (discussion instanceof HTMLElement) {
       window.requestAnimationFrame(() => {
         discussion.scrollTop = discussion.scrollHeight;
+      });
+    }
+  }
+
+  if (agentFlowBuilderOpen) {
+    const nameField = host.querySelector('[data-role="agent-flow-name"]');
+    if (nameField instanceof HTMLInputElement) {
+      window.requestAnimationFrame(() => {
+        nameField.focus();
       });
     }
   }
@@ -7802,6 +8006,131 @@ function renderCustomStarterBuilder() {
   `;
 }
 
+function renderAgentFlowBuilder() {
+  if (!agentFlowBuilderOpen) {
+    return "";
+  }
+
+  const draft = ensureAgentFlowBuilderDraft();
+  const availableStarters = getFlowBaseStarterEntries(currentPageCopilot);
+  const selectedSteps = draft.steps
+    .map((step, index) => {
+      const label = getFlowStarterStepLabel(step, currentPageCopilot);
+      return `
+        <div class="ollama-quick-picker-row is-selected">
+          <span class="ollama-quick-agent-flow-step-index">${index + 1}</span>
+          <span class="ollama-quick-picker-stack">
+            <span class="ollama-quick-picker-name">${escapeHtml(label)}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(tl("agentFlowRemoveStep"))}</span>
+          </span>
+          <span class="ollama-quick-agent-flow-step-actions">
+            <button class="ollama-quick-copy" type="button" data-action="move-agent-flow-step-up" data-flow-step-index="${index}" ${index === 0 ? "disabled" : ""}>${escapeHtml(tl("agentFlowMoveUp"))}</button>
+            <button class="ollama-quick-copy" type="button" data-action="move-agent-flow-step-down" data-flow-step-index="${index}" ${index === draft.steps.length - 1 ? "disabled" : ""}>${escapeHtml(tl("agentFlowMoveDown"))}</button>
+            <button class="ollama-quick-copy" type="button" data-action="remove-agent-flow-step" data-flow-step-index="${index}">${escapeHtml(tl("cancelSelection"))}</button>
+          </span>
+        </div>
+      `;
+    })
+    .join("");
+  const availableRows = availableStarters
+    .map((starter) => {
+      const alreadySelected = draft.steps.some((step) => step.starterId === starter.id);
+      const disabled = alreadySelected || draft.steps.length >= MAX_AGENT_FLOW_STEPS;
+      return `
+        <button class="ollama-quick-picker-row ${alreadySelected ? "is-selected" : ""}" type="button" data-action="add-agent-flow-step" data-flow-starter-id="${escapeHtml(starter.id)}" ${disabled ? "disabled" : ""}>
+          <span class="ollama-quick-picker-icon">${alreadySelected ? "✓" : "＋"}</span>
+          <span class="ollama-quick-picker-stack">
+            <span class="ollama-quick-picker-name">${escapeHtml(starter.label)}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(starter.description || starter.label)}</span>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-agent-flow-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("createAgentFlowTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("createAgentFlowHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-agent-flow-builder" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form">
+          <label class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("agentFlowNameLabel"))}</span>
+            <input class="ollama-quick-picker-search" type="text" data-role="agent-flow-name" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(tl("agentFlowNamePlaceholder"))}" />
+          </label>
+          <div class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("agentFlowSelectedStepsLabel", { count: draft.steps.length, min: MIN_AGENT_FLOW_STEPS, max: MAX_AGENT_FLOW_STEPS }))}</span>
+            <div class="ollama-quick-picker-list ollama-quick-agent-flow-selected-list">
+              ${selectedSteps || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoStepsSelected"))}</div>`}
+            </div>
+          </div>
+          <div class="ollama-quick-custom-starter-field">
+            <span>${escapeHtml(tl("agentFlowAvailableSkills"))}</span>
+            <div class="ollama-quick-picker-list">
+              ${availableRows || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoAvailableSkills"))}</div>`}
+            </div>
+          </div>
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: draft.steps.length }))}</div>
+          <button class="ollama-quick-secondary" type="button" data-action="close-agent-flow-builder">${escapeHtml(tl("cancelSelection"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="save-agent-flow">${escapeHtml(tl("agentFlowSave"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function getAgentFlowPreview(text) {
+  return getPerspectivePreview(text);
+}
+
+function getCurrentAgentFlowStep(run) {
+  if (!run || !Array.isArray(run.steps) || !run.steps.length) {
+    return null;
+  }
+  const currentIndex = Number.isInteger(run.currentStepIndex) && run.currentStepIndex >= 0
+    ? Math.min(run.currentStepIndex, run.steps.length - 1)
+    : 0;
+  return run.steps[currentIndex] || null;
+}
+
+function renderAgentFlowPanel(run) {
+  if (!run) {
+    return "";
+  }
+
+  const steps = Array.isArray(run.steps) ? run.steps : [];
+  const currentStep = getCurrentAgentFlowStep(run);
+  const currentStepNumber = currentStep?.index || Math.min(run.currentStepIndex + 1, steps.length) || 1;
+  const currentLabel = currentStep?.label || tl("agentFlowPendingStep");
+  const completedCount = steps.filter((step) => step.status === "done").length;
+
+  return `
+    <section class="ollama-quick-perspective-panel ollama-quick-agent-flow-panel is-compact">
+      <div class="ollama-quick-perspective-head ollama-quick-agent-flow-head">
+        <div>
+          <div class="ollama-quick-perspective-title">${escapeHtml(run.name || tl("agentFlowPanelTitle"))}</div>
+          <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("agentFlowProgressSummary", { current: currentStepNumber, total: steps.length }))}</div>
+        </div>
+        <div class="ollama-quick-agent-flow-inline-meta">
+          <span class="ollama-quick-agent-flow-step-badge is-running">${escapeHtml(String(currentStepNumber))}</span>
+          <span>${escapeHtml(currentLabel)}</span>
+          <span class="ollama-quick-agent-flow-inline-progress">${escapeHtml(`${completedCount}/${steps.length}`)}</span>
+        </div>
+      </div>
+      <div class="ollama-quick-agent-flow-running-strip" aria-hidden="true">
+        <span class="ollama-quick-agent-flow-running-bar"></span>
+      </div>
+    </section>
+  `;
+}
+
 async function loadIncludeRepositories() {
   includeRepoLoading = true;
   renderShell();
@@ -7888,6 +8217,244 @@ async function runGenerate(prompt, model) {
   }
 
   return result.response || "";
+}
+
+function getChatMessageById(messageId) {
+  return chatMessages.find((item) => String(item.id) === String(messageId)) || null;
+}
+
+function updateAgentFlowMessage(messageId, updater) {
+  const message = getChatMessageById(messageId);
+  if (!message?.flowRun) {
+    return null;
+  }
+
+  updater(message.flowRun, message);
+  renderMessages();
+  scheduleConversationSave();
+  return message;
+}
+
+async function buildAgentFlowStepPrompt(flowStarter, stepStarter, previousOutputs, stepIndex, totalSteps) {
+  const immediatePrevious = previousOutputs.length ? previousOutputs[previousOutputs.length - 1] : null;
+  const previousBlock = previousOutputs.length
+    ? [
+        "EARLIER STEP OUTPUTS",
+        ...previousOutputs.map((item, index) => `Step ${index + 1}: ${item.label}\n${item.output}`),
+      ].join("\n\n")
+    : "";
+
+  const stepRequest = [
+    `Execute step ${stepIndex} of ${totalSteps} for the Agent Flow "${flowStarter.label}".`,
+    `Current step name: ${stepStarter.label}.`,
+    `Current step instruction:\n${stepStarter.prompt}`,
+    immediatePrevious
+      ? [
+          "IMMEDIATE PREVIOUS STEP OUTPUT",
+          `Previous step: ${immediatePrevious.label}`,
+          immediatePrevious.output,
+        ].join("\n\n")
+      : "This is the first step, so use the current page context and attached sources as the starting material.",
+    previousOutputs.length > 1
+      ? "You may use earlier step outputs for supporting context, but your primary input is the immediate previous step output."
+      : "",
+    immediatePrevious
+      ? "Treat the immediate previous step output as the primary input for this step. Continue transforming or refining that result instead of restarting from the raw page."
+      : "Use the page context directly because there is no previous step output yet.",
+    "Use the current page context and any attached sources only as reference, validation, or enrichment when they help the current transformation step.",
+    "Return only the result for this current step. Do not narrate the workflow mechanics or restate the whole pipeline unless the step itself requires it.",
+  ].filter(Boolean).join("\n\n");
+
+  return [
+    buildSystemPrompt(),
+    "AGENT FLOW EXECUTION MODE",
+    "Follow the current step precisely.",
+    previousBlock,
+    await buildPrompt(stepRequest),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+async function saveAgentFlowStarterFromDraft() {
+  const draft = ensureAgentFlowBuilderDraft();
+  const flowName = draft.name.trim();
+  if (!flowName) {
+    throw new Error(tl("agentFlowNeedName"));
+  }
+  if (draft.steps.length < MIN_AGENT_FLOW_STEPS) {
+    throw new Error(tl("agentFlowNeedMoreSteps", { min: MIN_AGENT_FLOW_STEPS }));
+  }
+  if (draft.steps.length > MAX_AGENT_FLOW_STEPS) {
+    throw new Error(tl("agentFlowTooManySteps", { max: MAX_AGENT_FLOW_STEPS }));
+  }
+
+  const flowId = slugifyStarterId(flowName, `flow-${Date.now()}`);
+  const flowSteps = draft.steps.map((step) => ({
+    starterId: step.starterId,
+    label: getFlowStarterStepLabel(step, currentPageCopilot),
+  }));
+  const recommendedScopes = getRecommendedStarterScopes(currentPageCopilot);
+
+  await persistGeneratedStarters([
+    {
+      id: flowId,
+      label: flowName,
+      description: buildAgentFlowSummary({ flowSteps }, currentPageCopilot),
+      scopes: recommendedScopes.length ? recommendedScopes : ["generic"],
+      mode: "flow",
+      flowSteps,
+    },
+  ]);
+
+  highlightedStarterId = `custom:${flowId}`;
+  areStartersExpanded = true;
+  return flowId;
+}
+
+async function runAgentFlow(starter) {
+  if (!starter?.isAgentFlow || !Array.isArray(starter.flowSteps) || starter.flowSteps.length < MIN_AGENT_FLOW_STEPS) {
+    setStatus(tl("agentFlowInvalid"));
+    return;
+  }
+
+  if (attachedImages.length) {
+    setStatus(tl("agentFlowImagesUnsupported"));
+    return;
+  }
+
+  if (!currentConfig?.selectedModel) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
+
+  const availableSteps = getFlowBaseStarterEntries(currentPageCopilot);
+  const resolvedSteps = starter.flowSteps
+    .map((step, index) => {
+      const target = availableSteps.find((item) => item.id === step.starterId);
+      if (!target) {
+        return null;
+      }
+      return {
+        id: `flow-step-${index + 1}`,
+        index: index + 1,
+        starterId: target.id,
+        label: target.label,
+        prompt: target.prompt,
+        status: "pending",
+        output: "",
+      };
+    })
+    .filter(Boolean);
+
+  if (resolvedSteps.length < MIN_AGENT_FLOW_STEPS) {
+    setStatus(tl("agentFlowMissingSteps"));
+    return;
+  }
+
+  const userMessageId = Date.now();
+  const assistantMessageId = userMessageId + 1;
+  chatMessages.push({
+    id: userMessageId,
+    role: "user",
+    content: tl("agentFlowUserMessage", { name: starter.label }),
+  });
+  chatMessages.push({
+    id: assistantMessageId,
+    role: "assistant",
+    content: "",
+    flowRun: {
+      id: `agent-flow-${assistantMessageId}`,
+      messageId: assistantMessageId,
+      name: starter.label,
+      steps: resolvedSteps,
+      currentStepIndex: -1,
+      isComplete: false,
+      expandedKey: resolvedSteps[0]?.id || "final",
+      finalContent: "",
+    },
+  });
+
+  isGenerating = true;
+  togglePanel(true);
+  renderShell();
+  renderMessages();
+  scheduleConversationSave();
+
+  const collectedOutputs = [];
+
+  try {
+    for (const [index, step] of resolvedSteps.entries()) {
+      updateAgentFlowMessage(assistantMessageId, (run) => {
+        run.currentStepIndex = index;
+        run.expandedKey = step.id;
+        run.steps.forEach((candidate, candidateIndex) => {
+          if (candidateIndex < index && candidate.status !== "error") {
+            candidate.status = "done";
+          } else if (candidateIndex === index) {
+            candidate.status = "running";
+          }
+        });
+      });
+      setStatus(tl("agentFlowRunningStep", { current: index + 1, total: resolvedSteps.length, name: step.label }));
+
+      const response = await runGenerate(
+        await buildAgentFlowStepPrompt(starter, step, collectedOutputs, index + 1, resolvedSteps.length),
+        currentConfig.selectedModel
+      );
+
+      updateAgentFlowMessage(assistantMessageId, (run, message) => {
+        const target = run.steps.find((item) => item.id === step.id);
+        if (target) {
+          target.status = "done";
+          target.output = String(response || "").trim();
+        }
+        const isLastStep = step.id === run.steps[run.steps.length - 1]?.id;
+        if (isLastStep) {
+          run.finalContent = String(response || "").trim();
+          message.content = run.finalContent;
+        } else {
+          run.finalContent = "";
+          message.content = "";
+        }
+      });
+
+      collectedOutputs.push({
+        label: step.label,
+        output: String(response || "").trim(),
+      });
+    }
+
+    updateAgentFlowMessage(assistantMessageId, (run, message) => {
+      const lastStep = run.steps[run.steps.length - 1] || null;
+      run.currentStepIndex = run.steps.length - 1;
+      run.isComplete = true;
+      run.expandedKey = lastStep?.id || "";
+      run.finalContent = String(lastStep?.output || "").trim();
+      message.content = run.finalContent;
+    });
+    setStatus(tl("agentFlowDone", { name: starter.label }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    updateAgentFlowMessage(assistantMessageId, (run, chatMessage) => {
+      const currentStep = run.steps[run.currentStepIndex];
+      if (currentStep) {
+        currentStep.status = "error";
+        currentStep.output = `Error: ${message}`;
+      }
+      run.finalContent = `Error: ${message}`;
+      run.isComplete = true;
+      run.expandedKey = currentStep?.id || "";
+      chatMessage.content = run.finalContent;
+    });
+    setStatus(message);
+  } finally {
+    isGenerating = false;
+    composeMode = "chat";
+    attachedDocuments = [];
+    renderAttachments();
+    scheduleConversationSave();
+  }
 }
 
 async function runMultiPerspectiveAnalysis(userMessage) {
@@ -8497,11 +9064,6 @@ async function handleClick(event) {
   }
 
   if (action === "use-starter") {
-    const prompt = ensureHost().querySelector("[data-role='prompt']");
-    if (!(prompt instanceof HTMLTextAreaElement)) {
-      return;
-    }
-
     const starterId = actionNode.dataset.starterId || "";
     const starter = getActiveStarterEntries(currentPageCopilot).find((item) => item.id === starterId);
     if (!starter) {
@@ -8510,6 +9072,7 @@ async function handleClick(event) {
 
     if (starter.id === "builtin:createCustomStarter") {
       customStarterBuilderOpen = true;
+      agentFlowBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -8520,7 +9083,28 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.id === "builtin:createAgentFlow") {
+      agentFlowBuilderOpen = true;
+      customStarterBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      resetAgentFlowBuilderState();
+      renderShell();
+      return;
+    }
+
+    const prompt = ensureHost().querySelector("[data-role='prompt']");
+    if (!(prompt instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
     if (isGenerating || customStarterBuilderIsGenerating || customStarterBuilderIsSaving) {
+      return;
+    }
+
+    if (starter.isAgentFlow) {
+      await runAgentFlow(starter);
       return;
     }
 
@@ -8535,6 +9119,65 @@ async function handleClick(event) {
   if (action === "close-custom-starter-builder") {
     customStarterBuilderOpen = false;
     renderShell();
+    return;
+  }
+
+  if (action === "close-agent-flow-builder") {
+    agentFlowBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "add-agent-flow-step") {
+    const starterId = String(actionNode.dataset.flowStarterId || "").trim();
+    const draft = ensureAgentFlowBuilderDraft();
+    if (!starterId || draft.steps.some((step) => step.starterId === starterId)) {
+      return;
+    }
+    if (draft.steps.length >= MAX_AGENT_FLOW_STEPS) {
+      setStatus(tl("agentFlowTooManySteps", { max: MAX_AGENT_FLOW_STEPS }));
+      return;
+    }
+    draft.steps = [...draft.steps, { starterId }];
+    renderShell();
+    return;
+  }
+
+  if (action === "remove-agent-flow-step") {
+    const stepIndex = Number.parseInt(String(actionNode.dataset.flowStepIndex || "-1"), 10);
+    const draft = ensureAgentFlowBuilderDraft();
+    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= draft.steps.length) {
+      return;
+    }
+    draft.steps = draft.steps.filter((_step, index) => index !== stepIndex);
+    renderShell();
+    return;
+  }
+
+  if (action === "move-agent-flow-step-up" || action === "move-agent-flow-step-down") {
+    const stepIndex = Number.parseInt(String(actionNode.dataset.flowStepIndex || "-1"), 10);
+    const draft = ensureAgentFlowBuilderDraft();
+    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= draft.steps.length) {
+      return;
+    }
+    const nextIndex = action === "move-agent-flow-step-up" ? stepIndex - 1 : stepIndex + 1;
+    draft.steps = moveArrayItem(draft.steps, stepIndex, nextIndex);
+    renderShell();
+    return;
+  }
+
+  if (action === "save-agent-flow") {
+    try {
+      setStatus(tl("agentFlowSave"));
+      await saveAgentFlowStarterFromDraft();
+      agentFlowBuilderOpen = false;
+      const savedName = ensureAgentFlowBuilderDraft().name.trim();
+      resetAgentFlowBuilderState();
+      renderShell();
+      setStatus(tl("agentFlowSaved", { name: savedName }));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
     return;
   }
 
@@ -8636,6 +9279,50 @@ async function handleClick(event) {
     const perspectiveKey = actionNode.dataset.perspectiveKey || "";
     latestPerspectiveRun.expandedKey = latestPerspectiveRun.expandedKey === perspectiveKey ? "" : perspectiveKey;
     renderMessages();
+    return;
+  }
+
+  if (action === "toggle-agent-flow-step") {
+    const messageId = actionNode.dataset.agentFlowMessageId || "";
+    const stepId = actionNode.dataset.agentFlowStepId || "";
+    updateAgentFlowMessage(messageId, (run) => {
+      run.expandedKey = run.expandedKey === stepId ? "" : stepId;
+    });
+    return;
+  }
+
+  if (action === "copy-agent-flow-step") {
+    const messageId = actionNode.dataset.agentFlowMessageId || "";
+    const stepId = actionNode.dataset.agentFlowStepId || "";
+    const message = getChatMessageById(messageId);
+    const step = message?.flowRun?.steps?.find((item) => item.id === stepId);
+    if (!step?.output) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(step.output);
+      setStatus(tl("copiedResponse"));
+    } catch {
+      setStatus(tl("copyFailed"));
+    }
+    return;
+  }
+
+  if (action === "copy-agent-flow-final") {
+    const messageId = actionNode.dataset.agentFlowMessageId || "";
+    const message = getChatMessageById(messageId);
+    const finalContent = String(message?.flowRun?.finalContent || "").trim();
+    if (!finalContent) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(finalContent);
+      setStatus(tl("copiedResponse"));
+    } catch {
+      setStatus(tl("copyFailed"));
+    }
     return;
   }
 
@@ -8869,6 +9556,11 @@ function handleInput(event) {
   const target = event.target;
   if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-purpose") {
     ensureCustomStarterBuilderDraft().purpose = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "agent-flow-name") {
+    ensureAgentFlowBuilderDraft().name = target.value;
     return;
   }
 

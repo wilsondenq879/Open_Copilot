@@ -412,6 +412,36 @@
   animation: ollama-quick-custom-starter-ring 1.8s ease-out infinite;
 }
 
+.ollama-quick-starter.is-agent-flow-builder,
+.ollama-quick-starter.is-agent-flow {
+  border-color: rgba(126, 255, 157, 0.4);
+  background:
+    linear-gradient(135deg, rgba(66, 205, 102, 0.22), rgba(24, 121, 54, 0.2)),
+    rgba(255, 255, 255, 0.06);
+  color: #effff2;
+  box-shadow: inset 0 0 0 1px rgba(158, 255, 186, 0.1);
+}
+
+.ollama-quick-starter.is-agent-flow-builder:hover,
+.ollama-quick-starter.is-agent-flow-builder:focus-visible,
+.ollama-quick-starter.is-agent-flow:hover,
+.ollama-quick-starter.is-agent-flow:focus-visible {
+  border-color: rgba(149, 255, 177, 0.6);
+  background:
+    linear-gradient(135deg, rgba(66, 205, 102, 0.28), rgba(24, 121, 54, 0.24)),
+    rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(199, 255, 212, 0.16),
+    0 10px 20px rgba(74, 205, 96, 0.12);
+}
+
+.ollama-quick-starter.is-highlighted {
+  box-shadow:
+    inset 0 0 0 1px rgba(223, 255, 231, 0.22),
+    0 0 0 2px rgba(126, 255, 157, 0.22),
+    0 10px 24px rgba(74, 205, 96, 0.16);
+}
+
 @keyframes ollama-quick-custom-starter-ring {
   0% {
     box-shadow:
@@ -1853,6 +1883,11 @@
   max-height: min(80vh, 760px);
 }
 
+.ollama-quick-agent-flow-modal {
+  width: min(100%, 720px);
+  max-height: min(82vh, 820px);
+}
+
 .ollama-quick-custom-starter-form {
   display: grid;
   gap: 12px;
@@ -2038,6 +2073,140 @@
   background: linear-gradient(135deg, #36cfff, #4d89ff);
   border-color: rgba(97, 224, 255, 0.55);
   box-shadow: 0 0 18px rgba(77, 196, 255, 0.2);
+}
+
+.ollama-quick-agent-flow-selected-list {
+  min-height: 120px;
+}
+
+.ollama-quick-agent-flow-step-index,
+.ollama-quick-agent-flow-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a8ff9a, #51c96e);
+  color: #0f3317;
+  font-size: 12px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.ollama-quick-agent-flow-step-badge.is-running {
+  box-shadow:
+    0 0 0 0 rgba(126, 255, 157, 0.42),
+    0 0 18px rgba(126, 255, 157, 0.28);
+  animation: ollama-quick-agent-flow-pulse 1.5s ease-out infinite;
+}
+
+.ollama-quick-agent-flow-step-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.ollama-quick-agent-flow-card.is-pending {
+  opacity: 0.82;
+}
+
+.ollama-quick-agent-flow-card.is-running {
+  border-color: rgba(126, 255, 157, 0.42);
+  box-shadow: 0 0 0 1px rgba(126, 255, 157, 0.12);
+}
+
+.ollama-quick-agent-flow-card.is-error {
+  border-color: rgba(255, 118, 118, 0.42);
+}
+
+.ollama-quick-agent-flow-panel .ollama-quick-perspective-title {
+  color: #ddffe1;
+}
+
+.ollama-quick-agent-flow-panel.is-compact {
+  padding: 14px 16px;
+}
+
+.ollama-quick-agent-flow-head {
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ollama-quick-agent-flow-inline-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: rgba(221, 255, 225, 0.88);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ollama-quick-agent-flow-inline-progress {
+  padding: 4px 8px;
+  border: 1px solid rgba(126, 255, 157, 0.18);
+  border-radius: 999px;
+  background: rgba(126, 255, 157, 0.08);
+  color: #cffff0;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ollama-quick-agent-flow-running-strip {
+  position: relative;
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(126, 255, 157, 0.08);
+  border: 1px solid rgba(126, 255, 157, 0.12);
+}
+
+.ollama-quick-agent-flow-running-bar {
+  position: absolute;
+  inset: 0 auto 0 -35%;
+  width: 35%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(126, 255, 157, 0), rgba(126, 255, 157, 0.88), rgba(219, 255, 228, 0));
+  filter: blur(0.2px);
+  animation: ollama-quick-agent-flow-sweep 1.4s linear infinite;
+}
+
+@keyframes ollama-quick-agent-flow-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(126, 255, 157, 0.42),
+      0 0 14px rgba(126, 255, 157, 0.22);
+    transform: scale(1);
+  }
+
+  60% {
+    box-shadow:
+      0 0 0 10px rgba(126, 255, 157, 0),
+      0 0 20px rgba(126, 255, 157, 0.34);
+    transform: scale(1.03);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(126, 255, 157, 0),
+      0 0 14px rgba(126, 255, 157, 0.2);
+    transform: scale(1);
+  }
+}
+
+@keyframes ollama-quick-agent-flow-sweep {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(390%);
+  }
 }
 
 .ollama-quick-picker-name {

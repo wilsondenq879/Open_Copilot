@@ -89,6 +89,7 @@ const OPTION_I18N = {
     multiPerspectiveProfilesLabel: "多視角角色",
     utilityTabExperience: "體驗",
     utilityTabStarterSkills: "Starter 技能",
+    utilityTabAgentFlows: "Agent Flow",
     customStartersLabel: "自訂 Starters",
     customStartersInputLabel: "貼上 Starter JSON",
     starterLibraryKicker: "Starter 技能",
@@ -99,9 +100,17 @@ const OPTION_I18N = {
     starterLibraryLimitHint: "最多可儲存 20 組 Starter 技能",
     starterLibraryGridTitle: "Starter 技能集合",
     starterLibraryGridDescription: "每張 skill 卡都會同步提供給頁面內聊天面板，可在這裡持續更新或刪除。",
+    agentFlowLibraryKicker: "Agent Flow",
+    agentFlowLibraryTitle: "Agent Flow 庫",
+    agentFlowLibraryDescription: "把已儲存的 Agent Flow 集中管理在這裡。每條 flow 都能單獨編輯、調整步驟，並在頁面內 starter 清單直接重用。",
+    agentFlowLibraryStoredLabel: "已儲存",
+    agentFlowLibrarySkillsLabel: "串接技能",
+    agentFlowLibraryGridTitle: "Agent Flow 集合",
+    agentFlowLibraryGridDescription: "這裡只顯示 flow，和單一步驟 starter skill 分開管理，畫面會更乾淨。",
+    noAgentFlows: "目前還沒有建立 Agent Flow。",
     systemPromptHint: "這段內容會先於使用者訊息與頁面 context 一起送給模型，適合放角色設定、格式要求與回覆限制。",
     multiPerspectiveProfilesHint: "每行一個視角，格式為 `標題|指令`。留白時會使用內建的頁型預設。",
-    customStartersHint: "把 starter JSON 貼到這裡後加入技能庫。相同 `id` 會更新，新的 `id` 會新增。每個項目至少要有 `label` 和 `prompt`，可選 `scopes` 與 `mode`。",
+    customStartersHint: "把 starter JSON 貼到這裡後加入技能庫。相同 `id` 會更新，新的 `id` 會新增。一般 starter 至少要有 `label` 和 `prompt`；若是 flow，請改用 `mode: \"flow\"` 搭配 `flowSteps`。",
     customStartersInputPlaceholder: '[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]',
     createStarters: "加入技能庫",
     clearStarters: "清空技能庫",
@@ -112,6 +121,7 @@ const OPTION_I18N = {
     customStarterLimitReached: "最多只能儲存 {limit} 組 custom starters。",
     deleteStarter: "刪除",
     editStarterWithAi: "用 AI 修改",
+    editFlow: "編輯 Flow",
     starterAiEditorKicker: "AI 技能編修",
     starterAiEditorTitle: "和 AI 一起修改技能",
     starterAiEditorHint: "用白話文描述你想怎麼改這個 skill，AI 會先提出修改方案，再幫你覆寫原本版本。",
@@ -129,6 +139,23 @@ const OPTION_I18N = {
     starterAiEditorEmptyReply: "我先整理到這裡，但剛剛沒有成功產出完整回覆。你可以再按一次「和 AI 討論」，或換個方式描述你想怎麼修改。",
     starterAiEditorApplyFailedPrefix: "套用更新失敗：",
     starterAiEditorUpdated: "已更新技能：{name}",
+    starterFlowEditorKicker: "Flow 編輯器",
+    starterFlowEditorTitle: "編輯 Agent Flow",
+    starterFlowEditorHint: "可修改 flow 名稱、調整步驟順序、移除步驟，並加入自訂 skills。",
+    starterFlowEditorClose: "關閉",
+    starterFlowEditorNameLabel: "Flow 名稱",
+    starterFlowEditorStepsLabel: "Flow 步驟",
+    starterFlowEditorAvailableLabel: "加入自訂 skills",
+    starterFlowEditorNoSteps: "這條 flow 還沒有步驟。",
+    starterFlowEditorNoAvailable: "目前沒有可加入的自訂 skills。",
+    starterFlowEditorSave: "儲存 Flow",
+    starterFlowEditorSaved: "已更新 Agent Flow：{name}",
+    starterFlowEditorNeedName: "請先填寫 Flow 名稱。",
+    starterFlowEditorNeedSteps: "Agent Flow 至少需要 2 個步驟。",
+    starterFlowEditorAddStep: "加入",
+    starterFlowEditorMoveUp: "上移",
+    starterFlowEditorMoveDown: "下移",
+    starterFlowEditorRemove: "移除",
     customStarterDeleted: "已刪除 starter：{name}",
     confirmClearFolder: "確定要清除本機資料夾設定嗎？",
     confirmClearStarters: "確定要清除所有匯入的 starters 嗎？",
@@ -238,6 +265,7 @@ const OPTION_I18N = {
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
     utilityTabExperience: "Experience",
     utilityTabStarterSkills: "Starter Skills",
+    utilityTabAgentFlows: "Agent Flows",
     customStartersLabel: "Custom Starters",
     customStartersInputLabel: "Paste Starter JSON",
     starterLibraryKicker: "Starter Skills",
@@ -248,9 +276,17 @@ const OPTION_I18N = {
     starterLibraryLimitHint: "Store up to 20 starter skills",
     starterLibraryGridTitle: "Starter Skill Collection",
     starterLibraryGridDescription: "Every skill card is available to the in-page chat panel and can be updated or removed here.",
+    agentFlowLibraryKicker: "Agent Flows",
+    agentFlowLibraryTitle: "Agent Flow Library",
+    agentFlowLibraryDescription: "Manage saved Agent Flows here. Each flow can be edited, reordered, and reused directly from the in-page starter list.",
+    agentFlowLibraryStoredLabel: "Stored",
+    agentFlowLibrarySkillsLabel: "Linked Skills",
+    agentFlowLibraryGridTitle: "Agent Flow Collection",
+    agentFlowLibraryGridDescription: "Only flows are shown here so they stay separate from single starter skills.",
+    noAgentFlows: "No Agent Flows created yet.",
     systemPromptHint: "This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.",
     multiPerspectiveProfilesHint: "One perspective per line using `Title|Instruction`. Leave it empty to use the built-in defaults for each page type.",
-    customStartersHint: "Paste starter JSON here to add it to the library. Matching `id` values update existing skills, while new `id` values are added. Each item needs at least `label` and `prompt`, with optional `scopes` and `mode`.",
+    customStartersHint: "Paste starter JSON here to add it to the library. Matching `id` values update existing skills, while new `id` values are added. Standard starters need at least `label` and `prompt`; flow starters should use `mode: \"flow\"` with `flowSteps`.",
     customStartersInputPlaceholder: '[{"label":"Email Summary","prompt":"Summarize this email"}]',
     createStarters: "Add to Library",
     clearStarters: "Clear Library",
@@ -261,6 +297,7 @@ const OPTION_I18N = {
     customStarterLimitReached: "You can store up to {limit} custom starters.",
     deleteStarter: "Delete",
     editStarterWithAi: "Edit With AI",
+    editFlow: "Edit Flow",
     starterAiEditorKicker: "AI Skill Editor",
     starterAiEditorTitle: "Refine Skill With AI",
     starterAiEditorHint: "Describe how you want to improve this skill in plain language. AI will propose an updated version before replacing the current one.",
@@ -278,6 +315,23 @@ const OPTION_I18N = {
     starterAiEditorEmptyReply: "I started shaping the update, but the model did not return a usable reply. Try discussing again or rephrase the change you want.",
     starterAiEditorApplyFailedPrefix: "Failed to apply update:",
     starterAiEditorUpdated: "Updated skill: {name}",
+    starterFlowEditorKicker: "Flow Editor",
+    starterFlowEditorTitle: "Edit Agent Flow",
+    starterFlowEditorHint: "Rename the flow, reorder steps, remove steps, and add reusable custom skills.",
+    starterFlowEditorClose: "Close",
+    starterFlowEditorNameLabel: "Flow Name",
+    starterFlowEditorStepsLabel: "Flow Steps",
+    starterFlowEditorAvailableLabel: "Add Custom Skills",
+    starterFlowEditorNoSteps: "This flow has no steps yet.",
+    starterFlowEditorNoAvailable: "No custom skills are available to add right now.",
+    starterFlowEditorSave: "Save Flow",
+    starterFlowEditorSaved: "Updated Agent Flow: {name}",
+    starterFlowEditorNeedName: "Enter a flow name first.",
+    starterFlowEditorNeedSteps: "An Agent Flow needs at least 2 steps.",
+    starterFlowEditorAddStep: "Add",
+    starterFlowEditorMoveUp: "Move Up",
+    starterFlowEditorMoveDown: "Move Down",
+    starterFlowEditorRemove: "Remove",
     customStarterDeleted: "Deleted starter: {name}",
     confirmClearFolder: "Clear the local work folder setting?",
     confirmClearStarters: "Clear all imported starters?",
@@ -1548,6 +1602,11 @@ let starterAiEditorState = {
   isGenerating: false,
   isApplying: false,
 };
+let starterFlowEditorState = {
+  open: false,
+  starterId: "",
+  draft: null,
+};
 const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
 const SYSTEM_THEME_MEDIA_QUERY = typeof window.matchMedia === "function"
   ? window.matchMedia("(prefers-color-scheme: light)")
@@ -1750,6 +1809,7 @@ function applyTranslations() {
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
   document.getElementById("tabExperience").textContent = t("utilityTabExperience");
   document.getElementById("tabStarterSkills").textContent = t("utilityTabStarterSkills");
+  document.getElementById("tabAgentFlows").textContent = t("utilityTabAgentFlows");
   document.getElementById("customStartersLabel").textContent = t("customStartersLabel");
   document.getElementById("customStartersInputLabel").textContent = t("customStartersInputLabel");
   document.getElementById("starterLibraryKicker").textContent = t("starterLibraryKicker");
@@ -1760,6 +1820,13 @@ function applyTranslations() {
   document.getElementById("starterLibraryLimitHint").textContent = t("starterLibraryLimitHint");
   document.getElementById("starterLibraryGridTitle").textContent = t("starterLibraryGridTitle");
   document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
+  document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
+  document.getElementById("agentFlowLibraryTitle").textContent = t("agentFlowLibraryTitle");
+  document.getElementById("agentFlowLibraryDescription").textContent = t("agentFlowLibraryDescription");
+  document.getElementById("agentFlowLibraryStoredLabel").textContent = t("agentFlowLibraryStoredLabel");
+  document.getElementById("agentFlowLibrarySkillsLabel").textContent = t("agentFlowLibrarySkillsLabel");
+  document.getElementById("agentFlowLibraryGridTitle").textContent = t("agentFlowLibraryGridTitle");
+  document.getElementById("agentFlowLibraryGridDescription").textContent = t("agentFlowLibraryGridDescription");
   document.getElementById("starterLibraryCapacityValue").textContent = String(MAX_CUSTOM_STARTERS);
   document.getElementById("systemPromptHint").textContent = t("systemPromptHint");
   document.getElementById("multiPerspectiveProfilesHint").textContent = t("multiPerspectiveProfilesHint");
@@ -1785,13 +1852,30 @@ function applyTranslations() {
   if (starterAiEditorDiscuss) starterAiEditorDiscuss.textContent = t("starterAiEditorDiscuss");
   const starterAiEditorApply = document.getElementById("starterAiEditorApply");
   if (starterAiEditorApply) starterAiEditorApply.textContent = t("starterAiEditorApply");
+  const starterFlowEditorKicker = document.getElementById("starterFlowEditorKicker");
+  if (starterFlowEditorKicker) starterFlowEditorKicker.textContent = t("starterFlowEditorKicker");
+  const starterFlowEditorTitle = document.getElementById("starterFlowEditorTitle");
+  if (starterFlowEditorTitle) starterFlowEditorTitle.textContent = t("starterFlowEditorTitle");
+  const starterFlowEditorHint = document.getElementById("starterFlowEditorHint");
+  if (starterFlowEditorHint) starterFlowEditorHint.textContent = t("starterFlowEditorHint");
+  const starterFlowEditorClose = document.getElementById("starterFlowEditorClose");
+  if (starterFlowEditorClose) starterFlowEditorClose.textContent = t("starterFlowEditorClose");
+  const starterFlowEditorNameLabel = document.getElementById("starterFlowEditorNameLabel");
+  if (starterFlowEditorNameLabel) starterFlowEditorNameLabel.textContent = t("starterFlowEditorNameLabel");
+  const starterFlowEditorStepsLabel = document.getElementById("starterFlowEditorStepsLabel");
+  if (starterFlowEditorStepsLabel) starterFlowEditorStepsLabel.textContent = t("starterFlowEditorStepsLabel");
+  const starterFlowEditorAvailableLabel = document.getElementById("starterFlowEditorAvailableLabel");
+  if (starterFlowEditorAvailableLabel) starterFlowEditorAvailableLabel.textContent = t("starterFlowEditorAvailableLabel");
+  const starterFlowEditorSave = document.getElementById("starterFlowEditorSave");
+  if (starterFlowEditorSave) starterFlowEditorSave.textContent = t("starterFlowEditorSave");
   document.getElementById("saveButton").textContent = t("saveSettings");
   document.getElementById("testButton").textContent = t("testConnection");
   document.getElementById("installedModelsTitle").textContent = t("installedModels");
   document.getElementById("refreshButton").textContent = t("refresh");
   setActiveUtilityTab(activeUtilityTab);
-  renderCustomStartersPreview(currentCustomStarters);
+  renderCustomStartersPreview();
   renderStarterAiEditorModal();
+  renderStarterFlowEditorModal();
 }
 
 function slugifyStarterId(value, fallback = "starter") {
@@ -1874,6 +1958,27 @@ function normalizeStarterScopes(value) {
   return scopes.length ? scopes : ["all"];
 }
 
+function normalizeFlowStepReference(step) {
+  if (typeof step === "string") {
+    const starterId = String(step).trim();
+    return starterId ? { starterId } : null;
+  }
+
+  if (!step || typeof step !== "object" || Array.isArray(step)) {
+    return null;
+  }
+
+  const starterId = String(step.starterId || step.refId || step.id || "").trim();
+  if (!starterId) {
+    return null;
+  }
+
+  return {
+    starterId,
+    label: String(step.label || "").trim(),
+  };
+}
+
 function normalizeImportedStarter(item, index) {
   if (!item || typeof item !== "object" || Array.isArray(item)) {
     throw new Error(t("customStarterImportFailed"));
@@ -1881,12 +1986,20 @@ function normalizeImportedStarter(item, index) {
 
   const label = String(item.label || item.title || item.name || "").trim();
   const prompt = String(item.prompt || item.instruction || item.text || "").trim();
-  if (!label || !prompt) {
+  const flowSteps = (Array.isArray(item.flowSteps) ? item.flowSteps : Array.isArray(item.steps) ? item.steps : [])
+    .map((step) => normalizeFlowStepReference(step))
+    .filter(Boolean);
+  const modeValue = String(item.mode || item.composeMode || (flowSteps.length ? "flow" : "chat")).trim().toLowerCase();
+  const mode = modeValue === "perspective"
+    ? "perspective"
+    : modeValue === "flow"
+      ? "flow"
+      : "chat";
+
+  if (!label || (mode === "flow" ? flowSteps.length < 2 : !prompt)) {
     throw new Error(t("customStarterImportFailed"));
   }
 
-  const modeValue = String(item.mode || item.composeMode || "chat").trim().toLowerCase();
-  const mode = modeValue === "perspective" ? "perspective" : "chat";
   const description = String(item.description || item.summary || item.hint || "").trim();
 
   return {
@@ -1896,6 +2009,7 @@ function normalizeImportedStarter(item, index) {
     description,
     scopes: normalizeStarterScopes(item.scopes ?? item.scope ?? item.pageTypes ?? item.pageType),
     mode,
+    flowSteps,
   };
 }
 
@@ -1906,6 +2020,16 @@ function parseSingleStarter(rawText, fallbackIndex = 0) {
     throw new Error(t("customStarterImportFailed"));
   }
   return normalizeImportedStarter(candidate, fallbackIndex);
+}
+
+function moveArrayItem(list, fromIndex, toIndex) {
+  const source = Array.isArray(list) ? [...list] : [];
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= source.length || toIndex >= source.length) {
+    return source;
+  }
+  const [item] = source.splice(fromIndex, 1);
+  source.splice(toIndex, 0, item);
+  return source;
 }
 
 function renderStarterCardMarkup(starter, { includeEditButton = false, includeDeleteButton = true } = {}) {
@@ -1933,14 +2057,15 @@ function renderStarterCardMarkup(starter, { includeEditButton = false, includeDe
         </div>
         <div class="starter-preview-actions">
           <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
-          ${includeEditButton ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editStarterWithAi"))}</button>` : ""}
+          ${includeEditButton && starter.mode === "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>` : ""}
+          ${includeEditButton && starter.mode !== "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editStarterWithAi"))}</button>` : ""}
           ${includeDeleteButton ? `<button class="secondary-button danger-button starter-preview-delete" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>` : ""}
         </div>
       </div>
       <div class="starter-preview-scopes">
         ${orderedScopes.map((scope) => `<span class="starter-preview-scope">${escapeHtml(getScopeLabel(scope))}</span>`).join("")}
       </div>
-      <div class="starter-preview-prompt">${escapeHtml(starter.prompt)}</div>
+      <div class="starter-preview-prompt">${escapeHtml(starter.mode === "flow" ? starter.flowSteps.map((step, index) => `${index + 1}. ${step.label || step.starterId}`).join(" -> ") : starter.prompt)}</div>
     </article>
   `;
 }
@@ -2042,6 +2167,149 @@ function closeStarterAiEditor() {
     isApplying: false,
   };
   renderStarterAiEditorModal();
+}
+
+function getStarterFlowEditorStarter() {
+  return currentCustomStarters.find((item) => item.id === starterFlowEditorState.starterId && item.mode === "flow") || null;
+}
+
+function getStarterFlowEditorDraft() {
+  if (!starterFlowEditorState.draft || typeof starterFlowEditorState.draft !== "object") {
+    starterFlowEditorState.draft = { id: "", label: "", flowSteps: [] };
+  }
+  if (!Array.isArray(starterFlowEditorState.draft.flowSteps)) {
+    starterFlowEditorState.draft.flowSteps = [];
+  }
+  return starterFlowEditorState.draft;
+}
+
+function getAvailableCustomFlowSkills() {
+  return currentCustomStarters.filter((item) => item.mode !== "flow");
+}
+
+function renderStarterFlowEditorModal() {
+  const backdrop = document.getElementById("starterFlowEditorModal");
+  const nameInput = document.getElementById("starterFlowEditorName");
+  const stepsNode = document.getElementById("starterFlowEditorSteps");
+  const availableNode = document.getElementById("starterFlowEditorAvailable");
+  const saveButton = document.getElementById("starterFlowEditorSave");
+  if (!(backdrop instanceof HTMLElement) || !(nameInput instanceof HTMLInputElement) || !(stepsNode instanceof HTMLElement) || !(availableNode instanceof HTMLElement) || !(saveButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const starter = getStarterFlowEditorStarter();
+  backdrop.hidden = !starterFlowEditorState.open;
+  if (!starterFlowEditorState.open || !starter) {
+    return;
+  }
+
+  const draft = getStarterFlowEditorDraft();
+  nameInput.value = draft.label || "";
+
+  if (!draft.flowSteps.length) {
+    stepsNode.className = "starter-flow-editor-steps empty-state";
+    stepsNode.textContent = t("starterFlowEditorNoSteps");
+  } else {
+    stepsNode.className = "starter-flow-editor-steps";
+    stepsNode.innerHTML = draft.flowSteps
+      .map((step, index) => `
+        <article class="starter-flow-editor-step">
+          <div class="starter-flow-editor-step-main">
+            <div class="starter-flow-editor-step-index">${index + 1}</div>
+            <div class="starter-flow-editor-step-copy">
+              <div class="starter-preview-name">${escapeHtml(step.label || step.starterId)}</div>
+              <div class="starter-preview-skill-kicker">${escapeHtml(step.starterId)}</div>
+            </div>
+          </div>
+          <div class="starter-flow-editor-step-actions">
+            <button class="secondary-button starter-preview-edit" type="button" data-action="flow-editor-step-up" data-flow-step-index="${index}" ${index === 0 ? "disabled" : ""}>${escapeHtml(t("starterFlowEditorMoveUp"))}</button>
+            <button class="secondary-button starter-preview-edit" type="button" data-action="flow-editor-step-down" data-flow-step-index="${index}" ${index === draft.flowSteps.length - 1 ? "disabled" : ""}>${escapeHtml(t("starterFlowEditorMoveDown"))}</button>
+            <button class="secondary-button danger-button starter-preview-delete" type="button" data-action="flow-editor-step-remove" data-flow-step-index="${index}">${escapeHtml(t("starterFlowEditorRemove"))}</button>
+          </div>
+        </article>
+      `)
+      .join("");
+  }
+
+  const availableSkills = getAvailableCustomFlowSkills().filter((item) => !draft.flowSteps.some((step) => step.starterId === item.id));
+  if (!availableSkills.length) {
+    availableNode.className = "starter-flow-editor-available empty-state";
+    availableNode.textContent = t("starterFlowEditorNoAvailable");
+  } else {
+    availableNode.className = "starter-flow-editor-available";
+    availableNode.innerHTML = availableSkills
+      .map((skill) => `
+        <article class="starter-flow-editor-available-card">
+          <div class="starter-flow-editor-step-main">
+            <div class="starter-flow-editor-step-copy">
+              <div class="starter-preview-name">${escapeHtml(skill.label)}</div>
+              <div class="starter-preview-skill-kicker">${escapeHtml(skill.id)}</div>
+            </div>
+          </div>
+          <button class="secondary-button starter-preview-edit" type="button" data-action="flow-editor-add-step" data-flow-starter-id="${escapeHtml(skill.id)}">${escapeHtml(t("starterFlowEditorAddStep"))}</button>
+        </article>
+      `)
+      .join("");
+  }
+
+  saveButton.disabled = !draft.label.trim() || draft.flowSteps.length < 2;
+}
+
+function openStarterFlowEditor(starterId) {
+  const starter = currentCustomStarters.find((item) => item.id === starterId && item.mode === "flow");
+  if (!starter) {
+    return;
+  }
+  starterFlowEditorState = {
+    open: true,
+    starterId,
+    draft: {
+      id: starter.id,
+      label: starter.label,
+      description: starter.description || "",
+      scopes: Array.isArray(starter.scopes) ? [...starter.scopes] : ["all"],
+      mode: "flow",
+      flowSteps: (Array.isArray(starter.flowSteps) ? starter.flowSteps : []).map((step) => ({
+        starterId: step.starterId,
+        label: step.label || step.starterId,
+      })),
+    },
+  };
+  renderStarterFlowEditorModal();
+}
+
+function closeStarterFlowEditor() {
+  starterFlowEditorState = {
+    open: false,
+    starterId: "",
+    draft: null,
+  };
+  renderStarterFlowEditorModal();
+}
+
+async function saveStarterFlowEditorDraft() {
+  const starter = getStarterFlowEditorStarter();
+  const draft = getStarterFlowEditorDraft();
+  const label = String(draft.label || "").trim();
+  if (!label) {
+    throw new Error(t("starterFlowEditorNeedName"));
+  }
+  if (draft.flowSteps.length < 2) {
+    throw new Error(t("starterFlowEditorNeedSteps"));
+  }
+
+  const updatedStarter = normalizeImportedStarter({
+    id: starter.id,
+    label,
+    description: draft.description || "",
+    scopes: draft.scopes || starter.scopes,
+    mode: "flow",
+    flowSteps: draft.flowSteps,
+  }, currentCustomStarters.findIndex((item) => item.id === starter.id));
+
+  currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
+  renderCustomStartersPreview();
+  await persistCustomStarters(currentCustomStarters);
 }
 
 async function runAiSkillEditorGenerate(prompt) {
@@ -2156,13 +2424,38 @@ function getScopeLabel(scope) {
 }
 
 function getModeLabel(mode) {
-  return mode === "perspective" ? t("starterPreviewModePerspective") : t("starterPreviewModeChat");
+  if (mode === "perspective") {
+    return t("starterPreviewModePerspective");
+  }
+  if (mode === "flow") {
+    return "Flow";
+  }
+  return t("starterPreviewModeChat");
+}
+
+function getSkillStarters() {
+  return currentCustomStarters.filter((item) => item.mode !== "flow");
+}
+
+function getAgentFlowStarters() {
+  return currentCustomStarters.filter((item) => item.mode === "flow");
 }
 
 function renderCustomStarterLibraryMeta() {
-  const countNode = document.getElementById("customStartersCount");
-  if (countNode) {
-    countNode.textContent = `${currentCustomStarters.length} / ${MAX_CUSTOM_STARTERS}`;
+  const skillCountNode = document.getElementById("customStartersCount");
+  if (skillCountNode) {
+    skillCountNode.textContent = `${getSkillStarters().length} / ${MAX_CUSTOM_STARTERS}`;
+  }
+
+  const flowCountNode = document.getElementById("agentFlowsCount");
+  if (flowCountNode) {
+    flowCountNode.textContent = String(getAgentFlowStarters().length);
+  }
+
+  const linkedSkillsNode = document.getElementById("agentFlowLibrarySkillsValue");
+  if (linkedSkillsNode) {
+    const linkedSkillCount = getAgentFlowStarters().reduce((total, flow) => total + (Array.isArray(flow.flowSteps) ? flow.flowSteps.length : 0), 0);
+    linkedSkillsNode.textContent = String(linkedSkillCount);
   }
 }
 
@@ -2186,7 +2479,7 @@ function mergeImportedStarters(existingStarters, importedStarters) {
 }
 
 function setActiveUtilityTab(tab) {
-  activeUtilityTab = tab === "starterSkills" ? "starterSkills" : "experience";
+  activeUtilityTab = ["experience", "starterSkills", "agentFlows"].includes(tab) ? tab : "experience";
 
   document.querySelectorAll("[data-utility-tab]").forEach((button) => {
     const isActive = button.dataset.utilityTab === activeUtilityTab;
@@ -2195,30 +2488,47 @@ function setActiveUtilityTab(tab) {
   });
 
   document.querySelectorAll(".utility-panel").forEach((panel) => {
-    const isActive = panel.id === `panel-${activeUtilityTab === "starterSkills" ? "starter-skills" : "experience"}`;
+    const panelIdByTab = {
+      experience: "panel-experience",
+      starterSkills: "panel-starter-skills",
+      agentFlows: "panel-agent-flows",
+    };
+    const isActive = panel.id === panelIdByTab[activeUtilityTab];
     panel.classList.toggle("is-active", isActive);
     panel.hidden = !isActive;
   });
 }
 
-function renderCustomStartersPreview(starters) {
-  const node = document.getElementById("customStartersPreview");
-  if (!node) {
-    return;
-  }
-
+function renderCustomStartersPreview() {
+  const skillNode = document.getElementById("customStartersPreview");
+  const flowNode = document.getElementById("agentFlowsPreview");
   renderCustomStarterLibraryMeta();
 
-  if (!starters.length) {
-    node.className = "starter-preview-list empty-state";
-    node.textContent = t("noCustomStarters");
-    return;
+  if (skillNode) {
+    const starters = getSkillStarters();
+    if (!starters.length) {
+      skillNode.className = "starter-preview-list empty-state";
+      skillNode.textContent = t("noCustomStarters");
+    } else {
+      skillNode.className = "starter-preview-list";
+      skillNode.innerHTML = starters
+        .map((starter) => renderStarterCardMarkup(starter, { includeEditButton: true }))
+        .join("");
+    }
   }
 
-  node.className = "starter-preview-list";
-  node.innerHTML = starters
-    .map((starter) => renderStarterCardMarkup(starter, { includeEditButton: true }))
-    .join("");
+  if (flowNode) {
+    const flows = getAgentFlowStarters();
+    if (!flows.length) {
+      flowNode.className = "starter-preview-list empty-state";
+      flowNode.textContent = t("noAgentFlows");
+    } else {
+      flowNode.className = "starter-preview-list";
+      flowNode.innerHTML = flows
+        .map((starter) => renderStarterCardMarkup(starter, { includeEditButton: true }))
+        .join("");
+    }
+  }
 }
 
 async function persistCustomStarters(starters) {
@@ -2408,7 +2718,7 @@ async function loadConfig() {
     } catch (_error) {
       currentCustomStarters = [];
     }
-    renderCustomStartersPreview(currentCustomStarters);
+    renderCustomStartersPreview();
     applySettingsTheme(settingsTheme);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     await loadWorkFolderStatus();
@@ -2536,10 +2846,10 @@ document.getElementById("createStartersButton").addEventListener("click", async 
     }
     const importedStarters = parseImportedStarters(rawText);
     currentCustomStarters = mergeImportedStarters(currentCustomStarters, importedStarters);
-    renderCustomStartersPreview(currentCustomStarters);
+    renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
     document.getElementById("customStartersInput").value = "";
-    setStatus(t("customStarterImported", { count: importedStarters.length, total: currentCustomStarters.length, limit: MAX_CUSTOM_STARTERS }));
+    setStatus(t("customStarterImported", { count: importedStarters.length, total: getSkillStarters().length, limit: MAX_CUSTOM_STARTERS }));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
@@ -2550,16 +2860,16 @@ document.getElementById("clearStartersButton").addEventListener("click", async (
     if (!window.confirm(t("confirmClearStarters"))) {
       return;
     }
-    currentCustomStarters = [];
-    renderCustomStartersPreview(currentCustomStarters);
-    await persistCustomStarters([]);
+    currentCustomStarters = getAgentFlowStarters();
+    renderCustomStartersPreview();
+    await persistCustomStarters(currentCustomStarters);
     setStatus(t("customStarterCleared"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
 });
 
-document.getElementById("customStartersPreview").addEventListener("click", async (event) => {
+async function handleStarterPreviewAction(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return;
@@ -2580,6 +2890,11 @@ document.getElementById("customStartersPreview").addEventListener("click", async
     return;
   }
 
+  if (actionNode.dataset.action === "edit-flow-starter") {
+    openStarterFlowEditor(starterId);
+    return;
+  }
+
   if (actionNode.dataset.action !== "delete-custom-starter") {
     return;
   }
@@ -2594,13 +2909,16 @@ document.getElementById("customStartersPreview").addEventListener("click", async
       return;
     }
     currentCustomStarters = currentCustomStarters.filter((item) => item.id !== starterId);
-    renderCustomStartersPreview(currentCustomStarters);
+    renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
     setStatus(t("customStarterDeleted", { name: starter.label }));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
-});
+}
+
+document.getElementById("customStartersPreview").addEventListener("click", handleStarterPreviewAction);
+document.getElementById("agentFlowsPreview").addEventListener("click", handleStarterPreviewAction);
 
 document.getElementById("starterAiEditorClose").addEventListener("click", () => {
   closeStarterAiEditor();
@@ -2676,7 +2994,7 @@ document.getElementById("starterAiEditorApply").addEventListener("click", async 
     const updatedStarter = parseSingleStarter(response, currentCustomStarters.findIndex((item) => item.id === starter.id));
     starterAiEditorState.pendingStarter = updatedStarter;
     currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
-    renderCustomStartersPreview(currentCustomStarters);
+    renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
     closeStarterAiEditor();
     setStatus(t("starterAiEditorUpdated", { name: updatedStarter.label }));
@@ -2691,6 +3009,72 @@ document.getElementById("starterAiEditorApply").addEventListener("click", async 
   } finally {
     starterAiEditorState.isApplying = false;
     renderStarterAiEditorModal();
+  }
+});
+
+document.getElementById("starterFlowEditorClose").addEventListener("click", () => {
+  closeStarterFlowEditor();
+});
+
+document.getElementById("starterFlowEditorModal").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) {
+    closeStarterFlowEditor();
+    return;
+  }
+
+  const actionNode = event.target instanceof HTMLElement ? event.target.closest("[data-action]") : null;
+  if (!(actionNode instanceof HTMLElement)) {
+    return;
+  }
+
+  const draft = getStarterFlowEditorDraft();
+  const stepIndex = Number.parseInt(String(actionNode.dataset.flowStepIndex || "-1"), 10);
+
+  if (actionNode.dataset.action === "flow-editor-step-up") {
+    draft.flowSteps = moveArrayItem(draft.flowSteps, stepIndex, stepIndex - 1);
+    renderStarterFlowEditorModal();
+    return;
+  }
+
+  if (actionNode.dataset.action === "flow-editor-step-down") {
+    draft.flowSteps = moveArrayItem(draft.flowSteps, stepIndex, stepIndex + 1);
+    renderStarterFlowEditorModal();
+    return;
+  }
+
+  if (actionNode.dataset.action === "flow-editor-step-remove") {
+    draft.flowSteps = draft.flowSteps.filter((_step, index) => index !== stepIndex);
+    renderStarterFlowEditorModal();
+    return;
+  }
+
+  if (actionNode.dataset.action === "flow-editor-add-step") {
+    const starterId = String(actionNode.dataset.flowStarterId || "").trim();
+    const skill = currentCustomStarters.find((item) => item.id === starterId && item.mode !== "flow");
+    if (!skill || draft.flowSteps.some((step) => step.starterId === starterId)) {
+      return;
+    }
+    draft.flowSteps = [...draft.flowSteps, { starterId: skill.id, label: skill.label }];
+    renderStarterFlowEditorModal();
+  }
+});
+
+document.getElementById("starterFlowEditorName").addEventListener("input", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement) {
+    getStarterFlowEditorDraft().label = target.value;
+    renderStarterFlowEditorModal();
+  }
+});
+
+document.getElementById("starterFlowEditorSave").addEventListener("click", async () => {
+  try {
+    await saveStarterFlowEditorDraft();
+    const updatedName = getStarterFlowEditorDraft().label.trim();
+    closeStarterFlowEditor();
+    setStatus(t("starterFlowEditorSaved", { name: updatedName }));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
   }
 });
 

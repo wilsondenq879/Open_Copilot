@@ -266,6 +266,7 @@
           <div class="utility-tabs" role="tablist" aria-label="Settings workspace tabs">
             <button id="tabExperience" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-experience" data-utility-tab="experience">Experience</button>
             <button id="tabStarterSkills" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-starter-skills" data-utility-tab="starterSkills">Starter Skills</button>
+            <button id="tabAgentFlows" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-agent-flows" data-utility-tab="agentFlows">Agent Flows</button>
           </div>
 
           <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
@@ -341,6 +342,38 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
               </section>
             </div>
           </section>
+
+          <section id="panel-agent-flows" class="utility-panel starter-library-panel" role="tabpanel" hidden>
+            <div class="starter-library-hero">
+              <div class="starter-library-copy">
+                <span id="agentFlowLibraryKicker" class="section-kicker">Agent Flow</span>
+                <h3 id="agentFlowLibraryTitle">Agent Flow Library</h3>
+                <p id="agentFlowLibraryDescription">Manage saved Agent Flows here. Each flow can be edited, reordered, and reused directly from the in-page starter list.</p>
+              </div>
+              <div class="starter-library-metrics" aria-hidden="true">
+                <article class="starter-library-metric">
+                  <span id="agentFlowLibraryStoredLabel" class="starter-library-metric-label">Stored</span>
+                  <strong id="agentFlowsCount" class="starter-library-metric-value">0</strong>
+                </article>
+                <article class="starter-library-metric">
+                  <span id="agentFlowLibrarySkillsLabel" class="starter-library-metric-label">Linked Skills</span>
+                  <strong id="agentFlowLibrarySkillsValue" class="starter-library-metric-value">0</strong>
+                </article>
+              </div>
+            </div>
+
+            <div class="starter-studio-shell">
+              <section class="starter-studio-library starter-studio-library-full">
+                <div class="starter-studio-library-head">
+                  <div>
+                    <div id="agentFlowLibraryGridTitle" class="starter-studio-title">Agent Flow Collection</div>
+                    <p id="agentFlowLibraryGridDescription" class="field-hint">Flows are managed separately from single starter skills so the settings page stays easier to scan.</p>
+                  </div>
+                </div>
+                <div id="agentFlowsPreview" class="starter-preview-list empty-state">No Agent Flows yet.</div>
+              </section>
+            </div>
+          </section>
         </section>
       </section>
 
@@ -368,6 +401,34 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         <div class="actions settings-inline-actions starter-ai-editor-actions">
           <button id="starterAiEditorDiscuss" class="secondary-button" type="button">Discuss With AI</button>
           <button id="starterAiEditorApply" class="primary-button" type="button" disabled>Apply Update</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="starterFlowEditorModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal starter-flow-editor-modal" role="dialog" aria-modal="true" aria-labelledby="starterFlowEditorTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="starterFlowEditorKicker" class="section-kicker">Flow Editor</div>
+            <h3 id="starterFlowEditorTitle" class="starter-studio-title">Edit Agent Flow</h3>
+            <p id="starterFlowEditorHint" class="field-hint">Rename the flow, reorder steps, remove steps, and add reusable custom skills.</p>
+          </div>
+          <button id="starterFlowEditorClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <label class="field">
+          <span id="starterFlowEditorNameLabel">Flow Name</span>
+          <input id="starterFlowEditorName" type="text" />
+        </label>
+        <div class="starter-ai-editor-current">
+          <div id="starterFlowEditorStepsLabel" class="starter-ai-editor-current-label">Flow Steps</div>
+          <div id="starterFlowEditorSteps" class="starter-flow-editor-steps empty-state">No steps yet.</div>
+        </div>
+        <div class="starter-ai-editor-current">
+          <div id="starterFlowEditorAvailableLabel" class="starter-ai-editor-current-label">Add Custom Skills</div>
+          <div id="starterFlowEditorAvailable" class="starter-flow-editor-available empty-state">No custom skills available.</div>
+        </div>
+        <div class="actions settings-inline-actions starter-ai-editor-actions">
+          <button id="starterFlowEditorSave" class="primary-button" type="button">Save Flow</button>
         </div>
       </section>
     </div>
