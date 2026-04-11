@@ -138,7 +138,7 @@ let currentConfig = null;
 let cachedModels = [];
 let activeStreamPort = null;
 let activeStreamText = "";
-let includePageContext = true;
+let pageContextMode = "auto";
 let chatMessages = [];
 let isGenerating = false;
 let attachedImages = [];
@@ -420,7 +420,11 @@ const CONTENT_I18N = {
     quickAccess: "快速工具",
     liveChat: "Open Copilot",
     clear: "清除",
-    context: "使用這個網頁作為 context",
+    contextLabelBefore: "將網頁內容加入這次回答",
+    contextLabelAfter: "後續對談持續加入網頁內容",
+    contextModeAuto: "自動",
+    contextModeAlways: "每次",
+    contextModeNever: "不要",
     ready: "已就緒。",
     empty: "詢問這個頁面、選取文字，或任何你想問的內容。",
     assistantThinking: "助理思考中",
@@ -538,8 +542,7 @@ const CONTENT_I18N = {
     customStarterBuilderPromptReady: "已整理好 starter 需求，接著可以送給 AI。",
     modelSelected: "目前模型：{model}",
     modelSelectFailed: "選擇模型失敗。",
-    pageContextEnabled: "已啟用頁面脈絡。",
-    pageContextDisabled: "已停用頁面脈絡。",
+    pageContextModeUpdated: "已更新網頁內容加入模式：{mode}。",
     includeRepoOrFile: "加入Github資料",
     changeIncludedSource: "更換來源",
     clearIncludedSource: "清除來源",
@@ -790,7 +793,11 @@ const CONTENT_I18N = {
     quickAccess: "Quick Access",
     liveChat: "Open Copilot",
     clear: "Clear",
-    context: "Use this page as context",
+    contextLabelBefore: "Add webpage content to this reply",
+    contextLabelAfter: "Keep adding webpage content to follow-up replies",
+    contextModeAuto: "Auto",
+    contextModeAlways: "Every time",
+    contextModeNever: "Never",
     ready: "Ready.",
     empty: "Ask about this page, selected text, or anything else.",
     assistantThinking: "assistant is thinking",
@@ -908,8 +915,7 @@ const CONTENT_I18N = {
     customStarterBuilderPromptReady: "Starter request prepared. You can send it to AI now.",
     modelSelected: "Using model: {model}",
     modelSelectFailed: "Failed to select model.",
-    pageContextEnabled: "Page context enabled.",
-    pageContextDisabled: "Page context disabled.",
+    pageContextModeUpdated: "Updated webpage context mode: {mode}.",
     includeRepoOrFile: "Add source",
     changeIncludedSource: "Change source",
     clearIncludedSource: "Clear source",
@@ -5695,8 +5701,48 @@ function getAttachedDocumentsContext() {
   ].join("\n\n");
 }
 
+function normalizePageContextMode(value) {
+  if (value === "always" || value === "never" || value === "auto") {
+    return value;
+  }
+  if (value === false) {
+    return "never";
+  }
+  if (value === true) {
+    return "always";
+  }
+  return "auto";
+}
+
+function hasConversationStarted() {
+  return chatMessages.some((message) => String(message?.role || "").toLowerCase() === "user");
+}
+
+function shouldIncludePageContext() {
+  if (pageContextMode === "always") {
+    return true;
+  }
+  if (pageContextMode === "never") {
+    return false;
+  }
+  const userTurnCount = chatMessages.filter((message) => String(message?.role || "").toLowerCase() === "user").length;
+  return userTurnCount <= 1;
+}
+
+function getPageContextModeLabel(mode = pageContextMode) {
+  const normalizedMode = normalizePageContextMode(mode);
+  if (normalizedMode === "always") {
+    return tl("contextModeAlways");
+  }
+  if (normalizedMode === "never") {
+    return tl("contextModeNever");
+  }
+  return tl("contextModeAuto");
+}
+
 async function buildPrompt(userMessage) {
   const starterRequest = isStarterBuilderRequest(userMessage);
+  const includePageContext = shouldIncludePageContext();
   const context = includePageContext ? await getAggregatedPageContext() : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubContext = await getSelectedGithubContext();
@@ -5845,7 +5891,8 @@ function buildConversationSnapshot() {
     pageUrl: window.location.href,
     selectedModel: currentConfig?.selectedModel || "",
     replyLanguage: currentConfig?.replyLanguage || "zh-TW",
-    includePageContext,
+    pageContextMode,
+    includePageContext: shouldIncludePageContext(),
     messages: chatMessages,
     latestPerspectiveRun,
   };
@@ -5882,6 +5929,7 @@ function buildConversationMarkdown(session = {}) {
   const selectedModel = String(session?.selectedModel || "").trim();
   const replyLanguage = String(session?.replyLanguage || "").trim();
   const includePageContextValue = session?.includePageContext !== false ? "Enabled" : "Disabled";
+  const pageContextModeValue = normalizePageContextMode(session?.pageContextMode ?? session?.includePageContext);
   const messages = Array.isArray(session?.messages) ? session.messages : [];
   const stages = Array.isArray(session?.latestPerspectiveRun?.stages) ? session.latestPerspectiveRun.stages : [];
   const finalPerspective = normalizeMarkdownText(session?.latestPerspectiveRun?.finalContent);
@@ -5893,6 +5941,7 @@ function buildConversationMarkdown(session = {}) {
     `- Page URL: ${pageUrl || "N/A"}`,
     `- Model: ${selectedModel || "N/A"}`,
     `- Reply language: ${replyLanguage || "N/A"}`,
+    `- Page context mode: ${pageContextModeValue}`,
     `- Page context: ${includePageContextValue}`,
   ];
 
@@ -7070,6 +7119,7 @@ function renderShell() {
   }
   const activeStarterEntries = getActiveStarterEntries(currentPageCopilot);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
+  const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelOptions = cachedModels.length
     ? cachedModels
         .map((model) => {
@@ -7138,8 +7188,12 @@ function renderShell() {
           <div class="ollama-quick-controls">
             <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
             <label class="ollama-quick-toggle ollama-quick-toggle-below">
-              <input type="checkbox" data-role="include-context" ${includePageContext ? "checked" : ""} />
-              <span>${escapeHtml(tl("context"))}</span>
+              <span>${escapeHtml(pageContextControlLabel)}</span>
+              <select class="ollama-quick-select" data-role="page-context-mode">
+                <option value="auto" ${pageContextMode === "auto" ? "selected" : ""}>${escapeHtml(tl("contextModeAuto"))}</option>
+                <option value="always" ${pageContextMode === "always" ? "selected" : ""}>${escapeHtml(tl("contextModeAlways"))}</option>
+                <option value="never" ${pageContextMode === "never" ? "selected" : ""}>${escapeHtml(tl("contextModeNever"))}</option>
+              </select>
             </label>
           </div>
           <div class="ollama-quick-include-panel">
@@ -8539,6 +8593,7 @@ async function handleClick(event) {
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
     attachedDocuments = [];
+    renderShell();
     renderMessages();
     renderAttachments();
     scheduleConversationSave();
@@ -8584,9 +8639,11 @@ async function handleChange(event) {
     return;
   }
 
-  if (target instanceof HTMLInputElement && target.dataset.role === "include-context") {
-    includePageContext = target.checked;
-    setStatus(includePageContext ? tl("pageContextEnabled") : tl("pageContextDisabled"));
+  if (target instanceof HTMLSelectElement && target.dataset.role === "page-context-mode") {
+    pageContextMode = normalizePageContextMode(target.value);
+    setStatus(tl("pageContextModeUpdated", { mode: getPageContextModeLabel(pageContextMode) }));
+    renderShell();
+    scheduleConversationSave();
     return;
   }
 
@@ -8725,6 +8782,7 @@ async function sendCurrentPrompt() {
 
   if (composeMode === "perspective") {
     chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
+    renderShell();
     renderMessages();
     scheduleConversationSave();
     await runMultiPerspectiveAnalysis(userMessage);
@@ -8736,6 +8794,7 @@ async function sendCurrentPrompt() {
   chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
   chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
   isGenerating = true;
+  renderShell();
   renderMessages();
   scheduleConversationSave();
   togglePanel(true);

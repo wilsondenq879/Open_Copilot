@@ -220,6 +220,11 @@ function buildChatMarkdown(session = {}) {
   const selectedModel = String(session?.selectedModel || "").trim();
   const replyLanguage = String(session?.replyLanguage || "").trim();
   const includePageContext = session?.includePageContext !== false ? "Enabled" : "Disabled";
+  const pageContextMode = session?.pageContextMode === "always" || session?.pageContextMode === "never" || session?.pageContextMode === "auto"
+    ? session.pageContextMode
+    : session?.includePageContext === false
+      ? "never"
+      : "auto";
   const messages = Array.isArray(session?.messages) ? session.messages : [];
   const stages = Array.isArray(session?.latestPerspectiveRun?.stages) ? session.latestPerspectiveRun.stages : [];
   const finalPerspective = normalizeMarkdownText(session?.latestPerspectiveRun?.finalContent);
@@ -231,6 +236,7 @@ function buildChatMarkdown(session = {}) {
     `- Page URL: ${pageUrl || "N/A"}`,
     `- Model: ${selectedModel || "N/A"}`,
     `- Reply language: ${replyLanguage || "N/A"}`,
+    `- Page context mode: ${pageContextMode}`,
     `- Page context: ${includePageContext}`,
   ];
 
