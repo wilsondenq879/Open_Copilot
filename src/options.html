@@ -42,6 +42,7 @@
 
       <div class="utility-tabs settings-page-tabs" role="tablist" aria-label="Settings sections">
         <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="settings">General</button>
+        <button id="tabNotifications" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="notificationTabPanel" data-settings-view="notifications">Notifications</button>
         <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
         <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
       </div>
@@ -245,7 +246,6 @@
               </label>
               <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
             </div>
-
             <div class="provider-support-card">
               <div class="field">
                 <span id="localWorkFolderLabel">Local Work Folder</span>
@@ -324,7 +324,111 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
           </section>
         </section>
+        </section>
       </section>
+
+      <section id="notificationTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+          <div class="provider-support-grid">
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="telegramNotificationEnabled" type="checkbox" />
+                <span id="telegramNotificationEnabledLabel">Enable Telegram notifications</span>
+                <span id="telegramHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Telegram setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="telegramBotTokenLabel">Telegram Bot Token</span>
+                <input id="telegramBotToken" type="password" placeholder="123456789:AA..." />
+              </label>
+              <label class="field">
+                <span id="telegramChatIdLabel">Telegram Chat ID</span>
+                <input id="telegramChatId" type="text" placeholder="123456789 or -100..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="telegramTestButton" class="secondary-button" type="button">Send Test Telegram</button>
+              </div>
+              <p id="telegramNotificationHint" class="field-hint">When enabled, Open Copilot sends Telegram messages for Agent Flow completions and task reminders.</p>
+              <p id="telegramStatusMessage" class="field-hint">Telegram test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="lineNotificationEnabled" type="checkbox" />
+                <span id="lineNotificationEnabledLabel">Enable LINE notifications</span>
+                <span id="lineHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="LINE setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="lineChannelAccessTokenLabel">LINE Channel Access Token</span>
+                <input id="lineChannelAccessToken" type="password" placeholder="LINE channel access token" />
+              </label>
+              <label class="field">
+                <span id="lineToLabel">LINE To ID</span>
+                <input id="lineTo" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="lineTestButton" class="secondary-button" type="button">Send Test LINE</button>
+              </div>
+              <p id="lineNotificationHint" class="field-hint">When enabled, Open Copilot sends LINE messages for Agent Flow completions and task reminders.</p>
+              <p id="lineStatusMessage" class="field-hint">LINE test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="teamsNotificationEnabled" type="checkbox" />
+                <span id="teamsNotificationEnabledLabel">Enable Teams notifications</span>
+                <span id="teamsHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Teams setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="teamsWebhookUrlLabel">Teams Webhook URL</span>
+                <input id="teamsWebhookUrl" type="password" placeholder="https://.../webhookb2/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="teamsTestButton" class="secondary-button" type="button">Send Test Teams</button>
+              </div>
+              <p id="teamsNotificationHint" class="field-hint">When enabled, Open Copilot sends Teams messages for Agent Flow completions and task reminders.</p>
+              <p id="teamsPowerAutomateHint" class="field-hint">In Power Automate, put these fields into the message action so Teams can show Open Copilot source details.</p>
+              <pre id="teamsPowerAutomateExample" class="notification-code-hint">Source: triggerBody()['source']
+Event: triggerBody()['eventType']
+Label: triggerBody()['eventLabel']
+Time: triggerBody()['sentAt']</pre>
+              <p id="teamsStatusMessage" class="field-hint">Teams test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="slackNotificationEnabled" type="checkbox" />
+                <span id="slackNotificationEnabledLabel">Enable Slack notifications</span>
+                <span id="slackHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Slack setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="slackWebhookUrlLabel">Slack Webhook URL</span>
+                <input id="slackWebhookUrl" type="password" placeholder="https://hooks.slack.com/services/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="slackTestButton" class="secondary-button" type="button">Send Test Slack</button>
+              </div>
+              <p id="slackNotificationHint" class="field-hint">When enabled, Open Copilot sends Slack messages for Agent Flow completions and task reminders.</p>
+              <p id="slackStatusMessage" class="field-hint">Slack test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="discordNotificationEnabled" type="checkbox" />
+                <span id="discordNotificationEnabledLabel">Enable Discord notifications</span>
+                <span id="discordHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Discord setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="discordWebhookUrlLabel">Discord Webhook URL</span>
+                <input id="discordWebhookUrl" type="password" placeholder="https://discord.com/api/webhooks/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="discordTestButton" class="secondary-button" type="button">Send Test Discord</button>
+              </div>
+              <p id="discordNotificationHint" class="field-hint">When enabled, Open Copilot sends Discord messages for Agent Flow completions and task reminders.</p>
+              <p id="discordStatusMessage" class="field-hint">Discord test results will appear here.</p>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section id="starterTabPanel" class="settings-tab-panel library-page" role="tabpanel" hidden>
@@ -375,6 +479,11 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             <label class="field starter-json-field starter-json-field-side">
               <span id="customStartersInputLabel">Paste Starter JSON</span>
               <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+              <div class="actions settings-inline-actions starter-json-actions">
+                <button id="validateStartersJsonButton" class="secondary-button" type="button">Check JSON</button>
+                <button id="fixStartersJsonButton" class="secondary-button" type="button">Fix With AI</button>
+              </div>
+              <p id="customStartersValidationMessage" class="field-hint starter-json-validation-message">Paste skill JSON to validate its format.</p>
             </label>
           </section>
 

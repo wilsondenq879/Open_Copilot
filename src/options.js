@@ -35,6 +35,55 @@ const OPTION_I18N = {
     azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
     githubApiKeyLabel: "GitHub API Key",
     githubApiKeyHint: "建議使用 fine-grained、read-only 的 GitHub personal access token。設定後 extension 就能抓 GitHub 檔案內容，也可讀取你有權限的 private repository。",
+    telegramNotificationEnabledLabel: "啟用 Telegram 通知",
+    telegramBotTokenLabel: "Telegram Bot Token",
+    telegramChatIdLabel: "Telegram Chat ID",
+    telegramTestButton: "發送測試 Telegram",
+    telegramNotificationHint: "啟用後，Agent Flow 完成與 Task 提醒都會自動送 Telegram 訊息。",
+    telegramTestSuccess: "Telegram 測試訊息已送出。",
+    telegramStatusIdle: "Telegram 測試結果會顯示在這裡。",
+    telegramStatusSending: "正在發送 Telegram 測試訊息...",
+    telegramHelpLabel: "Telegram 設定步驟",
+    telegramHelpContent: "1. 在 Telegram 找到你的 bot 並按 Start。\n2. 填入 Bot Token。\n3. 填入可收訊的 Chat ID。\n4. 按「發送測試 Telegram」確認可收到。\n5. 啟用後，Flow 完成與 Task 提醒會自動送出。",
+    lineNotificationEnabledLabel: "啟用 LINE 通知",
+    lineChannelAccessTokenLabel: "LINE Channel Access Token",
+    lineToLabel: "LINE To ID",
+    lineTestButton: "發送測試 LINE",
+    lineNotificationHint: "啟用後，Agent Flow 完成與 Task 提醒都會自動送 LINE 訊息。",
+    lineTestSuccess: "LINE 測試訊息已送出。",
+    lineStatusIdle: "LINE 測試結果會顯示在這裡。",
+    lineStatusSending: "正在發送 LINE 測試訊息...",
+    lineHelpLabel: "LINE 設定步驟",
+    lineHelpContent: "1. 在 LINE Developers 建立 Messaging API channel。\n2. 取得 Channel Access Token。\n3. 準備可 push 的 To ID（user/group/room ID）。\n4. 填入後按「發送測試 LINE」。\n5. 啟用後，Flow 完成與 Task 提醒會自動送出。",
+    teamsNotificationEnabledLabel: "啟用 Teams 通知",
+    teamsWebhookUrlLabel: "Teams Webhook URL",
+    teamsTestButton: "發送測試 Teams",
+    teamsNotificationHint: "啟用後，Agent Flow 完成與 Task 提醒都會自動送 Teams 訊息。",
+    teamsPowerAutomateHint: "若你用的是 Power Automate，請把下面這些欄位放進「Post message in a chat or channel」的 Message 內容，讓 Teams 訊息能顯示 Open Copilot 來源。",
+    teamsPowerAutomateExample: "Source: triggerBody()['source']\nEvent: triggerBody()['eventType']\nLabel: triggerBody()['eventLabel']\nTime: triggerBody()['sentAt']",
+    teamsTestSuccess: "Teams 測試訊息已送出。",
+    teamsStatusIdle: "Teams 測試結果會顯示在這裡。",
+    teamsStatusSending: "正在發送 Teams 測試訊息...",
+    teamsHelpLabel: "Teams 設定步驟",
+    teamsHelpContent: "1. 若用 Incoming Webhook，直接貼上 webhook URL。\n2. 若用 Power Automate，workflow 需在 webhook 之後再接一個「Post message in a chat or channel」步驟。\n3. 若 workflow 要求 OAuth，Open Copilot 無法直接呼叫，需改成匿名可呼叫網址。\n4. 可用 triggerBody()['source']、['eventType']、['eventLabel']、['sentAt'] 辨識 Open Copilot 來源。\n5. 填入後按「發送測試 Teams」。",
+    slackNotificationEnabledLabel: "啟用 Slack 通知",
+    slackWebhookUrlLabel: "Slack Webhook URL",
+    slackTestButton: "發送測試 Slack",
+    slackNotificationHint: "啟用後，Agent Flow 完成與 Task 提醒都會自動送 Slack 訊息。",
+    slackTestSuccess: "Slack 測試訊息已送出。",
+    slackStatusIdle: "Slack 測試結果會顯示在這裡。",
+    slackStatusSending: "正在發送 Slack 測試訊息...",
+    slackHelpLabel: "Slack 設定步驟",
+    slackHelpContent: "1. 在 Slack App 啟用 Incoming Webhooks。\n2. 建立要接收通知的 channel webhook。\n3. 將 webhook URL 貼到這裡。\n4. 按「發送測試 Slack」確認可收到。\n5. 啟用後，Flow 完成與 Task 提醒會自動送出。",
+    discordNotificationEnabledLabel: "啟用 Discord 通知",
+    discordWebhookUrlLabel: "Discord Webhook URL",
+    discordTestButton: "發送測試 Discord",
+    discordNotificationHint: "啟用後，Agent Flow 完成與 Task 提醒都會自動送 Discord 訊息。",
+    discordTestSuccess: "Discord 測試訊息已送出。",
+    discordStatusIdle: "Discord 測試結果會顯示在這裡。",
+    discordStatusSending: "正在發送 Discord 測試訊息...",
+    discordHelpLabel: "Discord 設定步驟",
+    discordHelpContent: "1. 到 Discord 頻道設定建立 webhook。\n2. 複製 webhook URL 並貼到這裡。\n3. 按「發送測試 Discord」確認可收到。\n4. 啟用後，Flow 完成與 Task 提醒會自動送出。",
     generalSectionTitle: "互動體驗",
     generalSectionTag: "Prompt 路由",
     localWorkFolderLabel: "本機工作資料夾",
@@ -223,6 +272,55 @@ const OPTION_I18N = {
     azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
     githubApiKeyLabel: "GitHub API Key",
     githubApiKeyHint: "Use a fine-grained, read-only GitHub personal access token when possible. The extension can then fetch GitHub file contents, including private repositories you can access.",
+    telegramNotificationEnabledLabel: "Enable Telegram notifications",
+    telegramBotTokenLabel: "Telegram Bot Token",
+    telegramChatIdLabel: "Telegram Chat ID",
+    telegramTestButton: "Send Test Telegram",
+    telegramNotificationHint: "When enabled, Open Copilot sends Telegram messages for Agent Flow completions and task reminders.",
+    telegramTestSuccess: "Telegram test message sent.",
+    telegramStatusIdle: "Telegram test results will appear here.",
+    telegramStatusSending: "Sending Telegram test message...",
+    telegramHelpLabel: "Telegram setup steps",
+    telegramHelpContent: "1. Open your bot in Telegram and press Start.\n2. Fill in the Bot Token.\n3. Fill in a valid Chat ID.\n4. Click Send Test Telegram to confirm delivery.\n5. After enabled, flow completions and task reminders are sent automatically.",
+    lineNotificationEnabledLabel: "Enable LINE notifications",
+    lineChannelAccessTokenLabel: "LINE Channel Access Token",
+    lineToLabel: "LINE To ID",
+    lineTestButton: "Send Test LINE",
+    lineNotificationHint: "When enabled, Open Copilot sends LINE messages for Agent Flow completions and task reminders.",
+    lineTestSuccess: "LINE test message sent.",
+    lineStatusIdle: "LINE test results will appear here.",
+    lineStatusSending: "Sending LINE test message...",
+    lineHelpLabel: "LINE setup steps",
+    lineHelpContent: "1. Create a Messaging API channel in LINE Developers.\n2. Get the Channel Access Token.\n3. Prepare a pushable To ID (user/group/room ID).\n4. Fill them in and click Send Test LINE.\n5. After enabled, flow completions and task reminders are sent automatically.",
+    teamsNotificationEnabledLabel: "Enable Teams notifications",
+    teamsWebhookUrlLabel: "Teams Webhook URL",
+    teamsTestButton: "Send Test Teams",
+    teamsNotificationHint: "When enabled, Open Copilot sends Teams messages for Agent Flow completions and task reminders.",
+    teamsPowerAutomateHint: "If you use Power Automate, put the fields below into the \"Post message in a chat or channel\" message body so Teams can show Open Copilot source details.",
+    teamsPowerAutomateExample: "Source: triggerBody()['source']\nEvent: triggerBody()['eventType']\nLabel: triggerBody()['eventLabel']\nTime: triggerBody()['sentAt']",
+    teamsTestSuccess: "Teams test message sent.",
+    teamsStatusIdle: "Teams test results will appear here.",
+    teamsStatusSending: "Sending Teams test message...",
+    teamsHelpLabel: "Teams setup steps",
+    teamsHelpContent: "1. If you use Incoming Webhook, paste the webhook URL directly.\n2. If you use Power Automate, add a \"Post message in a chat or channel\" step after the webhook trigger.\n3. If the workflow requires OAuth, Open Copilot cannot call it directly; use an anonymous callable URL instead.\n4. You can use triggerBody()['source'], ['eventType'], ['eventLabel'], and ['sentAt'] to identify Open Copilot events.\n5. Click Send Test Teams after filling it in.",
+    slackNotificationEnabledLabel: "Enable Slack notifications",
+    slackWebhookUrlLabel: "Slack Webhook URL",
+    slackTestButton: "Send Test Slack",
+    slackNotificationHint: "When enabled, Open Copilot sends Slack messages for Agent Flow completions and task reminders.",
+    slackTestSuccess: "Slack test message sent.",
+    slackStatusIdle: "Slack test results will appear here.",
+    slackStatusSending: "Sending Slack test message...",
+    slackHelpLabel: "Slack setup steps",
+    slackHelpContent: "1. Enable Incoming Webhooks in your Slack app.\n2. Create a webhook for the channel that should receive notifications.\n3. Paste the webhook URL here.\n4. Click Send Test Slack to confirm delivery.\n5. After enabled, flow completions and task reminders are sent automatically.",
+    discordNotificationEnabledLabel: "Enable Discord notifications",
+    discordWebhookUrlLabel: "Discord Webhook URL",
+    discordTestButton: "Send Test Discord",
+    discordNotificationHint: "When enabled, Open Copilot sends Discord messages for Agent Flow completions and task reminders.",
+    discordTestSuccess: "Discord test message sent.",
+    discordStatusIdle: "Discord test results will appear here.",
+    discordStatusSending: "Sending Discord test message...",
+    discordHelpLabel: "Discord setup steps",
+    discordHelpContent: "1. Create a webhook in your Discord channel settings.\n2. Copy the webhook URL and paste it here.\n3. Click Send Test Discord to confirm delivery.\n4. After enabled, flow completions and task reminders are sent automatically.",
     generalSectionTitle: "Experience",
     generalSectionTag: "Prompt Routing",
     localWorkFolderLabel: "Local Work Folder",
@@ -1473,6 +1571,21 @@ Object.assign(OPTION_I18N["zh-TW"], {
   customStarterCleared: "已清除 AI 技能。",
   customStarterImportFailed: "AI 技能 JSON 匯入失敗。",
   customStarterLimitReached: "最多只能儲存 {limit} 組 AI 技能。",
+  validateStartersJson: "檢查 JSON",
+  fixStartersJsonWithAi: "AI 修正 JSON",
+  customStarterJsonIdle: "貼上 skill JSON 後，這裡會顯示格式檢查結果。",
+  customStarterJsonNeedInput: "請先貼上要檢查的 skill JSON。",
+  customStarterJsonValid: "JSON 格式正確，可匯入 {count} 個 AI 技能。",
+  customStarterJsonFixing: "AI 正在修正 JSON...",
+  customStarterJsonFixed: "AI 已修正 JSON，現在可匯入 {count} 個 AI 技能。",
+  customStarterJsonNeedModel: "請先選擇模型，才能用 AI 修正 JSON。",
+  customStarterJsonAiFailedPrefix: "AI 修正 JSON 失敗：",
+  customStarterJsonParseFailed: "JSON 格式錯誤：{message}",
+  customStarterJsonRootMustBeArray: "最外層必須是 JSON 陣列，或使用 `{ \"starters\": [...] }`。",
+  customStarterInvalidItemType: "第 {index} 筆 skill 必須是物件。",
+  customStarterMissingLabel: "第 {index} 筆 skill 缺少 `label`。",
+  customStarterMissingPrompt: "第 {index} 筆 skill 缺少 `prompt`。",
+  customStarterFlowNeedsSteps: "第 {index} 筆 flow skill 至少需要 2 個 `flowSteps`。",
   deleteStarter: "移除",
   customStarterDeleted: "已移除 AI 技能：{name}",
   confirmClearStarters: "確定要清除所有匯入的 AI 技能嗎？",
@@ -1494,6 +1607,21 @@ Object.assign(OPTION_I18N.en, {
   customStarterCleared: "AI skills cleared.",
   customStarterImportFailed: "Failed to import AI skill JSON.",
   customStarterLimitReached: "You can store up to {limit} AI skills.",
+  validateStartersJson: "Check JSON",
+  fixStartersJsonWithAi: "Fix JSON With AI",
+  customStarterJsonIdle: "Paste skill JSON here to validate its format.",
+  customStarterJsonNeedInput: "Paste the skill JSON you want to validate first.",
+  customStarterJsonValid: "JSON looks valid and can import {count} AI skill(s).",
+  customStarterJsonFixing: "AI is fixing the JSON...",
+  customStarterJsonFixed: "AI repaired the JSON. It can now import {count} AI skill(s).",
+  customStarterJsonNeedModel: "Select a model first to let AI repair the JSON.",
+  customStarterJsonAiFailedPrefix: "AI JSON repair failed:",
+  customStarterJsonParseFailed: "JSON format error: {message}",
+  customStarterJsonRootMustBeArray: "The root must be a JSON array, or use `{ \"starters\": [...] }`.",
+  customStarterInvalidItemType: "Skill #{index} must be an object.",
+  customStarterMissingLabel: "Skill #{index} is missing `label`.",
+  customStarterMissingPrompt: "Skill #{index} is missing `prompt`.",
+  customStarterFlowNeedsSteps: "Flow skill #{index} needs at least 2 `flowSteps`.",
   deleteStarter: "Remove",
   customStarterDeleted: "Removed AI skill: {name}",
   confirmClearStarters: "Clear all imported AI skills?",
@@ -1515,6 +1643,21 @@ Object.assign(OPTION_I18N.ja, {
   customStarterCleared: "AI スキルをクリアしました。",
   customStarterImportFailed: "AI スキル JSON の取り込みに失敗しました。",
   customStarterLimitReached: "保存できる AI スキルは最大 {limit} 件です。",
+  validateStartersJson: "JSON を確認",
+  fixStartersJsonWithAi: "AI で JSON 修正",
+  customStarterJsonIdle: "skill JSON を貼り付けると、ここに形式チェック結果が表示されます。",
+  customStarterJsonNeedInput: "まず確認したい skill JSON を貼り付けてください。",
+  customStarterJsonValid: "JSON は有効です。{count} 件の AI スキルを取り込めます。",
+  customStarterJsonFixing: "AI が JSON を修正しています...",
+  customStarterJsonFixed: "AI が JSON を修正しました。{count} 件の AI スキルを取り込めます。",
+  customStarterJsonNeedModel: "AI で JSON を修正するには、先にモデルを選択してください。",
+  customStarterJsonAiFailedPrefix: "AI による JSON 修正に失敗しました:",
+  customStarterJsonParseFailed: "JSON 形式エラー: {message}",
+  customStarterJsonRootMustBeArray: "最上位は JSON 配列にするか、`{ \"starters\": [...] }` を使ってください。",
+  customStarterInvalidItemType: "{index} 件目の skill はオブジェクトである必要があります。",
+  customStarterMissingLabel: "{index} 件目の skill に `label` がありません。",
+  customStarterMissingPrompt: "{index} 件目の skill に `prompt` がありません。",
+  customStarterFlowNeedsSteps: "{index} 件目の flow skill には最低 2 つの `flowSteps` が必要です。",
   deleteStarter: "削除",
   customStarterDeleted: "AI スキルを削除しました: {name}",
   confirmClearStarters: "取り込んだ AI スキルをすべてクリアしますか？",
@@ -1536,6 +1679,21 @@ Object.assign(OPTION_I18N.ko, {
   customStarterCleared: "AI 스킬을 지웠습니다.",
   customStarterImportFailed: "AI 스킬 JSON 가져오기에 실패했습니다.",
   customStarterLimitReached: "최대 {limit}개의 AI 스킬만 저장할 수 있습니다.",
+  validateStartersJson: "JSON 검사",
+  fixStartersJsonWithAi: "AI로 JSON 수정",
+  customStarterJsonIdle: "skill JSON을 붙여 넣으면 여기에서 형식 검사 결과를 보여줍니다.",
+  customStarterJsonNeedInput: "먼저 검사할 skill JSON을 붙여 넣어 주세요.",
+  customStarterJsonValid: "JSON 형식이 올바르며 AI 스킬 {count}개를 가져올 수 있습니다.",
+  customStarterJsonFixing: "AI가 JSON을 수정하는 중입니다...",
+  customStarterJsonFixed: "AI가 JSON을 수정했습니다. 이제 AI 스킬 {count}개를 가져올 수 있습니다.",
+  customStarterJsonNeedModel: "AI로 JSON을 수정하려면 먼저 모델을 선택해 주세요.",
+  customStarterJsonAiFailedPrefix: "AI JSON 수정 실패:",
+  customStarterJsonParseFailed: "JSON 형식 오류: {message}",
+  customStarterJsonRootMustBeArray: "루트는 JSON 배열이어야 하며, 또는 `{ \"starters\": [...] }` 형식을 사용하세요.",
+  customStarterInvalidItemType: "{index}번째 skill은 객체여야 합니다.",
+  customStarterMissingLabel: "{index}번째 skill에 `label`이 없습니다.",
+  customStarterMissingPrompt: "{index}번째 skill에 `prompt`가 없습니다.",
+  customStarterFlowNeedsSteps: "{index}번째 flow skill에는 최소 2개의 `flowSteps`가 필요합니다.",
   deleteStarter: "삭제",
   customStarterDeleted: "AI 스킬 삭제됨: {name}",
   confirmClearStarters: "가져온 AI 스킬을 모두 지울까요?",
@@ -1557,6 +1715,21 @@ Object.assign(OPTION_I18N["zh-CN"], {
   customStarterCleared: "已清除 AI 技能。",
   customStarterImportFailed: "AI 技能 JSON 导入失败。",
   customStarterLimitReached: "最多只能存储 {limit} 组 AI 技能。",
+  validateStartersJson: "检查 JSON",
+  fixStartersJsonWithAi: "AI 修正 JSON",
+  customStarterJsonIdle: "粘贴 skill JSON 后，这里会显示格式检查结果。",
+  customStarterJsonNeedInput: "请先粘贴要检查的 skill JSON。",
+  customStarterJsonValid: "JSON 格式正确，可导入 {count} 个 AI 技能。",
+  customStarterJsonFixing: "AI 正在修正 JSON...",
+  customStarterJsonFixed: "AI 已修正 JSON，现在可导入 {count} 个 AI 技能。",
+  customStarterJsonNeedModel: "请先选择模型，才能用 AI 修正 JSON。",
+  customStarterJsonAiFailedPrefix: "AI 修正 JSON 失败：",
+  customStarterJsonParseFailed: "JSON 格式错误：{message}",
+  customStarterJsonRootMustBeArray: "最外层必须是 JSON 数组，或使用 `{ \"starters\": [...] }`。",
+  customStarterInvalidItemType: "第 {index} 条 skill 必须是对象。",
+  customStarterMissingLabel: "第 {index} 条 skill 缺少 `label`。",
+  customStarterMissingPrompt: "第 {index} 条 skill 缺少 `prompt`。",
+  customStarterFlowNeedsSteps: "第 {index} 条 flow skill 至少需要 2 个 `flowSteps`。",
   deleteStarter: "移除",
   customStarterDeleted: "已移除 AI 技能：{name}",
   confirmClearStarters: "确定要清除所有导入的 AI 技能吗？",
@@ -1634,6 +1807,9 @@ let starterAiEditorState = {
   pendingStarter: null,
   isGenerating: false,
   isApplying: false,
+};
+let starterJsonToolState = {
+  isFixing: false,
 };
 let starterFlowEditorState = {
   open: false,
@@ -2012,6 +2188,7 @@ function sendMessage(message) {
 
 Object.assign(OPTION_I18N["zh-TW"], {
   utilityTabGeneral: "General",
+  utilityTabNotifications: "通知",
   utilityTabStarterLibrary: "Starter",
   utilityTabAgentFlowLibrary: "Agent Flow",
   skillsPageTitle: "Skills Library",
@@ -2056,6 +2233,7 @@ Object.assign(OPTION_I18N["zh-TW"], {
 
 Object.assign(OPTION_I18N.en, {
   utilityTabGeneral: "General",
+  utilityTabNotifications: "Notifications",
   utilityTabStarterLibrary: "Starter",
   utilityTabAgentFlowLibrary: "Agent Flow",
   skillsPageTitle: "Skills Library",
@@ -2242,6 +2420,55 @@ function applyTranslations() {
   document.getElementById("azureHint").textContent = t("azureHint");
   document.getElementById("githubApiKeyLabel").textContent = t("githubApiKeyLabel");
   document.getElementById("githubApiKeyHint").textContent = t("githubApiKeyHint");
+  document.getElementById("telegramNotificationEnabledLabel").textContent = t("telegramNotificationEnabledLabel");
+  document.getElementById("telegramBotTokenLabel").textContent = t("telegramBotTokenLabel");
+  document.getElementById("telegramChatIdLabel").textContent = t("telegramChatIdLabel");
+  document.getElementById("telegramTestButton").textContent = t("telegramTestButton");
+  document.getElementById("telegramNotificationHint").textContent = t("telegramNotificationHint");
+  document.getElementById("telegramStatusMessage").textContent = t("telegramStatusIdle");
+  document.getElementById("telegramStatusMessage").classList.remove("is-error");
+  document.getElementById("telegramStatusMessage").classList.remove("is-success");
+  document.getElementById("telegramHelpButton").setAttribute("aria-label", t("telegramHelpLabel"));
+  document.getElementById("telegramHelpButton").setAttribute("title", t("telegramHelpContent"));
+  document.getElementById("lineNotificationEnabledLabel").textContent = t("lineNotificationEnabledLabel");
+  document.getElementById("lineChannelAccessTokenLabel").textContent = t("lineChannelAccessTokenLabel");
+  document.getElementById("lineToLabel").textContent = t("lineToLabel");
+  document.getElementById("lineTestButton").textContent = t("lineTestButton");
+  document.getElementById("lineNotificationHint").textContent = t("lineNotificationHint");
+  document.getElementById("lineStatusMessage").textContent = t("lineStatusIdle");
+  document.getElementById("lineStatusMessage").classList.remove("is-error");
+  document.getElementById("lineStatusMessage").classList.remove("is-success");
+  document.getElementById("lineHelpButton").setAttribute("aria-label", t("lineHelpLabel"));
+  document.getElementById("lineHelpButton").setAttribute("title", t("lineHelpContent"));
+  document.getElementById("teamsNotificationEnabledLabel").textContent = t("teamsNotificationEnabledLabel");
+  document.getElementById("teamsWebhookUrlLabel").textContent = t("teamsWebhookUrlLabel");
+  document.getElementById("teamsTestButton").textContent = t("teamsTestButton");
+  document.getElementById("teamsNotificationHint").textContent = t("teamsNotificationHint");
+  document.getElementById("teamsPowerAutomateHint").textContent = t("teamsPowerAutomateHint");
+  document.getElementById("teamsPowerAutomateExample").textContent = t("teamsPowerAutomateExample");
+  document.getElementById("teamsStatusMessage").textContent = t("teamsStatusIdle");
+  document.getElementById("teamsStatusMessage").classList.remove("is-error");
+  document.getElementById("teamsStatusMessage").classList.remove("is-success");
+  document.getElementById("teamsHelpButton").setAttribute("aria-label", t("teamsHelpLabel"));
+  document.getElementById("teamsHelpButton").setAttribute("title", t("teamsHelpContent"));
+  document.getElementById("slackNotificationEnabledLabel").textContent = t("slackNotificationEnabledLabel");
+  document.getElementById("slackWebhookUrlLabel").textContent = t("slackWebhookUrlLabel");
+  document.getElementById("slackTestButton").textContent = t("slackTestButton");
+  document.getElementById("slackNotificationHint").textContent = t("slackNotificationHint");
+  document.getElementById("slackStatusMessage").textContent = t("slackStatusIdle");
+  document.getElementById("slackStatusMessage").classList.remove("is-error");
+  document.getElementById("slackStatusMessage").classList.remove("is-success");
+  document.getElementById("slackHelpButton").setAttribute("aria-label", t("slackHelpLabel"));
+  document.getElementById("slackHelpButton").setAttribute("title", t("slackHelpContent"));
+  document.getElementById("discordNotificationEnabledLabel").textContent = t("discordNotificationEnabledLabel");
+  document.getElementById("discordWebhookUrlLabel").textContent = t("discordWebhookUrlLabel");
+  document.getElementById("discordTestButton").textContent = t("discordTestButton");
+  document.getElementById("discordNotificationHint").textContent = t("discordNotificationHint");
+  document.getElementById("discordStatusMessage").textContent = t("discordStatusIdle");
+  document.getElementById("discordStatusMessage").classList.remove("is-error");
+  document.getElementById("discordStatusMessage").classList.remove("is-success");
+  document.getElementById("discordHelpButton").setAttribute("aria-label", t("discordHelpLabel"));
+  document.getElementById("discordHelpButton").setAttribute("title", t("discordHelpContent"));
   document.getElementById("generalSectionTitle").textContent = t("generalSectionTitle");
   document.getElementById("generalSectionTag").textContent = t("generalSectionTag");
   document.getElementById("localWorkFolderLabel").textContent = t("localWorkFolderLabel");
@@ -2299,6 +2526,7 @@ function applyTranslations() {
   document.getElementById("starterLibraryGridTitle").textContent = t("starterLibraryGridTitle");
   document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
   document.getElementById("tabGeneral").textContent = t("utilityTabGeneral");
+  document.getElementById("tabNotifications").textContent = t("utilityTabNotifications");
   document.getElementById("tabStarterLibrary").textContent = t("utilityTabStarterLibrary");
   document.getElementById("tabAgentFlowLibrary").textContent = t("utilityTabAgentFlowLibrary");
   document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
@@ -2334,6 +2562,11 @@ function applyTranslations() {
   document.getElementById("customStartersInput").placeholder = t("customStartersInputPlaceholder");
   document.getElementById("createStartersButton").textContent = t("createStarters");
   document.getElementById("clearStartersButton").textContent = t("clearStarters");
+  const validateStartersJsonButton = document.getElementById("validateStartersJsonButton");
+  if (validateStartersJsonButton) validateStartersJsonButton.textContent = t("validateStartersJson");
+  const fixStartersJsonButton = document.getElementById("fixStartersJsonButton");
+  if (fixStartersJsonButton) fixStartersJsonButton.textContent = starterJsonToolState.isFixing ? t("customStarterJsonFixing") : t("fixStartersJsonWithAi");
+  refreshCustomStarterJsonValidation({ silentEmpty: true });
   const starterAiEditorKicker = document.getElementById("starterAiEditorKicker");
   if (starterAiEditorKicker) starterAiEditorKicker.textContent = t("starterAiEditorKicker");
   const starterAiEditorTitle = document.getElementById("starterAiEditorTitle");
@@ -2533,7 +2766,7 @@ function normalizeFlowOutputStepIds(value, flowSteps = []) {
 
 function normalizeImportedStarter(item, index) {
   if (!item || typeof item !== "object" || Array.isArray(item)) {
-    throw new Error(t("customStarterImportFailed"));
+    throw new Error(t("customStarterInvalidItemType", { index: index + 1 }));
   }
 
   const label = String(item.label || item.title || item.name || "").trim();
@@ -2548,8 +2781,16 @@ function normalizeImportedStarter(item, index) {
       ? "flow"
       : "chat";
 
-  if (!label || (mode === "flow" ? flowSteps.length < 2 : !prompt)) {
-    throw new Error(t("customStarterImportFailed"));
+  if (!label) {
+    throw new Error(t("customStarterMissingLabel", { index: index + 1 }));
+  }
+
+  if (mode === "flow" && flowSteps.length < 2) {
+    throw new Error(t("customStarterFlowNeedsSteps", { index: index + 1 }));
+  }
+
+  if (mode !== "flow" && !prompt) {
+    throw new Error(t("customStarterMissingPrompt", { index: index + 1 }));
   }
 
   const description = String(item.description || item.summary || item.hint || "").trim();
@@ -2986,12 +3227,18 @@ function parseStarterJsonLikeText(rawText) {
   let candidate = unwrapImportedStarterText(rawText);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const parsed = JSON.parse(candidate);
-    if (typeof parsed === "string") {
-      candidate = parsed.trim();
-      continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed === "string") {
+        candidate = parsed.trim();
+        continue;
+      }
+      return parsed;
+    } catch (error) {
+      throw new Error(t("customStarterJsonParseFailed", {
+        message: error instanceof Error ? error.message : String(error),
+      }));
     }
-    return parsed;
   }
 
   throw new Error(t("customStarterImportFailed"));
@@ -3001,10 +3248,96 @@ function parseImportedStarters(rawText) {
   const parsed = parseStarterJsonLikeText(rawText);
   const starters = Array.isArray(parsed) ? parsed : parsed?.starters;
   if (!Array.isArray(starters)) {
-    throw new Error(t("customStarterImportFailed"));
+    throw new Error(t("customStarterJsonRootMustBeArray"));
   }
 
   return starters.map((item, index) => normalizeImportedStarter(item, index));
+}
+
+function setCustomStarterValidationMessage(message, state = "neutral") {
+  const node = document.getElementById("customStartersValidationMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+
+  node.textContent = message;
+  node.classList.toggle("is-error", state === "error");
+  node.classList.toggle("is-success", state === "success");
+}
+
+function validateCustomStarterJson(rawText, { silentEmpty = false } = {}) {
+  const text = String(rawText || "").trim();
+  if (!text) {
+    const emptyMessage = t("customStarterJsonNeedInput");
+    return {
+      ok: false,
+      message: silentEmpty ? t("customStarterJsonIdle") : emptyMessage,
+      state: silentEmpty ? "neutral" : "error",
+      starters: [],
+    };
+  }
+
+  try {
+    const starters = parseImportedStarters(text);
+    return {
+      ok: true,
+      message: t("customStarterJsonValid", { count: starters.length }),
+      state: "success",
+      starters,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+      state: "error",
+      starters: [],
+    };
+  }
+}
+
+function renderCustomStarterJsonTools() {
+  const input = document.getElementById("customStartersInput");
+  const validateButton = document.getElementById("validateStartersJsonButton");
+  const fixButton = document.getElementById("fixStartersJsonButton");
+  if (!(input instanceof HTMLTextAreaElement) || !(validateButton instanceof HTMLButtonElement) || !(fixButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const hasInput = Boolean(input.value.trim());
+  validateButton.disabled = starterJsonToolState.isFixing || !hasInput;
+  fixButton.disabled = starterJsonToolState.isFixing || !hasInput;
+  fixButton.textContent = starterJsonToolState.isFixing ? t("customStarterJsonFixing") : t("fixStartersJsonWithAi");
+}
+
+function refreshCustomStarterJsonValidation(options = {}) {
+  const input = document.getElementById("customStartersInput");
+  if (!(input instanceof HTMLTextAreaElement)) {
+    return { ok: false, message: t("customStarterJsonIdle"), state: "neutral", starters: [] };
+  }
+
+  const result = validateCustomStarterJson(input.value, options);
+  setCustomStarterValidationMessage(result.message, result.state);
+  renderCustomStarterJsonTools();
+  return result;
+}
+
+function buildCustomStarterJsonFixPrompt(rawText, validationMessage) {
+  return [
+    `Reply language: ${currentReplyLanguage}.`,
+    "You repair reusable browser AI skill starter JSON.",
+    "Return JSON only.",
+    "Do not wrap the answer in Markdown code fences.",
+    "Output must be a JSON array of starter objects.",
+    "Supported fields per item:",
+    "{\"id\":\"optional-id\",\"label\":\"Visible name\",\"prompt\":\"Prompt text\",\"description\":\"Optional summary\",\"scopes\":[\"github\"],\"mode\":\"chat\"}",
+    "For normal skills, `label` and `prompt` are required.",
+    "For flow skills, use `mode\":\"flow\"` and include at least 2 `flowSteps`.",
+    "Preserve the user's original intent and wording as much as possible.",
+    "Fix JSON syntax, commas, quotes, array shape, and obvious field naming issues.",
+    "Do not invent extra skills. Make the smallest valid correction needed.",
+    `Validation issue:\n${validationMessage || "Unknown validation error."}`,
+    `Broken input:\n${String(rawText || "").trim()}`,
+  ].join("\n\n");
 }
 
 function getScopeLabel(scope) {
@@ -3122,9 +3455,10 @@ function buildDuplicatedBuiltinStarter(starter) {
 }
 
 function setActiveSettingsView(view) {
-  activeSettingsView = ["settings", "skills", "flows"].includes(view) ? view : "settings";
+  activeSettingsView = ["settings", "notifications", "skills", "flows"].includes(view) ? view : "settings";
   const viewMap = {
     settings: "generalTabPanel",
+    notifications: "notificationTabPanel",
     skills: "starterTabPanel",
     flows: "flowTabPanel",
   };
@@ -3478,6 +3812,56 @@ function setStatus(message, isError = false) {
   node.classList.toggle("is-error", isError);
 }
 
+function setTelegramStatus(message, isError = false) {
+  const node = document.getElementById("telegramStatusMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
+function setLineStatus(message, isError = false) {
+  const node = document.getElementById("lineStatusMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
+function setTeamsStatus(message, isError = false) {
+  const node = document.getElementById("teamsStatusMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
+function setSlackStatus(message, isError = false) {
+  const node = document.getElementById("slackStatusMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
+function setDiscordStatus(message, isError = false) {
+  const node = document.getElementById("discordStatusMessage");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
 function renderWorkFolderStatus(status) {
   latestWorkFolderStatus = status || null;
   const node = document.getElementById("localWorkFolderStatus");
@@ -3543,6 +3927,18 @@ async function loadConfig() {
     document.getElementById("geminiModel").value = result.config.geminiModel || "";
     document.getElementById("geminiApiKey").value = result.config.geminiApiKey || "";
     document.getElementById("githubApiKey").value = result.config.githubApiKey || "";
+    document.getElementById("telegramNotificationEnabled").checked = Boolean(result.config.telegramNotificationEnabled);
+    document.getElementById("telegramBotToken").value = result.config.telegramBotToken || "";
+    document.getElementById("telegramChatId").value = result.config.telegramChatId || "";
+    document.getElementById("lineNotificationEnabled").checked = Boolean(result.config.lineNotificationEnabled);
+    document.getElementById("lineChannelAccessToken").value = result.config.lineChannelAccessToken || "";
+    document.getElementById("lineTo").value = result.config.lineTo || "";
+    document.getElementById("teamsNotificationEnabled").checked = Boolean(result.config.teamsNotificationEnabled);
+    document.getElementById("teamsWebhookUrl").value = result.config.teamsWebhookUrl || "";
+    document.getElementById("slackNotificationEnabled").checked = Boolean(result.config.slackNotificationEnabled);
+    document.getElementById("slackWebhookUrl").value = result.config.slackWebhookUrl || "";
+    document.getElementById("discordNotificationEnabled").checked = Boolean(result.config.discordNotificationEnabled);
+    document.getElementById("discordWebhookUrl").value = result.config.discordWebhookUrl || "";
     document.getElementById("azureOpenAiEndpoint").value = result.config.azureOpenAiEndpoint || "";
     document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
     document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
@@ -3595,6 +3991,18 @@ async function saveConfig() {
   const geminiModel = document.getElementById("geminiModel").value.trim();
   const geminiApiKey = document.getElementById("geminiApiKey").value.trim();
   const githubApiKey = document.getElementById("githubApiKey").value.trim();
+  const telegramNotificationEnabled = document.getElementById("telegramNotificationEnabled").checked;
+  const telegramBotToken = document.getElementById("telegramBotToken").value.trim();
+  const telegramChatId = document.getElementById("telegramChatId").value.trim();
+  const lineNotificationEnabled = document.getElementById("lineNotificationEnabled").checked;
+  const lineChannelAccessToken = document.getElementById("lineChannelAccessToken").value.trim();
+  const lineTo = document.getElementById("lineTo").value.trim();
+  const teamsNotificationEnabled = document.getElementById("teamsNotificationEnabled").checked;
+  const teamsWebhookUrl = document.getElementById("teamsWebhookUrl").value.trim();
+  const slackNotificationEnabled = document.getElementById("slackNotificationEnabled").checked;
+  const slackWebhookUrl = document.getElementById("slackWebhookUrl").value.trim();
+  const discordNotificationEnabled = document.getElementById("discordNotificationEnabled").checked;
+  const discordWebhookUrl = document.getElementById("discordWebhookUrl").value.trim();
   const azureOpenAiEndpoint = document.getElementById("azureOpenAiEndpoint").value.trim();
   const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
   const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
@@ -3626,6 +4034,18 @@ async function saveConfig() {
       geminiModel,
       geminiApiKey,
       githubApiKey,
+      telegramNotificationEnabled,
+      telegramBotToken,
+      telegramChatId,
+      lineNotificationEnabled,
+      lineChannelAccessToken,
+      lineTo,
+      teamsNotificationEnabled,
+      teamsWebhookUrl,
+      slackNotificationEnabled,
+      slackWebhookUrl,
+      discordNotificationEnabled,
+      discordWebhookUrl,
       azureOpenAiEndpoint,
       azureOpenAiDeployment,
       azureOpenAiApiVersion,
@@ -3699,6 +4119,76 @@ document.getElementById("testButton").addEventListener("click", async () => {
   }
 });
 
+document.getElementById("telegramTestButton").addEventListener("click", async () => {
+  try {
+    setTelegramStatus(t("telegramStatusSending"));
+    await saveConfig();
+    const result = await sendMessage({ type: "telegram:test-notification" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Telegram test failed.");
+    }
+    setTelegramStatus(t("telegramTestSuccess"));
+  } catch (error) {
+    setTelegramStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("lineTestButton").addEventListener("click", async () => {
+  try {
+    setLineStatus(t("lineStatusSending"));
+    await saveConfig();
+    const result = await sendMessage({ type: "line:test-notification" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "LINE test failed.");
+    }
+    setLineStatus(t("lineTestSuccess"));
+  } catch (error) {
+    setLineStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("teamsTestButton").addEventListener("click", async () => {
+  try {
+    setTeamsStatus(t("teamsStatusSending"));
+    await saveConfig();
+    const result = await sendMessage({ type: "teams:test-notification" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Teams test failed.");
+    }
+    setTeamsStatus(t("teamsTestSuccess"));
+  } catch (error) {
+    setTeamsStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("slackTestButton").addEventListener("click", async () => {
+  try {
+    setSlackStatus(t("slackStatusSending"));
+    await saveConfig();
+    const result = await sendMessage({ type: "slack:test-notification" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Slack test failed.");
+    }
+    setSlackStatus(t("slackTestSuccess"));
+  } catch (error) {
+    setSlackStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("discordTestButton").addEventListener("click", async () => {
+  try {
+    setDiscordStatus(t("discordStatusSending"));
+    await saveConfig();
+    const result = await sendMessage({ type: "discord:test-notification" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Discord test failed.");
+    }
+    setDiscordStatus(t("discordTestSuccess"));
+  } catch (error) {
+    setDiscordStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
 document.getElementById("refreshButton").addEventListener("click", async () => {
   try {
     await refreshModels();
@@ -3709,15 +4199,16 @@ document.getElementById("refreshButton").addEventListener("click", async () => {
 
 document.getElementById("createStartersButton").addEventListener("click", async () => {
   try {
-    const rawText = document.getElementById("customStartersInput").value.trim();
-    if (!rawText) {
-      throw new Error(t("customStarterImportFailed"));
+    const validation = refreshCustomStarterJsonValidation();
+    if (!validation.ok) {
+      throw new Error(validation.message || t("customStarterImportFailed"));
     }
-    const importedStarters = parseImportedStarters(rawText);
+    const importedStarters = validation.starters;
     currentCustomStarters = mergeImportedStarters(currentCustomStarters, importedStarters);
     renderCustomStartersPreview();
     await persistCustomStarters(currentCustomStarters);
     document.getElementById("customStartersInput").value = "";
+    refreshCustomStarterJsonValidation({ silentEmpty: true });
     setStatus(t("customStarterImported", { count: importedStarters.length, total: getSkillStarters().length, limit: MAX_CUSTOM_STARTERS }));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
@@ -3735,6 +4226,61 @@ document.getElementById("clearStartersButton").addEventListener("click", async (
     setStatus(t("customStarterCleared"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("customStartersInput").addEventListener("input", () => {
+  refreshCustomStarterJsonValidation({ silentEmpty: true });
+});
+
+document.getElementById("validateStartersJsonButton").addEventListener("click", () => {
+  const validation = refreshCustomStarterJsonValidation();
+  setStatus(validation.message, !validation.ok);
+});
+
+document.getElementById("fixStartersJsonButton").addEventListener("click", async () => {
+  const input = document.getElementById("customStartersInput");
+  if (!(input instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  const rawText = input.value.trim();
+  if (!rawText) {
+    const message = t("customStarterJsonNeedInput");
+    setCustomStarterValidationMessage(message, "error");
+    setStatus(message, true);
+    renderCustomStarterJsonTools();
+    return;
+  }
+
+  if (!currentSelectedModel) {
+    const message = t("customStarterJsonNeedModel");
+    setCustomStarterValidationMessage(message, "error");
+    setStatus(message, true);
+    renderCustomStarterJsonTools();
+    return;
+  }
+
+  const validation = validateCustomStarterJson(rawText);
+  starterJsonToolState.isFixing = true;
+  setCustomStarterValidationMessage(t("customStarterJsonFixing"));
+  setStatus(t("customStarterJsonFixing"));
+  renderCustomStarterJsonTools();
+
+  try {
+    const repaired = await runAiSkillEditorGenerate(buildCustomStarterJsonFixPrompt(rawText, validation.message));
+    const importedStarters = parseImportedStarters(repaired);
+    input.value = JSON.stringify(importedStarters, null, 2);
+    setCustomStarterValidationMessage(t("customStarterJsonFixed", { count: importedStarters.length }), "success");
+    setStatus(t("customStarterJsonFixed", { count: importedStarters.length }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const fullMessage = `${t("customStarterJsonAiFailedPrefix")} ${message}`;
+    setCustomStarterValidationMessage(fullMessage, "error");
+    setStatus(fullMessage, true);
+  } finally {
+    starterJsonToolState.isFixing = false;
+    refreshCustomStarterJsonValidation({ silentEmpty: true });
   }
 });
 

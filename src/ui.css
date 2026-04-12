@@ -512,6 +512,63 @@ textarea:focus {
   color: #ff808d;
 }
 
+.field-hint.is-error {
+  color: #ff808d;
+}
+
+.field-hint.is-success {
+  color: #75e39a;
+}
+
+.inline-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  border: 1px solid rgba(104, 187, 255, 0.32);
+  border-radius: 999px;
+  color: rgba(214, 235, 255, 0.9);
+  background: rgba(20, 39, 61, 0.88);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.inline-help-button:focus-visible,
+.inline-help-button:hover {
+  border-color: rgba(104, 187, 255, 0.62);
+  color: #ffffff;
+  outline: none;
+}
+
+.notification-code-hint {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(104, 187, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(9, 20, 35, 0.82);
+  color: rgba(214, 235, 255, 0.88);
+  font: 12px/1.55 "SFMono-Regular", "Menlo", "Consolas", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+body[data-theme="light"] .inline-help-button {
+  border-color: rgba(91, 143, 181, 0.32);
+  color: #22445e;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+body[data-theme="light"] .notification-code-hint {
+  border-color: rgba(91, 143, 181, 0.2);
+  background: rgba(245, 250, 255, 0.96);
+  color: #21425d;
+}
+
 .models-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1036,9 +1093,15 @@ textarea:focus {
 
 .starter-studio-intake-horizontal {
   display: grid;
-  grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.1fr);
+  grid-column: 1 / -1;
+  width: 100%;
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   gap: 20px;
   align-items: stretch;
+}
+
+.starter-studio-intake-horizontal > * {
+  min-width: 0;
 }
 
 .starter-studio-intake-copy {
@@ -1080,13 +1143,43 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: 100%;
+  align-self: stretch;
 }
 
 .starter-json-field textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   min-height: 180px;
   font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
   line-height: 1.55;
-  height: 100%;
+  flex: 1 1 auto;
+}
+
+.starter-json-actions {
+  margin-top: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.starter-json-validation-message {
+  margin-top: 10px;
+  min-height: 20px;
+}
+
+.starter-json-validation-message.is-error {
+  color: #ff808d;
+}
+
+.starter-json-validation-message.is-success {
+  color: #75e39a;
+}
+
+.starter-json-actions .secondary-button:disabled,
+.starter-json-actions .primary-button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
 }
 
 .starter-preview-list {

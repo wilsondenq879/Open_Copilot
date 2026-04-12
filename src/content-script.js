@@ -7365,6 +7365,34 @@ function getLocalDocumentSummary() {
   return `<span class="ollama-quick-include-text">${escapeHtml(tl("attachedDocumentsCount", { count: docs.length }))}</span>`;
 }
 
+async function replaceLocalDocumentsFromFiles(files) {
+  const textDocumentFiles = files.filter(isTextDocumentFile);
+  if (!textDocumentFiles.length) {
+    setStatus(tl("filesUnsupported"));
+    return;
+  }
+
+  const nonLocalDocuments = attachedDocuments.filter((item) => item.source !== "local-work-folder");
+  if (nonLocalDocuments.length + textDocumentFiles.length > MAX_ATTACHED_DOCUMENTS) {
+    throw new Error(tl("localDocumentLimitReached"));
+  }
+
+  const nextLocalDocuments = await Promise.all(
+    textDocumentFiles.map(async (file) => ({
+      id: `local-upload-${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+      name: file.name,
+      text: await fileToText(file),
+      path: file.name,
+      source: "local-work-folder",
+    }))
+  );
+
+  attachedDocuments = [...nonLocalDocuments, ...nextLocalDocuments];
+  renderShell();
+  renderAttachments();
+  setStatus(tl("localDocumentSelectionSaved"));
+}
+
 async function loadLocalDocumentFiles(pathOverride = localDocumentBrowsePath) {
   localDocumentLoading = true;
   localDocumentPickerOpen = true;
@@ -8402,6 +8430,7 @@ function renderShell() {
           </div>
           <div class="ollama-quick-include-panel">
             <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
+            <input hidden class="ollama-quick-local-document-input" type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="local-document-upload" multiple />
             <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
             ${localDocuments.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-local-documents" aria-label="${escapeHtml(tl("clearLocalDocuments"))}" title="${escapeHtml(tl("clearLocalDocuments"))}">×</button>` : ""}
           </div>
@@ -9392,6 +9421,81 @@ async function runAgentFlow(starter, modelOverride = "") {
       message.content = "";
     });
     publishAgentFlowFinalMessage(starter.label, resolvedSteps[resolvedSteps.length - 1]);
+    try {
+      await runtimeMessage({
+        type: "telegram:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Telegram flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "line:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("LINE flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "teams:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Teams flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "slack:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Slack flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "discord:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Discord flow notification failed:", error);
+    }
     setStatus(tl("doneWithModel", { model: effectiveModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -9716,17 +9820,11 @@ async function handleClick(event) {
   }
 
   if (action === "open-local-document-picker") {
-    localDocumentPickerOpen = true;
-    localDocumentSearch = "";
-    localDocumentSelections = getLocalWorkFolderAttachedDocuments().map((item) => item.path).filter(Boolean);
-    includePickerOpen = false;
-    browserTabPickerOpen = false;
-    try {
-      await loadLocalDocumentFiles("");
-    } catch (error) {
-      localDocumentPickerOpen = false;
-      renderShell();
-      setStatus(error instanceof Error ? error.message : String(error));
+    const input = ensureHost().querySelector("[data-role='local-document-upload']");
+    if (input instanceof HTMLInputElement) {
+      input.click();
+    } else {
+      setStatus(tl("filesUnsupported"));
     }
     return;
   }
@@ -10652,6 +10750,22 @@ async function handleChange(event) {
 
     try {
       await attachFiles(files);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      target.value = "";
+    }
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "local-document-upload") {
+    const files = Array.from(target.files || []);
+    if (!files.length) {
+      return;
+    }
+
+    try {
+      await replaceLocalDocumentsFromFiles(files);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {

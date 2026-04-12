@@ -30,13 +30,18 @@ const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "j
 const DEFAULT_TASK_EXTRACTION_WINDOW_DAYS = 3;
 const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
 const LOCAL_SECRET_CONFIG_KEY = "providerSecretConfig";
-const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey"];
+const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
 const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey"];
 
 const DEFAULT_SECRET_CONFIG = {
   githubApiKey: "",
   geminiApiKey: "",
   azureOpenAiApiKey: "",
+  telegramBotToken: "",
+  lineChannelAccessToken: "",
+  teamsWebhookUrl: "",
+  slackWebhookUrl: "",
+  discordWebhookUrl: "",
 };
 
 const DEFAULT_CONFIG = {
@@ -58,12 +63,24 @@ const DEFAULT_CONFIG = {
   settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
   starterHoverTipsEnabled: true,
+  telegramNotificationEnabled: false,
+  telegramChatId: "",
+  lineNotificationEnabled: false,
+  lineTo: "",
+  teamsNotificationEnabled: false,
+  slackNotificationEnabled: false,
+  discordNotificationEnabled: false,
   googleDriveClientId: "",
   googleDriveSyncEnabled: false,
   googleDriveAutoSync: true,
   githubApiKeyConfigured: false,
   geminiApiKeyConfigured: false,
   azureOpenAiApiKeyConfigured: false,
+  telegramBotTokenConfigured: false,
+  lineChannelAccessTokenConfigured: false,
+  teamsWebhookUrlConfigured: false,
+  slackWebhookUrlConfigured: false,
+  discordWebhookUrlConfigured: false,
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
   customStarters: [],
   hiddenBuiltinStarterIds: [],
@@ -825,6 +842,900 @@ function buildSecretAccessFlags(secretConfig = {}) {
     githubApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.githubApiKey)),
     geminiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.geminiApiKey)),
     azureOpenAiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.azureOpenAiApiKey)),
+    telegramBotTokenConfigured: Boolean(normalizeSecretValue(secretConfig.telegramBotToken)),
+    lineChannelAccessTokenConfigured: Boolean(normalizeSecretValue(secretConfig.lineChannelAccessToken)),
+    teamsWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.teamsWebhookUrl)),
+    slackWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.slackWebhookUrl)),
+    discordWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.discordWebhookUrl)),
+  };
+}
+
+function buildTelegramFlowNotificationMessage(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [
+    "Open Copilot flow complete",
+    "",
+    `Flow: ${flowName}`,
+  ];
+
+  if (model) {
+    lines.push(`Model: ${model}`);
+  }
+  if (pageTitle) {
+    lines.push(`Page: ${pageTitle}`);
+  }
+  if (pageUrl) {
+    lines.push(`URL: ${pageUrl}`);
+  }
+  lines.push(`Finished: ${finishedAt}`);
+
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("", "Final output preview:", preview);
+  }
+
+  return lines.join("\n");
+}
+
+function buildTelegramTaskReminderMessage(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [
+    "Open Copilot task reminder",
+    "",
+    `Task: ${title}`,
+  ];
+
+  if (owner) {
+    lines.push(`Owner: ${owner}`);
+  }
+  if (reminderAt) {
+    lines.push(`Reminder: ${reminderAt}`);
+  }
+  if (dueAt) {
+    lines.push(`Due: ${dueAt}`);
+  } else if (dueText) {
+    lines.push(`Due: ${dueText}`);
+  }
+  if (sourceTitle) {
+    lines.push(`Source: ${sourceTitle}`);
+  }
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+  if (summary) {
+    lines.push("", "Summary:", summary);
+  }
+
+  return lines.join("\n");
+}
+
+async function sendTelegramMessage({ botToken, chatId, text }) {
+  const normalizedBotToken = normalizeSecretValue(botToken);
+  const normalizedChatId = normalizeSecretValue(chatId);
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedBotToken) {
+    throw new Error("Telegram bot token is not configured.");
+  }
+  if (!normalizedChatId) {
+    throw new Error("Telegram chat ID is not configured.");
+  }
+  if (!normalizedText) {
+    throw new Error("Telegram notification text is empty.");
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${normalizedBotToken}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: normalizedChatId,
+      text: normalizedText,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(payload?.description || `Telegram request failed with status ${response.status}.`);
+  }
+
+  return payload;
+}
+
+function buildLineFlowNotificationText(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [
+    "Open Copilot flow complete",
+    `Flow: ${flowName}`,
+  ];
+  if (model) {
+    lines.push(`Model: ${model}`);
+  }
+  if (pageTitle) {
+    lines.push(`Page: ${pageTitle}`);
+  }
+  if (pageUrl) {
+    lines.push(`URL: ${pageUrl}`);
+  }
+  lines.push(`Finished: ${finishedAt}`);
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("", "Final output preview:", preview);
+  }
+  return lines.join("\n");
+}
+
+function buildLineTaskReminderText(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [
+    "Open Copilot task reminder",
+    `Task: ${title}`,
+  ];
+  if (owner) {
+    lines.push(`Owner: ${owner}`);
+  }
+  if (reminderAt) {
+    lines.push(`Reminder: ${reminderAt}`);
+  }
+  if (dueAt) {
+    lines.push(`Due: ${dueAt}`);
+  } else if (dueText) {
+    lines.push(`Due: ${dueText}`);
+  }
+  if (sourceTitle) {
+    lines.push(`Source: ${sourceTitle}`);
+  }
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+  if (summary) {
+    lines.push("", "Summary:", summary);
+  }
+  return lines.join("\n");
+}
+
+async function sendLineMessage({ channelAccessToken, to, text }) {
+  const normalizedToken = normalizeSecretValue(channelAccessToken);
+  const normalizedTo = normalizeSecretValue(to);
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedToken) {
+    throw new Error("LINE channel access token is not configured.");
+  }
+  if (!normalizedTo) {
+    throw new Error("LINE target ID is not configured.");
+  }
+  if (!normalizedText) {
+    throw new Error("LINE notification text is empty.");
+  }
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${normalizedToken}`,
+    },
+    body: JSON.stringify({
+      to: normalizedTo,
+      messages: [
+        {
+          type: "text",
+          text: normalizedText.slice(0, 5000),
+        },
+      ],
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const details = payload?.message || payload?.details?.[0]?.message || `LINE request failed with status ${response.status}.`;
+    throw new Error(details);
+  }
+
+  return payload;
+}
+
+function buildTeamsAdaptiveMessage({ title, textLines = [], summary, facts = [], accentColor = "2EB886", metadata = {} }) {
+  const body = [];
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  if (normalizedTitle) {
+    body.push({
+      type: "TextBlock",
+      size: "Large",
+      weight: "Bolder",
+      text: normalizedTitle,
+      wrap: true,
+      color: "Accent",
+    });
+  }
+  if (Array.isArray(facts) && facts.length) {
+    body.push({
+      type: "FactSet",
+      facts: facts
+        .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+        .map((item) => ({
+          title: String(item.title).trim(),
+          value: String(item.value).trim(),
+        })),
+    });
+  }
+  (Array.isArray(textLines) ? textLines : []).forEach((line) => {
+    const normalized = String(line || "").trim();
+    if (!normalized) {
+      return;
+    }
+    body.push({
+      type: "TextBlock",
+      text: normalized,
+      wrap: true,
+    });
+  });
+
+  return {
+    type: "message",
+    source: "Open Copilot",
+    app: "Open Copilot",
+    eventType: String(metadata.eventType || "").trim(),
+    eventLabel: String(metadata.eventLabel || "").trim(),
+    sentAt: String(metadata.sentAt || new Date().toISOString()).trim(),
+    attachments: [
+      {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        contentUrl: null,
+        content: {
+          $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+          type: "AdaptiveCard",
+          version: "1.4",
+          msTeams: {
+            width: "Full",
+          },
+          body,
+        },
+      },
+    ],
+    summary: String(summary || normalizedTitle || "Open Copilot notification").trim(),
+    themeColor: accentColor,
+  };
+}
+
+async function sendTeamsWebhookMessage({ webhookUrl, card }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Teams webhook URL is not configured.");
+  }
+  if (!/^https:\/\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Teams webhook URL must start with https://");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(card || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Teams webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildSlackWebhookPayload({ title, textLines = [], fields = [], accentColor = "#4A8CFF" }) {
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  const normalizedFields = (Array.isArray(fields) ? fields : [])
+    .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+    .map((item) => ({
+      type: "mrkdwn",
+      text: `*${String(item.title).trim()}*\n${String(item.value).trim()}`,
+    }));
+  const normalizedLines = (Array.isArray(textLines) ? textLines : [])
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: normalizedTitle,
+      },
+    },
+  ];
+
+  if (normalizedFields.length) {
+    blocks.push({
+      type: "section",
+      fields: normalizedFields,
+    });
+  }
+  if (normalizedLines.length) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: normalizedLines.join("\n"),
+      },
+    });
+  }
+
+  return {
+    text: [normalizedTitle, ...normalizedLines].join("\n").trim(),
+    attachments: [
+      {
+        color: accentColor,
+        blocks,
+      },
+    ],
+  };
+}
+
+async function sendSlackWebhookMessage({ webhookUrl, payload }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Slack webhook URL is not configured.");
+  }
+  if (!/^https:\/\/hooks\.slack\.com\/services\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Slack webhook URL must start with https://hooks.slack.com/services/");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Slack webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildDiscordWebhookPayload({ title, descriptionLines = [], fields = [], color = 0x4a8cff }) {
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  const normalizedDescription = (Array.isArray(descriptionLines) ? descriptionLines : [])
+    .map((line) => String(line || "").trim())
+    .filter(Boolean)
+    .join("\n");
+  const normalizedFields = (Array.isArray(fields) ? fields : [])
+    .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+    .map((item) => ({
+      name: String(item.title).trim(),
+      value: String(item.value).trim().slice(0, 1024),
+      inline: true,
+    }));
+
+  return {
+    content: normalizedTitle,
+    embeds: [
+      {
+        title: normalizedTitle,
+        description: normalizedDescription.slice(0, 4096),
+        color,
+        fields: normalizedFields.slice(0, 25),
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
+async function sendDiscordWebhookMessage({ webhookUrl, payload }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Discord webhook URL is not configured.");
+  }
+  if (!/^https:\/\/(?:canary\.|ptb\.)?discord\.com\/api\/webhooks\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Discord webhook URL must start with https://discord.com/api/webhooks/");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Discord webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildTeamsFlowNotificationCard(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("Final output preview", preview);
+  }
+  return buildTeamsAdaptiveMessage({
+    title: "Open Copilot flow complete",
+    summary: `Flow complete: ${flowName}`,
+    facts: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    textLines: lines,
+    accentColor: "2EB886",
+    metadata: {
+      eventType: "agent_flow_complete",
+      eventLabel: flowName,
+      sentAt: finishedAt,
+    },
+  });
+}
+
+function buildTeamsTaskReminderCard(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [];
+  if (summary) {
+    lines.push("Summary", summary);
+  }
+  return buildTeamsAdaptiveMessage({
+    title: "Open Copilot task reminder",
+    summary: `Task reminder: ${title}`,
+    facts: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    textLines: lines,
+    accentColor: "E8A23A",
+    metadata: {
+      eventType: "task_reminder",
+      eventLabel: title,
+      sentAt: reminderAt || dueAt || new Date().toISOString(),
+    },
+  });
+}
+
+function buildSlackFlowNotificationPayload(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const textLines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    textLines.push(`*Final output preview*\n${preview}`);
+  }
+  return buildSlackWebhookPayload({
+    title: "Open Copilot flow complete",
+    fields: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    textLines,
+    accentColor: "#4A8CFF",
+  });
+}
+
+function buildSlackTaskReminderPayload(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const textLines = summary ? [`*Summary*\n${summary}`] : [];
+  return buildSlackWebhookPayload({
+    title: "Open Copilot task reminder",
+    fields: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    textLines,
+    accentColor: "#E8A23A",
+  });
+}
+
+function buildDiscordFlowNotificationPayload(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const descriptionLines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    descriptionLines.push(`**Final output preview**\n${preview}`);
+  }
+  return buildDiscordWebhookPayload({
+    title: "Open Copilot flow complete",
+    fields: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    descriptionLines,
+    color: 0x4a8cff,
+  });
+}
+
+function buildDiscordTaskReminderPayload(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const descriptionLines = summary ? [`**Summary**\n${summary}`] : [];
+  return buildDiscordWebhookPayload({
+    title: "Open Copilot task reminder",
+    fields: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    descriptionLines,
+    color: 0xE8A23A,
+  });
+}
+
+async function notifyTelegramAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.telegramNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  if (!normalizeSecretValue(config.telegramBotToken)) {
+    return { skipped: true, reason: "missing-bot-token" };
+  }
+
+  if (!normalizeSecretValue(config.telegramChatId)) {
+    return { skipped: true, reason: "missing-chat-id" };
+  }
+
+  const text = buildTelegramFlowNotificationMessage(payload);
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    skipped: false,
+    result,
+  };
+}
+
+async function notifyTelegramTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.telegramNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  if (!normalizeSecretValue(config.telegramBotToken)) {
+    return { skipped: true, reason: "missing-bot-token" };
+  }
+
+  if (!normalizeSecretValue(config.telegramChatId)) {
+    return { skipped: true, reason: "missing-chat-id" };
+  }
+
+  const text = buildTelegramTaskReminderMessage(task);
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    skipped: false,
+    result,
+  };
+}
+
+async function testTelegramNotification() {
+  const config = await getConfig();
+  const text = [
+    "Open Copilot Telegram test",
+    "",
+    "This is a test message from Settings.",
+    `Sent: ${new Date().toISOString()}`,
+  ].join("\n");
+
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyLineAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.lineNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.lineChannelAccessToken)) {
+    return { skipped: true, reason: "missing-channel-access-token" };
+  }
+  if (!normalizeSecretValue(config.lineTo)) {
+    return { skipped: true, reason: "missing-to" };
+  }
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: buildLineFlowNotificationText(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyLineTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.lineNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.lineChannelAccessToken)) {
+    return { skipped: true, reason: "missing-channel-access-token" };
+  }
+  if (!normalizeSecretValue(config.lineTo)) {
+    return { skipped: true, reason: "missing-to" };
+  }
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: buildLineTaskReminderText(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testLineNotification() {
+  const config = await getConfig();
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: [
+      "Open Copilot LINE test",
+      "",
+      "This is a test message from Settings.",
+      `Sent: ${new Date().toISOString()}`,
+    ].join("\n"),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyTeamsAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.teamsNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.teamsWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsFlowNotificationCard(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyTeamsTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.teamsNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.teamsWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsTaskReminderCard(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testTeamsNotification() {
+  const config = await getConfig();
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsAdaptiveMessage({
+      title: "Open Copilot Teams test",
+      summary: "Teams test message",
+      textLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      accentColor: "4DA3FF",
+      metadata: {
+        eventType: "test",
+        eventLabel: "Teams test",
+        sentAt: new Date().toISOString(),
+      },
+    }),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifySlackAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.slackNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.slackWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackFlowNotificationPayload(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifySlackTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.slackNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.slackWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackTaskReminderPayload(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testSlackNotification() {
+  const config = await getConfig();
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackWebhookPayload({
+      title: "Open Copilot Slack test",
+      textLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      accentColor: "#4A8CFF",
+    }),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyDiscordAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.discordNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.discordWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordFlowNotificationPayload(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyDiscordTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.discordNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.discordWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordTaskReminderPayload(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testDiscordNotification() {
+  const config = await getConfig();
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordWebhookPayload({
+      title: "Open Copilot Discord test",
+      descriptionLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      color: 0x4a8cff,
+    }),
+  });
+  return {
+    ok: true,
+    result,
   };
 }
 
@@ -2390,6 +3301,32 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       priority: 2,
     });
 
+    try {
+      await notifyTelegramTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Telegram task reminder", error);
+    }
+    try {
+      await notifyLineTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver LINE task reminder", error);
+    }
+    try {
+      await notifyTeamsTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Teams task reminder", error);
+    }
+    try {
+      await notifySlackTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Slack task reminder", error);
+    }
+    try {
+      await notifyDiscordTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Discord task reminder", error);
+    }
+
     const nextTasks = tasks.map((item) => (item.id === taskId ? { ...item, reminderSentAt: new Date().toISOString() } : item));
     await saveTaskRecords(nextTasks);
   })().catch((error) => {
@@ -2520,6 +3457,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "ollama:get-latest-chat-session": {
         sendResponse({ ok: true, session: await getLatestChatSession() });
+        return;
+      }
+      case "telegram:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyTelegramAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "telegram:test-notification": {
+        sendResponse(await testTelegramNotification());
+        return;
+      }
+      case "line:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyLineAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "line:test-notification": {
+        sendResponse(await testLineNotification());
+        return;
+      }
+      case "teams:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyTeamsAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "teams:test-notification": {
+        sendResponse(await testTeamsNotification());
+        return;
+      }
+      case "slack:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifySlackAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "slack:test-notification": {
+        sendResponse(await testSlackNotification());
+        return;
+      }
+      case "discord:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyDiscordAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "discord:test-notification": {
+        sendResponse(await testDiscordNotification());
         return;
       }
       case "task:list": {

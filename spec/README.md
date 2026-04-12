@@ -22,10 +22,11 @@
 7. [Attachments and Context](./attachments-and-context.md)
 8. [Starters and Agent Flows](./starters-and-agent-flows.md)
 9. [Multi-Perspective Analysis](./multi-perspective-analysis.md)
-10. [Task Reminders](./task-reminders.md)
-11. [Local Work Folder and Drive Sync](./local-work-folder-and-drive-sync.md)
-12. [Settings and Provider Config](./settings-and-provider-config.md)
-13. [Popup Model Selection](./popup-model-selection.md)
+10. [GitHub Article Structure Review Starter](./github-article-structure-review-starter.md)
+11. [Task Reminders](./task-reminders.md)
+12. [Local Work Folder and Drive Sync](./local-work-folder-and-drive-sync.md)
+13. [Settings and Provider Config](./settings-and-provider-config.md)
+14. [Popup Model Selection](./popup-model-selection.md)
 
 ## 主要原始碼對照
 

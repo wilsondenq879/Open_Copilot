@@ -683,9 +683,18 @@ repo 內建許多 starter 與描述，常見方向包含：
     "prompt": "請從多個不同角度分析目前主題，最後收斂成一個最務實的建議，以及一個最需要注意的風險。",
     "scopes": ["generic", "market", "github"],
     "mode": "perspective"
+  },
+  {
+    "id": "github-article-structure-review",
+    "label": "GitHub Article Review",
+    "prompt": "請先閱讀我附加的 GitHub source，找出最主要的文章、README 或 spec，整理出它的章節結構、評估面向、關鍵問題與要求。接著直接沿用那篇文章的原始結構，review 目前頁面。請明確指出哪些章節已覆蓋、哪些部分覆蓋、哪些缺失，並優先列出高嚴重度 findings。最後補一個 coverage map。若 GitHub 文章或頁面資訊不足，請直接說明缺少哪些內容，不要硬猜。",
+    "scopes": ["github", "article", "document", "generic"],
+    "mode": "chat"
   }
 ]
 ```
+
+如果你想做的是「先讀一篇 GitHub 文章，再用那篇文章的章節來 review 當前頁面」，可以直接用上面這個 `github-article-structure-review`。更完整的設計說明在 [spec/github-article-structure-review-starter.md](./spec/github-article-structure-review-starter.md)。
 
 ### 隱私與資料流向
 

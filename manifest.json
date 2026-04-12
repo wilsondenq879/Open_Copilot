@@ -17,6 +17,8 @@
     "https://*/*",
     "http://127.0.0.1:11434/*",
     "https://api.github.com/*",
+    "https://api.line.me/*",
+    "https://api.telegram.org/*",
     "https://commons.wikimedia.org/*",
     "https://www.googleapis.com/*"
   ],
