@@ -13,6 +13,7 @@ const MAX_CUSTOM_STARTERS = 20;
 const MIN_AGENT_FLOW_STEPS = 2;
 const MAX_AGENT_FLOW_STEPS = 5;
 const TASK_EXTRACTION_LIMIT = 8;
+const SHARE_TEXT_LIMIT = 4000;
 const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
 const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
 const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
@@ -511,6 +512,7 @@ const CONTENT_I18N = {
     assistantRole: "助理",
     userRole: "你",
     copy: "複製",
+    share: "分享",
     dropzone: "拖放圖片或文字檔到這裡附加",
     uploadFile: "上傳檔案",
     promptPlaceholder: "輸入你想問的內容...",
@@ -604,6 +606,9 @@ const CONTENT_I18N = {
     chatCleared: "對話已清除。",
     messageNotFound: "找不到訊息。",
     copiedResponse: "已複製助理回覆。",
+    shareOpened: "已開啟分享。",
+    shareFallbackEmailOpened: "這個瀏覽器暫時無法叫出原生分享，已改用 Email 分享。",
+    shareFailed: "分享失敗。",
     copyPerspective: "複製",
     expandPerspective: "展開",
     collapsePerspective: "收合",
@@ -937,6 +942,7 @@ const CONTENT_I18N = {
     assistantRole: "assistant",
     userRole: "you",
     copy: "Copy",
+    share: "Share",
     dropzone: "Drop image or text file here to attach",
     uploadFile: "Upload file",
     promptPlaceholder: "Ask anything about this page...",
@@ -1015,6 +1021,9 @@ const CONTENT_I18N = {
     chatCleared: "Chat cleared.",
     messageNotFound: "Message not found.",
     copiedResponse: "Copied assistant response.",
+    shareOpened: "Opened share sheet.",
+    shareFallbackEmailOpened: "Native sharing is unavailable here, so an email share draft was opened instead.",
+    shareFailed: "Share failed.",
     copyPerspective: "Copy",
     expandPerspective: "Expand",
     collapsePerspective: "Collapse",
@@ -5682,10 +5691,11 @@ function renderPerspectivePanel(run) {
       </div>
       <div class="ollama-quick-perspective-grid">${stageCards}</div>
       <article class="ollama-quick-perspective-final ${run.isComplete ? "is-done" : "is-running"} ${isFinalExpanded ? "is-expanded" : ""}">
-        <div class="ollama-quick-perspective-card-top">
+          <div class="ollama-quick-perspective-card-top">
           <div class="ollama-quick-perspective-card-title">${escapeHtml(tl("perspectiveFinalTitle"))}</div>
           <div class="ollama-quick-perspective-card-actions">
             ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-perspective" data-perspective-key="${finalKey}" title="${escapeHtml(tl("copyPerspective"))}" aria-label="${escapeHtml(tl("copyPerspective"))}">⧉</button>` : ""}
+            ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="share-perspective" data-perspective-key="${finalKey}" title="${escapeHtml(tl("share"))}" aria-label="${escapeHtml(tl("share"))}">↗</button>` : ""}
             ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="download-chat-markdown" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>` : ""}
             <button class="ollama-quick-copy" type="button" data-action="toggle-perspective" data-perspective-key="${finalKey}">${escapeHtml(isFinalExpanded ? tl("collapsePerspective") : tl("expandPerspective"))}</button>
           </div>
@@ -6915,6 +6925,62 @@ function downloadTextBlob(filename, contents, mimeType = "text/plain;charset=utf
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+function buildShareText(rawText, label = "") {
+  const normalized = normalizeMarkdownText(rawText);
+  if (!normalized) {
+    return "";
+  }
+
+  const truncated = normalized.length > SHARE_TEXT_LIMIT
+    ? `${normalized.slice(0, SHARE_TEXT_LIMIT).trim()}...`
+    : normalized;
+
+  return [label.trim(), truncated].filter(Boolean).join("\n\n");
+}
+
+function openMailtoShareDraft({ title = "", text = "" } = {}) {
+  const subject = String(title || document.title || "Open Copilot").trim();
+  const body = String(text || "").trim();
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const anchor = document.createElement("a");
+  anchor.href = mailtoUrl;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+async function shareTextContent(rawText, options = {}) {
+  const text = buildShareText(rawText, options.label || "");
+  if (!text) {
+    setStatus(tl("messageNotFound"));
+    return;
+  }
+
+  const title = String(options.title || document.title || "Open Copilot").trim();
+  const shareData = { title, text };
+
+  if (typeof navigator?.share === "function") {
+    try {
+      await navigator.share(shareData);
+      setStatus(tl("shareOpened"));
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+  }
+
+  try {
+    openMailtoShareDraft({ title, text });
+    setStatus(tl("shareFallbackEmailOpened"));
+  } catch {
+    setStatus(tl("shareFailed"));
+  }
+}
+
 async function persistConversationSnapshot(snapshot) {
   const result = await runtimeMessage({
     type: "ollama:save-chat-session",
@@ -8005,6 +8071,9 @@ function renderMessages() {
         if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length) {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
+          );
+          actionButtons.unshift(
+            `<button class="ollama-quick-message-action-icon" type="button" data-action="share-message" data-message-id="${message.id}" title="${escapeHtml(tl("share"))}" aria-label="${escapeHtml(tl("share"))}">↗</button>`
           );
           if (message.agentFlowStepOutput) {
             actionButtons.unshift(
@@ -10284,6 +10353,24 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "share-perspective") {
+    if (!latestPerspectiveRun) {
+      return;
+    }
+
+    const perspectiveKey = actionNode.dataset.perspectiveKey || "";
+    const stage = latestPerspectiveRun.stages.find((item) => item.id === perspectiveKey);
+    const content = perspectiveKey === "final" ? latestPerspectiveRun.finalContent : stage?.content;
+    const label = perspectiveKey === "final"
+      ? tl("perspectiveFinalTitle")
+      : String(stage?.label || tl("assistantRole")).trim();
+    await shareTextContent(content, {
+      title: document.title || "Open Copilot",
+      label,
+    });
+    return;
+  }
+
   if (action === "save-generated-starter" || action === "save-generated-starters") {
     const messageId = actionNode.dataset.messageId || "";
     const message = chatMessages.find((item) => String(item.id) === String(messageId));
@@ -10444,6 +10531,25 @@ async function handleClick(event) {
     } catch {
       setStatus(tl("copyFailed"));
     }
+    return;
+  }
+
+  if (action === "share-message") {
+    const messageId = actionNode.dataset.messageId || "";
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const starterDrafts = getStarterDraftsForMessage(message);
+    const content = starterDrafts.length
+      ? serializeStarterDraftsForExport(starterDrafts)
+      : message.content;
+    await shareTextContent(content, {
+      title: document.title || "Open Copilot",
+      label: tl("assistantRole"),
+    });
     return;
   }
 
