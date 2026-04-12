@@ -7112,6 +7112,15 @@ function fileToBase64(file) {
   });
 }
 
+function base64ToBlobUrl(base64, mimeType = "image/png") {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+}
+
 function fileToText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -7353,18 +7362,91 @@ async function attachFiles(files) {
   }
 }
 
-async function attachClipboardItems(items) {
-  const imageFiles = items
+function getClipboardImageFiles(clipboardData) {
+  const itemFiles = Array.from(clipboardData?.items || [])
     .filter((item) => item.type.startsWith("image/"))
-    .map((item) => item.getAsFile())
+    .map((item, index) => {
+      const file = item.getAsFile();
+      if (!file) {
+        return null;
+      }
+
+      if (file.name) {
+        return file;
+      }
+
+      const extension = item.type.split("/")[1] || "png";
+      return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, { type: file.type || item.type });
+    })
     .filter(Boolean);
 
-  if (!imageFiles.length) {
-    return false;
+  if (itemFiles.length) {
+    return itemFiles;
   }
 
-  await attachImageFiles(imageFiles);
-  return true;
+  return Array.from(clipboardData?.files || [])
+    .filter((file) => file.type.startsWith("image/"))
+    .map((file, index) => {
+      if (file.name) {
+        return file;
+      }
+
+      const extension = file.type.split("/")[1] || "png";
+      return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, { type: file.type });
+    });
+}
+
+function getPromptTargetFromEvent(event) {
+  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+  const promptFromPath = path.find((node) => node instanceof HTMLTextAreaElement && node.dataset.role === "prompt");
+  if (promptFromPath instanceof HTMLTextAreaElement) {
+    return promptFromPath;
+  }
+
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "prompt") {
+    return target;
+  }
+
+  return null;
+}
+
+function createImageAttachmentFromPayload(payload = {}) {
+  const base64 = String(payload.base64 || "").trim();
+  const mimeType = String(payload.mimeType || "image/png").trim() || "image/png";
+  if (!base64) {
+    throw new Error("Missing image payload.");
+  }
+
+  return {
+    id: `${Date.now()}-${payload.name || "context-image"}-${Math.random().toString(36).slice(2, 8)}`,
+    name: String(payload.name || "context-image").trim() || "context-image",
+    mimeType,
+    base64,
+    previewUrl: base64ToBlobUrl(base64, mimeType),
+  };
+}
+
+async function analyzeImageFromContextMenu(payload = {}) {
+  if (!document.getElementById(HOST_ID)) {
+    renderShell();
+  }
+
+  togglePanel(true);
+
+  const starter = getBuiltinStarterEntries(currentPageCopilot).find((item) => item.starterKey === "imageAnalysis");
+  if (!starter) {
+    throw new Error("Image analysis starter is not available.");
+  }
+
+  const imageAttachment = createImageAttachmentFromPayload(payload);
+  const executionPlan = resolveStarterExecutionPlan(starter);
+  clearPendingStarterExecution();
+  await startStarterExecution(executionPlan, executionPlan.suggestedModel, {
+    imageAttachments: [imageAttachment],
+    userMessageOverride: starter.prompt,
+    displayMessageOverride: `${starter.label}: ${imageAttachment.name}`,
+  });
 }
 
 function isTaskInboxVisible() {
@@ -9265,7 +9347,7 @@ async function runMultiPerspectiveAnalysis(userMessage, modelOverride = "") {
   }
 }
 
-async function startStarterExecution(plan, modelOverride = "") {
+async function startStarterExecution(plan, modelOverride = "", executionOptions = {}) {
   if (!plan?.starter) {
     return;
   }
@@ -9292,7 +9374,7 @@ async function startStarterExecution(plan, modelOverride = "") {
         ? tl("starterReasoningModelReady", { model: effectiveModel })
         : tl("starterRouteResolved", { route: getRouteLabel(plan.routeKind), model: effectiveModel })
   );
-  await sendCurrentPrompt({ modelOverride: effectiveModel, starterPlan: plan });
+  await sendCurrentPrompt({ ...executionOptions, modelOverride: effectiveModel, starterPlan: plan });
 }
 
 async function handleClick(event) {
@@ -10573,24 +10655,22 @@ async function handleKeydown(event) {
 }
 
 async function handlePaste(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLTextAreaElement) || target.dataset.role !== "prompt") {
+  const promptTarget = getPromptTargetFromEvent(event);
+  if (!(promptTarget instanceof HTMLTextAreaElement)) {
     return;
   }
 
-  const items = Array.from(event.clipboardData?.items || []);
-  const hasImage = items.some((item) => item.type.startsWith("image/"));
-  if (!hasImage) {
+  const imageFiles = getClipboardImageFiles(event.clipboardData);
+  if (!imageFiles.length) {
     return;
   }
 
   event.preventDefault();
 
   try {
-    const attached = await attachClipboardItems(items);
-    if (attached) {
-      setStatus(tl("pastedImage"));
-    }
+    await attachImageFiles(imageFiles);
+    promptTarget.focus();
+    setStatus(tl("pastedImage"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
@@ -10604,10 +10684,13 @@ async function sendCurrentPrompt(options = {}) {
 
   const starterPlan = options.starterPlan || pendingStarterExecution || null;
   const pendingStarter = starterPlan?.starter || null;
+  const hasUserMessageOverride = Object.prototype.hasOwnProperty.call(options, "userMessageOverride");
+  const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
+  const documentAttachments = Array.isArray(options.documentAttachments) ? options.documentAttachments : attachedDocuments;
   const typedUserMessage = promptNode.value.trim();
   const starterPrompt = String(pendingStarter?.prompt || "").trim();
-  const userMessage = typedUserMessage || starterPrompt;
-  if (!userMessage && !attachedImages.length && !attachedDocuments.length) {
+  const userMessage = hasUserMessageOverride ? String(options.userMessageOverride || "").trim() : (typedUserMessage || starterPrompt);
+  if (!userMessage && !imageAttachments.length && !documentAttachments.length) {
     setStatus(tl("typePromptOrAttach"));
     return;
   }
@@ -10619,8 +10702,8 @@ async function sendCurrentPrompt(options = {}) {
     return;
   }
 
-  if (attachedImages.length && !modelLikelySupportsVision(effectiveModel)) {
-    setStatus(tl("sendingVisionWarning", { count: attachedImages.length, model: effectiveModel }));
+  if (imageAttachments.length && !modelLikelySupportsVision(effectiveModel)) {
+    setStatus(tl("sendingVisionWarning", { count: imageAttachments.length, model: effectiveModel }));
   }
 
   clearPendingStarterExecution();
@@ -10629,10 +10712,10 @@ async function sendCurrentPrompt(options = {}) {
       ? getAutoModelStatusText({ starter: pendingStarter, userMessage })
       : tl("preparingRequest", { model: effectiveModel })
   );
-  const displayMessage = typedUserMessage || pendingStarter?.label || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
+  const displayMessage = String(options.displayMessageOverride || (hasUserMessageOverride ? "" : typedUserMessage) || pendingStarter?.label || (documentAttachments.length ? tl("analyzeTextFile") : tl("analyzeImage"))).trim();
   const outgoingAttachments = {
-    images: attachedImages.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
-    documents: attachedDocuments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
+    images: imageAttachments.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
+    documents: documentAttachments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
     githubSources: includedGithubSources.map((item) => ({
       type: item.type,
       repoFullName: item.repoFullName,
@@ -10640,7 +10723,9 @@ async function sendCurrentPrompt(options = {}) {
       ref: item.ref || "",
     })),
   };
-  promptNode.value = "";
+  if (!hasUserMessageOverride) {
+    promptNode.value = "";
+  }
 
   if (composeMode === "perspective") {
     chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
@@ -10648,8 +10733,10 @@ async function sendCurrentPrompt(options = {}) {
     renderMessages();
     scheduleConversationSave();
     await runMultiPerspectiveAnalysis(userMessage, effectiveModel);
-    attachedDocuments = [];
-    renderAttachments();
+    if (!Array.isArray(options.documentAttachments)) {
+      attachedDocuments = [];
+      renderAttachments();
+    }
     return;
   }
 
@@ -10661,19 +10748,27 @@ async function sendCurrentPrompt(options = {}) {
   scheduleConversationSave();
   togglePanel(true);
   const waitingParts = [];
-  if (attachedImages.length) {
-    waitingParts.push(tl("attachedImages", { count: attachedImages.length }).replace(/^已附加 |^Attached /, "").replace(/\.$/, ""));
+  if (imageAttachments.length) {
+    waitingParts.push(tl("attachedImages", { count: imageAttachments.length }).replace(/^已附加 |^Attached /, "").replace(/\.$/, ""));
   }
-  if (attachedDocuments.length) {
-    waitingParts.push(`${attachedDocuments.length} ${tl("attachedFileLabel").toLowerCase()}${attachedDocuments.length > 1 ? "s" : ""}`);
+  if (documentAttachments.length) {
+    waitingParts.push(`${documentAttachments.length} ${tl("attachedFileLabel").toLowerCase()}${documentAttachments.length > 1 ? "s" : ""}`);
   }
   setStatus(tl("waitingForModel", { model: effectiveModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(await buildChatMessages(userMessage), effectiveModel);
-    attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    attachedImages = [];
-    attachedDocuments = [];
+    await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments }), effectiveModel);
+    imageAttachments.forEach((item) => {
+      if (item.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+    if (!Array.isArray(options.imageAttachments)) {
+      attachedImages = [];
+    }
+    if (!Array.isArray(options.documentAttachments)) {
+      attachedDocuments = [];
+    }
     renderAttachments();
     isGenerating = false;
     scheduleConversationSave();
@@ -10748,9 +10843,10 @@ function updateAssistantDraft(text) {
   scheduleConversationSave();
 }
 
-async function buildChatMessages(userMessage) {
+async function buildChatMessages(userMessage, options = {}) {
   const contextPrompt = await buildPrompt(userMessage);
   const systemPrompt = buildSystemPrompt();
+  const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
   const messages = [];
 
   if (systemPrompt) {
@@ -10763,7 +10859,7 @@ async function buildChatMessages(userMessage) {
   messages.push({
     role: "user",
     content: contextPrompt,
-    images: attachedImages.map((item) => item.base64),
+    images: imageAttachments.map((item) => item.base64),
   });
 
   return messages;
@@ -11002,6 +11098,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
     }
     return false;
+  }
+
+  if (message?.type === "edge-ai-chat:analyze-image-context-menu") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Image analysis is only available from the top frame." });
+      return false;
+    }
+
+    analyzeImageFromContextMenu(message.image || {})
+      .then(() => {
+        sendResponse({ ok: true, isOpen: isPanelOpen });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+      });
+    return true;
   }
 
   return false;

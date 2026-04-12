@@ -24,6 +24,7 @@ const WORK_FOLDER_STARTERS_FILE = "starter-skills.json";
 const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
 const TASK_NOTIFICATION_PREFIX = "task-notification:";
+const CONTEXT_MENU_ANALYZE_IMAGE_ID = "open-copilot-analyze-image";
 const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
 const DEFAULT_TASK_EXTRACTION_WINDOW_DAYS = 3;
 const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
@@ -1950,6 +1951,82 @@ async function openCopilotInTab(tabId) {
   return chrome.tabs.sendMessage(Number(tabId), { type: "edge-ai-chat:toggle-panel", open: true });
 }
 
+async function ensureContextMenus() {
+  if (!chrome.contextMenus?.create) {
+    return;
+  }
+
+  await chrome.contextMenus.removeAll();
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_ANALYZE_IMAGE_ID,
+    title: "Analyze Image with Open Copilot",
+    contexts: ["image"],
+  });
+}
+
+function getImageFilenameFromUrl(url, mimeType = "") {
+  const normalizedUrl = String(url || "").trim();
+  let pathname = "";
+  if (normalizedUrl) {
+    try {
+      pathname = new URL(normalizedUrl).pathname;
+    } catch (_error) {
+      pathname = "";
+    }
+  }
+  const rawName = pathname.split("/").pop() || "";
+  if (rawName) {
+    return rawName;
+  }
+
+  const subtype = String(mimeType || "").split("/")[1] || "png";
+  return `context-image.${subtype}`;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function fetchImageAttachmentFromUrl(url) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const mimeType = blob.type || response.headers.get("content-type") || "image/png";
+  const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+
+  return {
+    name: getImageFilenameFromUrl(url, mimeType),
+    mimeType,
+    base64,
+    sourceUrl: url,
+  };
+}
+
+async function analyzeImageInTab(tabId, imageUrl) {
+  if (!Number.isFinite(Number(tabId))) {
+    throw new Error("Missing tab id for image analysis.");
+  }
+  if (!String(imageUrl || "").trim()) {
+    throw new Error("Missing image URL.");
+  }
+
+  const image = await fetchImageAttachmentFromUrl(String(imageUrl));
+  await openCopilotInTab(tabId);
+  return chrome.tabs.sendMessage(Number(tabId), {
+    type: "edge-ai-chat:analyze-image-context-menu",
+    image,
+  });
+}
+
 async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
   const ids = Array.from(
     new Set(
@@ -2217,6 +2294,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const config = await getConfig();
   await chrome.storage.sync.set(omitSecretConfig(config));
   await restoreTaskAlarms();
+  await ensureContextMenus();
   await reinjectContentScriptsIntoOpenTabs();
 });
 
@@ -2226,6 +2304,9 @@ chrome.runtime.onStartup?.addListener(() => {
   });
   restoreTaskAlarms().catch((error) => {
     console.warn("[Edge AI Chat] Failed to restore task alarms on startup", error);
+  });
+  ensureContextMenus().catch((error) => {
+    console.warn("[Edge AI Chat] Failed to restore context menus on startup", error);
   });
   reinjectContentScriptsIntoOpenTabs().catch((error) => {
     console.warn("[Edge AI Chat] Failed to re-inject content scripts on startup", error);
@@ -2246,6 +2327,16 @@ chrome.commands?.onCommand.addListener(async (command) => {
   } catch (error) {
     console.warn("[Edge AI Chat] Failed to open in-page copilot from command", error);
   }
+});
+
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== CONTEXT_MENU_ANALYZE_IMAGE_ID || !tab?.id || !isHttpTabUrl(tab.url) || !info.srcUrl) {
+    return;
+  }
+
+  analyzeImageInTab(tab.id, info.srcUrl).catch((error) => {
+    console.warn("[Edge AI Chat] Failed to analyze image from context menu", error);
+  });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
