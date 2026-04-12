@@ -914,6 +914,25 @@
   min-height: 0;
 }
 
+.ollama-quick-message-action-toggle {
+  margin-top: 10px;
+  border: 1px solid rgba(154, 176, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d9e8ff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+
+.ollama-quick-message-action-toggle:hover,
+.ollama-quick-message-action-toggle:focus-visible {
+  border-color: rgba(126, 233, 255, 0.34);
+  background: rgba(126, 233, 255, 0.12);
+  color: #f4fbff;
+}
+
 .ollama-quick-message {
   padding: 10px 12px;
   border-radius: 14px;
@@ -2079,7 +2098,7 @@
 }
 
 .ollama-quick-agent-flow-modal {
-  width: min(100%, 720px);
+  width: min(100%, 1040px);
   max-height: min(82vh, 820px);
 }
 
@@ -2279,6 +2298,24 @@
   min-height: 120px;
 }
 
+.ollama-quick-agent-flow-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(360px, 0.58fr);
+  gap: 14px;
+  align-items: start;
+  min-width: 0;
+}
+
+.ollama-quick-agent-flow-column {
+  min-width: 0;
+}
+
+.ollama-quick-agent-flow-selected-list,
+.ollama-quick-agent-flow-available-list {
+  min-height: min(44vh, 420px);
+  max-height: min(44vh, 420px);
+}
+
 .ollama-quick-agent-flow-step-index,
 .ollama-quick-agent-flow-step-badge {
   display: inline-flex;
@@ -2328,6 +2365,15 @@
 
 .ollama-quick-agent-flow-panel.is-compact {
   padding: 14px 16px;
+}
+
+.ollama-quick-agent-flow-panel .ollama-quick-perspective-grid {
+  grid-template-columns: 1fr;
+}
+
+.ollama-quick-agent-flow-panel .ollama-quick-perspective-card,
+.ollama-quick-agent-flow-panel .ollama-quick-perspective-final {
+  min-height: 0;
 }
 
 .ollama-quick-agent-flow-head {
@@ -2913,5 +2959,15 @@
 
   .ollama-quick-picker-title {
     font-size: 16px;
+  }
+
+  .ollama-quick-agent-flow-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ollama-quick-agent-flow-selected-list,
+  .ollama-quick-agent-flow-available-list {
+    min-height: 180px;
+    max-height: min(28vh, 260px);
   }
 }

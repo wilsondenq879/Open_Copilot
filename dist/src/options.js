@@ -82,6 +82,7 @@ const OPTION_I18N = {
     starterQuickModelLabel: "快速回答模型",
     starterReasoningModelLabel: "更思考模型",
     starterVisionModelLabel: "Vision 模型",
+    starterModelAutoOption: "自動判斷",
     starterRoutingHint: "目前選取的模型會作為預設快速回答模型。Auto 模式會先看任務需要的是 quick、reasoning 還是 vision，再從你已安裝模型中挑最符合能力的模型；若你有手動指定對應角色模型，會優先使用手動指定值。",
     replyLanguageLabel: "回覆語言",
     settingsThemeLabel: "設定頁主題",
@@ -153,8 +154,11 @@ const OPTION_I18N = {
     starterFlowEditorClose: "關閉",
     starterFlowEditorNameLabel: "Flow 名稱",
     starterFlowEditorStepsLabel: "Flow 步驟",
+    starterFlowEditorOutputLabel: "完成時先輸出結果的步驟",
+    starterFlowEditorOutputHint: "勾選後，該步驟完成時會先顯示結果與複製/下載按鈕；整條 flow 仍會繼續執行。",
     starterFlowEditorAvailableLabel: "加入自訂 skills",
     starterFlowEditorNoSteps: "這條 flow 還沒有步驟。",
+    starterFlowEditorNoOutputSteps: "先加入步驟後，才能指定輸出內容。",
     starterFlowEditorNoAvailable: "目前沒有可加入的自訂 skills。",
     starterFlowEditorSave: "儲存 Flow",
     starterFlowEditorSaved: "已更新 Agent Flow：{name}",
@@ -266,6 +270,7 @@ const OPTION_I18N = {
     starterQuickModelLabel: "Quick reply model",
     starterReasoningModelLabel: "Deeper-thinking model",
     starterVisionModelLabel: "Vision model",
+    starterModelAutoOption: "Auto-detect",
     starterRoutingHint: "The currently selected model stays your default quick-reply model. Auto mode first decides whether the task needs quick, reasoning, or vision capability, then picks the best fit from the models the user has installed. If you manually set a role model here, that manual choice wins.",
     replyLanguageLabel: "Reply Language",
     settingsThemeLabel: "Settings Theme",
@@ -337,8 +342,11 @@ const OPTION_I18N = {
     starterFlowEditorClose: "Close",
     starterFlowEditorNameLabel: "Flow Name",
     starterFlowEditorStepsLabel: "Flow Steps",
+    starterFlowEditorOutputLabel: "Steps that publish results early",
+    starterFlowEditorOutputHint: "When selected, a step shows its result with copy/download actions as soon as it finishes, while the flow continues running.",
     starterFlowEditorAvailableLabel: "Add Custom Skills",
     starterFlowEditorNoSteps: "This flow has no steps yet.",
+    starterFlowEditorNoOutputSteps: "Add steps first before choosing final output.",
     starterFlowEditorNoAvailable: "No custom skills are available to add right now.",
     starterFlowEditorSave: "Save Flow",
     starterFlowEditorSaved: "Updated Agent Flow: {name}",
@@ -1925,60 +1933,60 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
 };
 const BUILTIN_STARTER_LABEL_MAP = {
   "zh-TW": {
-    pageSummary: "網頁內容精華",
-    translatePage: "網頁翻譯",
+    pageSummary: "整理這頁重點",
+    translatePage: "翻譯這頁內容",
     reflectionArticle: "依照網頁內容生成心得文",
-    codeExplain: "code 內容白話文解析",
-    imageAnalysis: "圖片分析",
+    codeExplain: "白話解釋程式碼",
+    imageAnalysis: "看圖整理重點",
     imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
-    landingHtml: "轉成 HTML",
-    articleTimeline: "整理事件時間線",
-    articleBiasCheck: "檢查觀點與可能盲點",
-    codeRiskReview: "找出程式風險點",
-    codeTeachBack: "轉成教學筆記",
-    emailSummary: "Email內容摘要",
+    landingHtml: "將網頁內容整理成html簡報",
+    articleTimeline: "整理事件時間軸",
+    articleBiasCheck: "分析觀點與盲點",
+    codeRiskReview: "找出程式風險",
+    codeTeachBack: "改寫成學習筆記",
+    emailSummary: "整理 Email 重點",
     multiPerspective: "多視角分析",
-    githubRepoPurpose: "這個 Repo 是做什麼用的？",
-    githubSummary: "整理這個 GitHub 頁面",
-    githubReviewFocus: "建議 review 重點",
-    githubNextSteps: "列出下一步建議",
-    githubCrossCheck: "比對目前頁面與加入文件",
-    githubSpecCoverage: "檢查規格 / 文件覆蓋度",
-    githubDriftCheck: "找出與加入文件的不一致",
-    githubReviewChecklist: "產生交叉 review 清單",
-    githubTestGap: "找測試與驗證缺口",
-    githubDocReview: "文件 review",
-    githubRequirementMap: "需求 / 文件對照",
-    githubSecurityRequirementCheck: "安全需求覆蓋檢查",
-    githubWebReview: "HTML / 前端結構 review",
-    githubAccessibilityReview: "可近用性與語意檢查",
-    githubFrontendSecurityReview: "前端安全 review",
-    githubCodeReviewDeep: "程式碼深度 review",
-    githubContractCheck: "介面 / 契約一致性檢查",
-    githubSecurityReview: "安全風險 review",
-    githubRegressionHotspots: "回歸風險熱點",
-    githubMemorySafetyReview: "記憶體安全 review",
-    githubAttackSurfaceReview: "攻擊面檢查",
-    githubConfigReview: "設定檔風險 review",
-    githubSecretAndPermissionReview: "Secrets / 權限檢查",
-    githubOperationalRiskReview: "部署與操作風險檢查",
-    githubArchitectureMap: "專案架構對照",
-    githubImpactSurfaceMap: "影響面盤點",
-    githubRepoSecurityReview: "Repo 層級安全檢查",
-    chatWeeklyDigest: "近三天對談重點匯報",
-    chatActionItems: "抓待辦 / owner / deadline",
-    docExecutiveBrief: "文件高層摘要",
-    docOutline: "重建文件大綱",
-    bullVsBear: "Bull vs Bear",
-    catalystMap: "Catalyst Map",
-    pricedIn: "Priced In?",
-    tickerImpact: "Ticker Impact",
-    memeCaption: "梗圖文案",
-    darkMeme: "地獄梗版本",
-    xPost: "X 貼文版",
-    templateIdeas: "梗圖模板建議",
-    lowIqMeme: "低智商梗圖文案",
-    createCustomStarter: "教 AI 一個新技能",
+    githubRepoPurpose: "這個 Repo 在做什麼",
+    githubSummary: "整理這頁 GitHub 重點",
+    githubReviewFocus: "先看哪些 Review 重點",
+    githubNextSteps: "建議下一步怎麼做",
+    githubCrossCheck: "比對頁面和文件",
+    githubSpecCoverage: "檢查規格覆蓋是否完整",
+    githubDriftCheck: "找出和文件不一致的地方",
+    githubReviewChecklist: "產生 Review 檢查清單",
+    githubTestGap: "找出測試缺口",
+    githubDocReview: "檢查文件問題",
+    githubRequirementMap: "對照需求與文件",
+    githubSecurityRequirementCheck: "檢查安全需求是否有做到",
+    githubWebReview: "檢查前端結構",
+    githubAccessibilityReview: "檢查無障礙與語意",
+    githubFrontendSecurityReview: "檢查前端安全風險",
+    githubCodeReviewDeep: "深入檢查程式碼",
+    githubContractCheck: "檢查介面是否一致",
+    githubSecurityReview: "檢查安全風險",
+    githubRegressionHotspots: "找出回歸風險熱點",
+    githubMemorySafetyReview: "檢查記憶體安全",
+    githubAttackSurfaceReview: "盤點攻擊面",
+    githubConfigReview: "檢查設定風險",
+    githubSecretAndPermissionReview: "檢查機密與權限",
+    githubOperationalRiskReview: "檢查部署與操作風險",
+    githubArchitectureMap: "整理專案架構",
+    githubImpactSurfaceMap: "盤點影響範圍",
+    githubRepoSecurityReview: "檢查 Repo 安全設定",
+    chatWeeklyDigest: "整理近三天對話重點",
+    chatActionItems: "整理待辦與負責人",
+    docExecutiveBrief: "整理決策摘要",
+    docOutline: "重整文件大綱",
+    bullVsBear: "多空觀點分析",
+    catalystMap: "整理事件催化因素",
+    pricedIn: "判斷是否已反映在價格",
+    tickerImpact: "整理受影響標的",
+    memeCaption: "產生梗圖文案",
+    darkMeme: "產生地獄梗版本",
+    xPost: "改寫成 X 貼文",
+    templateIdeas: "推薦梗圖模板",
+    lowIqMeme: "產生直白誇張版梗圖",
+    createCustomStarter: "教AI一個新技能",
     createAgentFlow: "Create Agent Flow",
   },
 };
@@ -2356,6 +2364,10 @@ function applyTranslations() {
   if (starterFlowEditorNameLabel) starterFlowEditorNameLabel.textContent = t("starterFlowEditorNameLabel");
   const starterFlowEditorStepsLabel = document.getElementById("starterFlowEditorStepsLabel");
   if (starterFlowEditorStepsLabel) starterFlowEditorStepsLabel.textContent = t("starterFlowEditorStepsLabel");
+  const starterFlowEditorOutputLabel = document.getElementById("starterFlowEditorOutputLabel");
+  if (starterFlowEditorOutputLabel) starterFlowEditorOutputLabel.textContent = t("starterFlowEditorOutputLabel");
+  const starterFlowEditorOutputHint = document.getElementById("starterFlowEditorOutputHint");
+  if (starterFlowEditorOutputHint) starterFlowEditorOutputHint.textContent = t("starterFlowEditorOutputHint");
   const starterFlowEditorAvailableLabel = document.getElementById("starterFlowEditorAvailableLabel");
   if (starterFlowEditorAvailableLabel) starterFlowEditorAvailableLabel.textContent = t("starterFlowEditorAvailableLabel");
   const starterFlowEditorSave = document.getElementById("starterFlowEditorSave");
@@ -2485,6 +2497,23 @@ function normalizeFlowStepReference(step) {
   };
 }
 
+function normalizeFlowOutputStepIds(value, flowSteps = []) {
+  const stepIds = (Array.isArray(flowSteps) ? flowSteps : [])
+    .map((step) => String(step?.starterId || "").trim())
+    .filter(Boolean);
+  if (!stepIds.length) {
+    return [];
+  }
+
+  const selected = (Array.isArray(value) ? value : [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .filter((item) => stepIds.includes(item));
+
+  return selected.length ? selected : [stepIds[stepIds.length - 1]];
+}
+
 function normalizeImportedStarter(item, index) {
   if (!item || typeof item !== "object" || Array.isArray(item)) {
     throw new Error(t("customStarterImportFailed"));
@@ -2507,6 +2536,7 @@ function normalizeImportedStarter(item, index) {
   }
 
   const description = String(item.description || item.summary || item.hint || "").trim();
+  const outputStepIds = normalizeFlowOutputStepIds(item.outputStepIds || item.outputSteps, flowSteps);
 
   return {
     id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
@@ -2517,6 +2547,7 @@ function normalizeImportedStarter(item, index) {
     showInPopup: item.showInPopup !== false,
     mode,
     flowSteps,
+    outputStepIds,
   };
 }
 
@@ -2689,11 +2720,12 @@ function getStarterFlowEditorStarter() {
 
 function getStarterFlowEditorDraft() {
   if (!starterFlowEditorState.draft || typeof starterFlowEditorState.draft !== "object") {
-    starterFlowEditorState.draft = { id: "", label: "", flowSteps: [] };
+    starterFlowEditorState.draft = { id: "", label: "", flowSteps: [], outputStepIds: [] };
   }
   if (!Array.isArray(starterFlowEditorState.draft.flowSteps)) {
     starterFlowEditorState.draft.flowSteps = [];
   }
+  starterFlowEditorState.draft.outputStepIds = normalizeFlowOutputStepIds(starterFlowEditorState.draft.outputStepIds, starterFlowEditorState.draft.flowSteps);
   return starterFlowEditorState.draft;
 }
 
@@ -2705,9 +2737,10 @@ function renderStarterFlowEditorModal() {
   const backdrop = document.getElementById("starterFlowEditorModal");
   const nameInput = document.getElementById("starterFlowEditorName");
   const stepsNode = document.getElementById("starterFlowEditorSteps");
+  const outputNode = document.getElementById("starterFlowEditorOutput");
   const availableNode = document.getElementById("starterFlowEditorAvailable");
   const saveButton = document.getElementById("starterFlowEditorSave");
-  if (!(backdrop instanceof HTMLElement) || !(nameInput instanceof HTMLInputElement) || !(stepsNode instanceof HTMLElement) || !(availableNode instanceof HTMLElement) || !(saveButton instanceof HTMLButtonElement)) {
+  if (!(backdrop instanceof HTMLElement) || !(nameInput instanceof HTMLInputElement) || !(stepsNode instanceof HTMLElement) || !(outputNode instanceof HTMLElement) || !(availableNode instanceof HTMLElement) || !(saveButton instanceof HTMLButtonElement)) {
     return;
   }
 
@@ -2742,6 +2775,24 @@ function renderStarterFlowEditorModal() {
           </div>
         </article>
       `)
+      .join("");
+  }
+
+  if (!draft.flowSteps.length) {
+    outputNode.className = "starter-flow-editor-available empty-state";
+    outputNode.textContent = t("starterFlowEditorNoOutputSteps");
+  } else {
+    outputNode.className = "starter-flow-editor-available";
+    outputNode.innerHTML = draft.flowSteps
+      .map((step, index) => {
+        const checked = draft.outputStepIds.includes(step.starterId);
+        return `
+          <label class="checkbox-field" data-action="flow-editor-toggle-output-step" data-flow-starter-id="${escapeHtml(step.starterId)}">
+            <input type="checkbox" ${checked ? "checked" : ""} />
+            <span>${escapeHtml(`${index + 1}. ${step.label || step.starterId}`)}</span>
+          </label>
+        `;
+      })
       .join("");
   }
 
@@ -2787,6 +2838,7 @@ function openStarterFlowEditor(starterId) {
         starterId: step.starterId,
         label: step.label || step.starterId,
       })),
+      outputStepIds: normalizeFlowOutputStepIds(starter.outputStepIds, starter.flowSteps),
     },
   };
   renderStarterFlowEditorModal();
@@ -2820,6 +2872,7 @@ async function saveStarterFlowEditorDraft() {
     showInPopup: starter.showInPopup !== false,
     mode: "flow",
     flowSteps: draft.flowSteps,
+    outputStepIds: normalizeFlowOutputStepIds(draft.outputStepIds, draft.flowSteps),
   }, currentCustomStarters.findIndex((item) => item.id === starter.id));
 
   currentCustomStarters = currentCustomStarters.map((item) => item.id === starter.id ? updatedStarter : item);
@@ -3250,6 +3303,11 @@ function renderFlowDetailModal() {
     { label: t("skillMetaModeLabel"), value: getModeLabel(starter.mode) },
     { label: t("skillMetaScopesLabel"), value: starter.scopes.map((scope) => getScopeLabel(scope)).join(", ") || t("starterPreviewScopeAll") },
     { label: t("flowMetaStepCountLabel"), value: String(Array.isArray(starter.flowSteps) ? starter.flowSteps.length : 0) },
+    { label: t("starterFlowEditorOutputLabel"), value: normalizeFlowOutputStepIds(starter.outputStepIds, starter.flowSteps).map((stepId) => {
+      const index = (starter.flowSteps || []).findIndex((step) => step.starterId === stepId);
+      const step = (starter.flowSteps || []).find((candidate) => candidate.starterId === stepId);
+      return `${index + 1}. ${step?.label || stepId}`;
+    }).join(", ") },
   ]);
   stepsNode.innerHTML = (Array.isArray(starter.flowSteps) ? starter.flowSteps : []).map((step, index) => `
     <article class="starter-flow-editor-step">
@@ -3353,6 +3411,43 @@ function renderModels(models, config = {}) {
     });
     list.appendChild(button);
   });
+
+  renderStarterModelRoutingSelects(models, config);
+}
+
+function renderStarterModelRoutingSelects(models, config = {}) {
+  const quickSelect = document.getElementById("starterQuickModel");
+  const reasoningSelect = document.getElementById("starterReasoningModel");
+  const visionSelect = document.getElementById("starterVisionModel");
+  if (!(quickSelect instanceof HTMLSelectElement) || !(reasoningSelect instanceof HTMLSelectElement) || !(visionSelect instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const modelNames = (Array.isArray(models) ? models : [])
+    .map((model) => String(model?.name || "").trim())
+    .filter(Boolean);
+
+  const renderOptions = (select, selectedValue, { includeAuto = false } = {}) => {
+    const normalizedSelectedValue = String(selectedValue || "").trim();
+    const values = modelNames.slice();
+    if (normalizedSelectedValue && !values.includes(normalizedSelectedValue)) {
+      values.unshift(normalizedSelectedValue);
+    }
+
+    const optionMarkup = [];
+    if (includeAuto) {
+      optionMarkup.push(`<option value="">${t("starterModelAutoOption")}</option>`);
+    }
+    values.forEach((value) => {
+      optionMarkup.push(`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
+    });
+    select.innerHTML = optionMarkup.join("");
+    select.value = normalizedSelectedValue;
+  };
+
+  renderOptions(quickSelect, config.selectedModel || currentSelectedModel || "");
+  renderOptions(reasoningSelect, config.starterReasoningModel || "", { includeAuto: true });
+  renderOptions(visionSelect, config.starterVisionModel || "", { includeAuto: true });
 }
 
 function setStatus(message, isError = false) {
@@ -3435,9 +3530,6 @@ async function loadConfig() {
     document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
     document.getElementById("starterModelRoutingEnabled").checked = result.config.starterModelRoutingEnabled !== false;
-    document.getElementById("starterQuickModel").value = String(result.config.selectedModel || "").trim();
-    document.getElementById("starterReasoningModel").value = result.config.starterReasoningModel || "";
-    document.getElementById("starterVisionModel").value = result.config.starterVisionModel || "";
     document.getElementById("replyLanguage").value = replyLanguage;
     document.getElementById("settingsThemeToolbar").value = settingsTheme;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
@@ -3489,6 +3581,7 @@ async function saveConfig() {
   const googleDriveSyncEnabled = document.getElementById("googleDriveSyncEnabled").checked;
   const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
+  const selectedModel = document.getElementById("starterQuickModel").value.trim();
   const starterModelRoutingEnabled = document.getElementById("starterModelRoutingEnabled").checked;
   const starterReasoningModel = document.getElementById("starterReasoningModel").value.trim();
   const starterVisionModel = document.getElementById("starterVisionModel").value.trim();
@@ -3519,6 +3612,7 @@ async function saveConfig() {
       googleDriveSyncEnabled,
       googleDriveAutoSync,
       defaultProvider,
+      selectedModel,
       starterModelRoutingEnabled,
       starterReasoningModel,
       starterVisionModel,
@@ -3549,7 +3643,6 @@ async function refreshModels() {
   }
 
   renderModels(result.models || [], result.config || {});
-  document.getElementById("starterQuickModel").value = String(result?.config?.selectedModel || currentSelectedModel || "").trim();
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
 
@@ -3912,6 +4005,7 @@ document.getElementById("starterFlowEditorModal").addEventListener("click", (eve
 
   if (actionNode.dataset.action === "flow-editor-step-remove") {
     draft.flowSteps = draft.flowSteps.filter((_step, index) => index !== stepIndex);
+    draft.outputStepIds = normalizeFlowOutputStepIds(draft.outputStepIds, draft.flowSteps);
     renderStarterFlowEditorModal();
     return;
   }
@@ -3923,6 +4017,20 @@ document.getElementById("starterFlowEditorModal").addEventListener("click", (eve
       return;
     }
     draft.flowSteps = [...draft.flowSteps, { starterId: skill.id, label: skill.label }];
+    draft.outputStepIds = normalizeFlowOutputStepIds(draft.outputStepIds, draft.flowSteps);
+    renderStarterFlowEditorModal();
+    return;
+  }
+
+  if (actionNode.dataset.action === "flow-editor-toggle-output-step") {
+    const starterId = String(actionNode.dataset.flowStarterId || "").trim();
+    if (!starterId || !draft.flowSteps.some((step) => step.starterId === starterId)) {
+      return;
+    }
+    const nextOutputIds = draft.outputStepIds.includes(starterId)
+      ? draft.outputStepIds.filter((item) => item !== starterId)
+      : [...draft.outputStepIds, starterId];
+    draft.outputStepIds = normalizeFlowOutputStepIds(nextOutputIds, draft.flowSteps);
     renderStarterFlowEditorModal();
   }
 });

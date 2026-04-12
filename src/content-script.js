@@ -584,6 +584,7 @@ const CONTENT_I18N = {
     starterVisionModelReady: "這個任務會優先使用 vision 模型：{model}。",
     starterVisionModelHint: "{starter} 預設會用 {model} 看圖與檢查視覺細節。",
     starterVisionModelAction: "使用 vision 模型",
+    starterRouteResolved: "Starter 路由：{route} -> {model}",
     starterQuickReplyAction: "快速回答",
     modelLabel: "Model",
     modelAutoOption: "Auto",
@@ -703,61 +704,61 @@ const CONTENT_I18N = {
     latestChatLoaded: "已載入最近一次對談。",
     extensionReloadRequired: "擴充功能剛更新或重新載入，這個頁面的舊聊天面板已失效。請重新整理目前頁面後再試一次。",
     streamingFailed: "串流失敗。",
-    starter_pageSummary: "網頁內容精華",
-    starter_translatePage: "網頁翻譯{language}",
+    starter_pageSummary: "整理這頁重點",
+    starter_translatePage: "翻譯這頁內容",
     starter_reflectionArticle: "依照網頁內容生成心得文",
-    starter_codeExplain: "code 內容白話文解析",
-    starter_emailSummary: "Email內容摘要",
-    starter_articleTimeline: "整理事件時間線",
-    starter_articleBiasCheck: "檢查觀點與可能盲點",
-    starter_codeRiskReview: "找出程式風險點",
-    starter_codeTeachBack: "轉成教學筆記",
-    starter_githubRepoPurpose: "這個 Repo 是做什麼用的？",
-    starter_githubSummary: "整理這個 GitHub 頁面",
-    starter_githubReviewFocus: "建議 review 重點",
-    starter_githubNextSteps: "列出下一步建議",
-    starter_githubCrossCheck: "比對目前頁面與加入文件",
-    starter_githubSpecCoverage: "檢查規格 / 文件覆蓋度",
-    starter_githubDriftCheck: "找出與加入文件的不一致",
-    starter_githubReviewChecklist: "產生交叉 review 清單",
-    starter_githubTestGap: "找測試與驗證缺口",
-    starter_githubDocReview: "文件 review",
-    starter_githubRequirementMap: "需求 / 文件對照",
-    starter_githubSecurityRequirementCheck: "安全需求覆蓋檢查",
-    starter_githubWebReview: "HTML / 前端結構 review",
-    starter_githubAccessibilityReview: "可近用性與語意檢查",
-    starter_githubFrontendSecurityReview: "前端安全 review",
-    starter_githubCodeReviewDeep: "程式碼深度 review",
-    starter_githubContractCheck: "介面 / 契約一致性檢查",
-    starter_githubSecurityReview: "安全風險 review",
-    starter_githubRegressionHotspots: "回歸風險熱點",
-    starter_githubMemorySafetyReview: "記憶體安全 review",
-    starter_githubAttackSurfaceReview: "攻擊面檢查",
-    starter_githubConfigReview: "設定檔風險 review",
-    starter_githubSecretAndPermissionReview: "Secrets / 權限檢查",
-    starter_githubOperationalRiskReview: "部署與操作風險檢查",
-    starter_githubArchitectureMap: "專案架構對照",
-    starter_githubImpactSurfaceMap: "影響面盤點",
-    starter_githubRepoSecurityReview: "Repo 層級安全檢查",
-    starter_chatWeeklyDigest: "近三天對談重點匯報",
-    starter_chatActionItems: "抓待辦 / owner / deadline",
-    starter_docExecutiveBrief: "文件高層摘要",
-    starter_docOutline: "重建文件大綱",
-    starter_landingHtml: "轉成 HTML",
-    starter_bullVsBear: "Bull vs Bear",
-    starter_catalystMap: "Catalyst Map",
-    starter_pricedIn: "Priced In?",
-    starter_tickerImpact: "Ticker Impact",
-    starter_memeCaption: "梗圖文案",
-    starter_darkMeme: "地獄梗版本",
-    starter_xPost: "X 貼文版",
-    starter_templateIdeas: "梗圖模板建議",
-    starter_lowIqMeme: "低智商梗圖文案",
+    starter_codeExplain: "白話解釋程式碼",
+    starter_emailSummary: "整理 Email 重點",
+    starter_articleTimeline: "整理事件時間軸",
+    starter_articleBiasCheck: "分析觀點與盲點",
+    starter_codeRiskReview: "找出程式風險",
+    starter_codeTeachBack: "改寫成學習筆記",
+    starter_githubRepoPurpose: "這個 Repo 在做什麼",
+    starter_githubSummary: "整理這頁 GitHub 重點",
+    starter_githubReviewFocus: "先看哪些 Review 重點",
+    starter_githubNextSteps: "建議下一步怎麼做",
+    starter_githubCrossCheck: "比對頁面和文件",
+    starter_githubSpecCoverage: "檢查規格覆蓋是否完整",
+    starter_githubDriftCheck: "找出和文件不一致的地方",
+    starter_githubReviewChecklist: "產生 Review 檢查清單",
+    starter_githubTestGap: "找出測試缺口",
+    starter_githubDocReview: "檢查文件問題",
+    starter_githubRequirementMap: "對照需求與文件",
+    starter_githubSecurityRequirementCheck: "檢查安全需求是否有做到",
+    starter_githubWebReview: "檢查前端結構",
+    starter_githubAccessibilityReview: "檢查無障礙與語意",
+    starter_githubFrontendSecurityReview: "檢查前端安全風險",
+    starter_githubCodeReviewDeep: "深入檢查程式碼",
+    starter_githubContractCheck: "檢查介面是否一致",
+    starter_githubSecurityReview: "檢查安全風險",
+    starter_githubRegressionHotspots: "找出回歸風險熱點",
+    starter_githubMemorySafetyReview: "檢查記憶體安全",
+    starter_githubAttackSurfaceReview: "盤點攻擊面",
+    starter_githubConfigReview: "檢查設定風險",
+    starter_githubSecretAndPermissionReview: "檢查機密與權限",
+    starter_githubOperationalRiskReview: "檢查部署與操作風險",
+    starter_githubArchitectureMap: "整理專案架構",
+    starter_githubImpactSurfaceMap: "盤點影響範圍",
+    starter_githubRepoSecurityReview: "檢查 Repo 安全設定",
+    starter_chatWeeklyDigest: "整理近三天對話重點",
+    starter_chatActionItems: "整理待辦與負責人",
+    starter_docExecutiveBrief: "整理決策摘要",
+    starter_docOutline: "重整文件大綱",
+    starter_landingHtml: "將網頁內容整理成html簡報",
+    starter_bullVsBear: "多空觀點分析",
+    starter_catalystMap: "整理事件催化因素",
+    starter_pricedIn: "判斷是否已反映在價格",
+    starter_tickerImpact: "整理受影響標的",
+    starter_memeCaption: "產生梗圖文案",
+    starter_darkMeme: "產生地獄梗版本",
+    starter_xPost: "改寫成 X 貼文",
+    starter_templateIdeas: "推薦梗圖模板",
+    starter_lowIqMeme: "產生直白誇張版梗圖",
     starter_multiPerspective: "多視角分析",
-    starter_imageAnalysis: "圖片分析",
+    starter_imageAnalysis: "看圖整理重點",
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_createAgentFlow: "Create Agent Flow",
-    starter_createCustomStarter: "教 AI 一個新技能",
+    starter_createCustomStarter: "教AI一個新技能",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
@@ -772,7 +773,7 @@ const CONTENT_I18N = {
     githubRepoPurposePrompt: "請根據目前這個 GitHub 頁面，說明這個 repository 主要是做什麼用的。請優先整理：\n1. 這個 repo 想解決什麼問題\n2. 它的核心功能或主要模組\n3. 可能的使用對象或使用情境\n4. 主要技術棧或實作方向\n5. 我接下來最值得先看的檔案或目錄\n如果目前頁面不是 repository 首頁，也請根據可見內容、路徑、README、檔名、PR / issue / code 線索做最合理的推斷，並明確標示哪些是推測。請使用{language}回答。",
     githubSummaryPrompt: "請整理這個 GitHub 頁面的重點。如果是 repository，請說明用途、結構與值得先看的地方；如果是 PR 或 issue，請整理背景、重點變更與目前狀態。請使用{language}回答。",
     githubReviewFocusPrompt: "請站在 reviewer 角度，根據這個 GitHub 頁面整理最值得優先檢查的項目。請分成「風險最高 / 建議先看 / 可追問問題」三段，並使用{language}回答。",
-    githubNextStepsPrompt: "請根據這個 GitHub 頁面，列出最合理的下一步行動。若資訊不足，請明確說明缺什麼。請使用{language}回答。",
+    githubNextStepsPrompt: "請根據目前這個 GitHub 頁面，整理「下一步怎麼做」的明確行動清單。請優先依據目前可見的 PR、commit、diff、review comment、issue、repo 結構與我加入的 GitHub sources 來判斷，不要只給抽象建議。\n\n請用表格輸出，欄位固定為：\n| Priority | Checklist Item | Why It Matters | Where To Check | Status |\n|---|---|---|---|---|\n\n請遵守以下規則：\n1. 每一列都必須是可以直接執行或確認的具體動作\n2. `Priority` 只可使用 `P0`、`P1`、`P2`\n3. `Checklist Item` 要寫成明確動作，例如「確認 xxx 是否覆蓋到 yyy」而不是「看一下測試」\n4. `Why It Matters` 要簡短說明這件事的風險或價值\n5. `Where To Check` 要盡量指出應該優先看的檔案、區塊、comment、測試、CI 或文件\n6. `Status` 只可使用 `Done`、`Needs Check`、`Blocked by Missing Info`\n7. 如果資訊不足，仍要先列出目前最合理的 checklist，並把缺少資訊的項目標成 `Blocked by Missing Info`\n8. 表格後面再補一小段 `Recommended First Move`，只用 1 到 3 句說明現在最應該先做哪一步\n\n如果目前頁面是 PR，請優先從：\n- 風險最高的變更\n- 測試缺口\n- 規格或需求落差\n- 未處理 review comment\n- 可能的 regression / security / contract 問題\n\n來安排 checklist。\n請使用{language}回答。",
     githubCrossCheckPrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源一起交叉比對。把目前頁面當成主要檢視對象，把加入的來源當成參考依據，協助我判斷這個 PR / commit / file / issue / repository 是否一致、合理、完整。請優先輸出：\n1. 目前頁面重點\n2. 與加入來源的對應關係\n3. 不一致、缺漏、風險或值得懷疑的地方\n4. 建議我接下來優先看的檔案、diff、commit 或問題\n5. 若資訊不足，明確指出還缺什麼\n回答時請明確引用「目前頁面」與「加入來源」各自提供了哪些線索。請使用{language}回答。",
     githubSpecCoveragePrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源做規格 / 文件覆蓋度比對。把加入來源視為需求、設計、既有實作或參考基準，檢查目前這個 PR / commit / file / issue 是否有覆蓋到應該處理的部分。請輸出：\n1. 已覆蓋項目\n2. 看起來尚未覆蓋或只覆蓋一半的項目\n3. 可能需要補的檔案、測試、文件或 reviewer 問題\n4. 你的判斷依據\n若加入來源本身不是規格文件，也請根據內容做最合理的 coverage 判斷。請使用{language}回答。",
     githubDriftCheckPrompt: "請把目前這個 GitHub 頁面與我加入的 GitHub 來源做一致性檢查，找出可能的偏離、衝突、命名不一致、流程不一致、架構漂移或安全假設落差。請輸出：\n1. 一致的地方\n2. 可疑的不一致\n3. 高風險偏離點\n4. 建議我追看的 diff / commit / 檔案 / 問題\n請明確標註每個判斷主要來自「目前頁面」還是「加入來源」。請使用{language}回答。",
@@ -830,6 +831,7 @@ const CONTENT_I18N = {
     agentFlowPendingStep: "等待執行這一步。",
     agentFlowEmptyResult: "這條 flow 沒有產出可顯示的最終內容。",
     agentFlowProgressSummary: "目前進度：第 {current} / {total} 步",
+    agentFlowRunningWith: "執行模型：{model}",
     agentFlowRunningStep: "正在執行 Flow 第 {current}/{total} 步：{name}",
     agentFlowDone: "Agent Flow「{name}」執行完成。",
     agentFlowInvalid: "這個 Agent Flow 的設定不完整，暫時無法執行。",
@@ -841,8 +843,11 @@ const CONTENT_I18N = {
     agentFlowNameLabel: "Flow 名稱",
     agentFlowNamePlaceholder: "例如：PR 快速審查流程",
     agentFlowSelectedStepsLabel: "已選步驟 {count} 個，至少 {min} 個，最多 {max} 個",
+    agentFlowOutputStepsLabel: "哪些步驟完成時要先輸出結果",
+    agentFlowOutputStepsHint: "勾選後，該步驟完成時會先顯示結果與複製/下載按鈕；整條 flow 仍會繼續執行。",
     agentFlowAvailableSkills: "目前可加入的 skills",
     agentFlowNoStepsSelected: "還沒有加入任何步驟。",
+    agentFlowNoOutputStepsAvailable: "先加入步驟後，才能指定輸出內容。",
     agentFlowNoAvailableSkills: "目前沒有可加入 flow 的 skill。",
     agentFlowRemoveStep: "點一下可移除此步驟",
     agentFlowMoveUp: "上移",
@@ -1050,6 +1055,7 @@ const CONTENT_I18N = {
     starterVisionModelReady: "This task is set to use a vision model first: {model}.",
     starterVisionModelHint: "{starter} will use {model} to inspect images and visual details by default.",
     starterVisionModelAction: "Use vision model",
+    starterRouteResolved: "Starter route: {route} -> {model}",
     starterQuickReplyAction: "Quick reply",
     modelLabel: "Model",
     modelAutoOption: "Auto",
@@ -1193,7 +1199,7 @@ const CONTENT_I18N = {
     githubRepoPurposePrompt: "Explain what this GitHub repository is mainly for based on the current GitHub page. Prioritize: 1. What problem this repo is trying to solve 2. Its main features or modules 3. Who it seems to be for or when it would be used 4. The likely tech stack or implementation direction 5. Which files or directories I should read next. If the current page is not the repository homepage, still infer from the visible page, path, README, filenames, PR / issue / code clues, and clearly mark anything that is an inference. Respond in {language}.",
     githubSummaryPrompt: "Summarize this GitHub page. If it is a repository, explain what it is for, how it seems organized, and what is worth reading first. If it is a PR or issue, summarize the background, key changes, and current status. Respond in {language}.",
     githubReviewFocusPrompt: "Act like a reviewer and identify the most important things to inspect on this GitHub page. Structure the answer as Highest risk, Review first, and Questions to ask. Respond in {language}.",
-    githubNextStepsPrompt: "Based on this GitHub page, recommend the most reasonable next steps. If critical information is missing, say what is missing. Respond in {language}.",
+    githubNextStepsPrompt: "Based on the current GitHub page, produce a clear next-steps action checklist. Prioritize what is visible in the current PR, commit, diff, review comments, issue, repository structure, and any GitHub sources I added. Do not give vague advice.\n\nOutput a markdown table with these exact columns:\n| Priority | Checklist Item | Why It Matters | Where To Check | Status |\n|---|---|---|---|---|\n\nRules:\n1. Every row must be a specific action or verification step someone can actually do\n2. `Priority` must be only `P0`, `P1`, or `P2`\n3. `Checklist Item` must be action-oriented, for example \"Verify xxx covers yyy\" instead of \"look at tests\"\n4. `Why It Matters` should briefly explain the risk or value\n5. `Where To Check` should point to the most relevant file, diff area, comment thread, test, CI signal, or doc when possible\n6. `Status` must be only `Done`, `Needs Check`, or `Blocked by Missing Info`\n7. If information is missing, still produce the most reasonable checklist you can and mark those rows as `Blocked by Missing Info`\n8. After the table, add a short `Recommended First Move` section in 1 to 3 sentences explaining what should be done first\n\nIf the current page is a PR, prioritize checklist items around:\n- highest-risk changes\n- test gaps\n- spec or requirement mismatches\n- unresolved review comments\n- likely regression, security, or contract issues\n\nRespond in {language}.",
     githubCrossCheckPrompt: "Cross-check this GitHub page with the GitHub source I added. Treat the current page as the main subject under review, and the added source as supporting evidence to help judge whether this PR, commit, file, issue, or repository looks consistent, reasonable, and complete. Prioritize: 1. Key points on the current page 2. How they map to the added source 3. Mismatches, missing pieces, risks, or suspicious areas 4. Which files, diffs, commits, or questions I should inspect next 5. What information is still missing if the evidence is incomplete. Be explicit about which clues come from the current page versus the added source. Respond in {language}.",
     githubSpecCoveragePrompt: "Compare this GitHub page against the GitHub source I added for spec or documentation coverage. Treat the added source as requirements, design intent, existing implementation, or a reference baseline, and check whether this PR, commit, file, or issue covers what it should. Output: 1. What appears covered 2. What looks missing or only partially covered 3. Which files, tests, docs, or reviewer questions likely need follow-up 4. The evidence behind your judgment. If the added source is not a formal spec, still make the best coverage judgment from the available content. Respond in {language}.",
     githubDriftCheckPrompt: "Compare this GitHub page with the GitHub source I added and look for mismatches, drift, conflicting assumptions, inconsistent naming, process mismatch, architecture drift, or security expectation gaps. Output: 1. What appears aligned 2. Suspicious inconsistencies 3. High-risk drift points 4. Which diffs, commits, files, or questions I should inspect next. Explicitly note whether each judgment mainly comes from the current page or the added source. Respond in {language}.",
@@ -1251,6 +1257,7 @@ const CONTENT_I18N = {
     agentFlowPendingStep: "Waiting to run this step.",
     agentFlowEmptyResult: "This flow did not produce a final result to show.",
     agentFlowProgressSummary: "Progress: step {current} of {total}",
+    agentFlowRunningWith: "Running with {model}",
     agentFlowRunningStep: "Running flow step {current}/{total}: {name}",
     agentFlowDone: "Agent Flow \"{name}\" is complete.",
     agentFlowInvalid: "This Agent Flow is incomplete and cannot run yet.",
@@ -1262,8 +1269,11 @@ const CONTENT_I18N = {
     agentFlowNameLabel: "Flow name",
     agentFlowNamePlaceholder: "For example: Fast PR Review Flow",
     agentFlowSelectedStepsLabel: "Selected steps: {count}. Minimum {min}, maximum {max}.",
+    agentFlowOutputStepsLabel: "Choose which steps publish results early",
+    agentFlowOutputStepsHint: "When selected, a step shows its result with copy/download actions as soon as it finishes, while the flow continues running.",
     agentFlowAvailableSkills: "Available skills",
     agentFlowNoStepsSelected: "No steps selected yet.",
+    agentFlowNoOutputStepsAvailable: "Add steps first before choosing final output.",
     agentFlowNoAvailableSkills: "No skills are currently available for this flow.",
     agentFlowRemoveStep: "Click to remove this step",
     agentFlowMoveUp: "Move up",
@@ -3620,6 +3630,10 @@ function normalizeAgentFlowStepReference(step) {
   };
 }
 
+function normalizeAgentFlowOutputStepIdList(value, flowSteps = []) {
+  return normalizeAgentFlowOutputStepIds(value, flowSteps).map((item) => item);
+}
+
 function normalizeCustomStarter(item, index = 0) {
   if (!item || typeof item !== "object" || Array.isArray(item)) {
     return null;
@@ -3650,6 +3664,7 @@ function normalizeCustomStarter(item, index = 0) {
     .filter(Boolean)
     .filter((scope, scopeIndex, list) => list.indexOf(scope) === scopeIndex);
   const description = String(item.description || item.summary || item.hint || "").trim();
+  const outputStepIds = normalizeAgentFlowOutputStepIdList(item.outputStepIds || item.outputSteps, flowSteps);
 
   return {
     id: String(item.id || slugifyStarterId(label, `custom-${index + 1}`)).trim() || `custom-${index + 1}`,
@@ -3660,6 +3675,7 @@ function normalizeCustomStarter(item, index = 0) {
     showInPopup: item.showInPopup !== false,
     composeMode,
     flowSteps,
+    outputStepIds,
   };
 }
 
@@ -3716,6 +3732,7 @@ function getCustomStarterEntries(pageCopilot = currentPageCopilot) {
       isAgentFlow: starter.composeMode === "flow",
       scopes: starter.scopes,
       flowSteps: starter.flowSteps,
+      outputStepIds: starter.outputStepIds,
       showInPopup: starter.showInPopup !== false,
       isRecommended: getStarterScopeRank(starter.scopes, pageCopilot) === 0,
       recommendationRank: getStarterScopeRank(starter.scopes, pageCopilot),
@@ -5004,6 +5021,7 @@ function serializeStarterDraftsForExport(starters) {
       ...(starter.composeMode === "flow"
         ? {
             flowSteps: starter.flowSteps,
+            outputStepIds: starter.outputStepIds,
           }
         : {
             prompt: starter.prompt,
@@ -5259,6 +5277,7 @@ function createDefaultAgentFlowBuilderDraft() {
   return {
     name: "",
     steps: [],
+    outputStepIds: [],
   };
 }
 
@@ -5287,7 +5306,25 @@ function ensureAgentFlowBuilderDraft() {
   if (!Array.isArray(agentFlowBuilderDraft.steps)) {
     agentFlowBuilderDraft.steps = [];
   }
+  agentFlowBuilderDraft.outputStepIds = normalizeAgentFlowOutputStepIds(agentFlowBuilderDraft.outputStepIds, agentFlowBuilderDraft.steps);
   return agentFlowBuilderDraft;
+}
+
+function normalizeAgentFlowOutputStepIds(value, steps = []) {
+  const stepIds = (Array.isArray(steps) ? steps : [])
+    .map((step) => String(step?.starterId || "").trim())
+    .filter(Boolean);
+  if (!stepIds.length) {
+    return [];
+  }
+
+  const selected = (Array.isArray(value) ? value : [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .filter((item) => stepIds.includes(item));
+
+  return selected.length ? selected : [stepIds[stepIds.length - 1]];
 }
 
 function getFlowBaseStarterEntries(pageCopilot = currentPageCopilot) {
@@ -6962,6 +6999,14 @@ async function downloadConversationMarkdown() {
   throw new Error(result?.error || tl("exportMarkdownFailed"));
 }
 
+function downloadAgentFlowMarkdown(filename, content) {
+  if (!String(content || "").trim()) {
+    setStatus(tl("messageNotFound"));
+    return;
+  }
+  downloadTextBlob(filename, String(content || "").trim(), "text/markdown;charset=utf-8");
+}
+
 async function downloadMessageHtml(messageId) {
   const message = chatMessages.find((item) => String(item.id) === String(messageId));
   if (!message) {
@@ -7769,7 +7814,7 @@ function renderMessages() {
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
         const parsedStarterDrafts = message.role === "assistant" && !isTypingAssistant ? getStarterDraftsForMessage(message) : [];
-        const hasAgentFlowPanel = message.role === "assistant" && message.flowRun && !message.flowRun.isComplete;
+        const hasAgentFlowPanel = message.role === "assistant" && message.flowRun;
         const body =
           hasAgentFlowPanel
             ? renderAgentFlowPanel(message.flowRun)
@@ -7820,6 +7865,11 @@ function renderMessages() {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
+          if (message.agentFlowStepOutput) {
+            actionButtons.unshift(
+              `<button class="ollama-quick-message-action-icon" type="button" data-action="download-message-markdown" data-message-id="${message.id}" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>`
+            );
+          }
           if (downloadableHtml) {
             actionButtons.unshift(
               `<button class="ollama-quick-message-action-icon is-text-label" type="button" data-action="download-message-html" data-message-id="${message.id}" title="${escapeHtml(tl("downloadHtml"))}" aria-label="${escapeHtml(tl("downloadHtml"))}">HTML</button>`
@@ -8572,6 +8622,18 @@ function renderAgentFlowBuilder() {
       `;
     })
     .join("");
+  const outputRows = draft.steps
+    .map((step, index) => {
+      const label = getFlowStarterStepLabel(step, currentPageCopilot);
+      const checked = draft.outputStepIds.includes(step.starterId);
+      return `
+        <label class="checkbox-field" data-action="toggle-agent-flow-output-step" data-flow-starter-id="${escapeHtml(step.starterId)}">
+          <input type="checkbox" ${checked ? "checked" : ""} />
+          <span>${escapeHtml(`${index + 1}. ${label}`)}</span>
+        </label>
+      `;
+    })
+    .join("");
   const availableRows = availableStarters
     .map((starter) => {
       const alreadySelected = draft.steps.some((step) => step.starterId === starter.id);
@@ -8603,16 +8665,23 @@ function renderAgentFlowBuilder() {
             <span>${escapeHtml(tl("agentFlowNameLabel"))}</span>
             <input class="ollama-quick-picker-search" type="text" data-role="agent-flow-name" value="${escapeHtml(draft.name)}" placeholder="${escapeHtml(tl("agentFlowNamePlaceholder"))}" />
           </label>
-          <div class="ollama-quick-custom-starter-field">
-            <span>${escapeHtml(tl("agentFlowSelectedStepsLabel", { count: draft.steps.length, min: MIN_AGENT_FLOW_STEPS, max: MAX_AGENT_FLOW_STEPS }))}</span>
-            <div class="ollama-quick-picker-list ollama-quick-agent-flow-selected-list">
-              ${selectedSteps || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoStepsSelected"))}</div>`}
+          <div class="ollama-quick-agent-flow-layout">
+            <div class="ollama-quick-custom-starter-field ollama-quick-agent-flow-column">
+              <span>${escapeHtml(tl("agentFlowSelectedStepsLabel", { count: draft.steps.length, min: MIN_AGENT_FLOW_STEPS, max: MAX_AGENT_FLOW_STEPS }))}</span>
+              <div class="ollama-quick-picker-list ollama-quick-agent-flow-selected-list">
+                ${selectedSteps || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoStepsSelected"))}</div>`}
+              </div>
+              <span>${escapeHtml(tl("agentFlowOutputStepsLabel"))}</span>
+              <div class="ollama-quick-picker-list ollama-quick-agent-flow-output-list">
+                ${outputRows || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoOutputStepsAvailable"))}</div>`}
+              </div>
+              <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("agentFlowOutputStepsHint"))}</div>
             </div>
-          </div>
-          <div class="ollama-quick-custom-starter-field">
-            <span>${escapeHtml(tl("agentFlowAvailableSkills"))}</span>
-            <div class="ollama-quick-picker-list">
-              ${availableRows || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoAvailableSkills"))}</div>`}
+            <div class="ollama-quick-custom-starter-field ollama-quick-agent-flow-column">
+              <span>${escapeHtml(tl("agentFlowAvailableSkills"))}</span>
+              <div class="ollama-quick-picker-list ollama-quick-agent-flow-available-list">
+                ${availableRows || `<div class="ollama-quick-github-empty">${escapeHtml(tl("agentFlowNoAvailableSkills"))}</div>`}
+              </div>
             </div>
           </div>
         </div>
@@ -8650,13 +8719,19 @@ function renderAgentFlowPanel(run) {
   const currentStepNumber = currentStep?.index || Math.min(run.currentStepIndex + 1, steps.length) || 1;
   const currentLabel = currentStep?.label || tl("agentFlowPendingStep");
   const completedCount = steps.filter((step) => step.status === "done").length;
+  const modelLine = run.model ? tl("agentFlowRunningWith", { model: run.model }) : "";
+  const finalKey = "final";
+  const isFinalExpanded = run.expandedKey === finalKey;
+  const finalBody = run.finalContent ? renderMarkdown(run.finalContent) : `<div class="ollama-quick-perspective-preview">${escapeHtml(tl("agentFlowEmptyResult"))}</div>`;
+  const finalPreview = run.finalContent ? `<div class="ollama-quick-perspective-preview">${escapeHtml(getPerspectivePreview(run.finalContent))}</div>` : `<div class="ollama-quick-perspective-preview">${escapeHtml(tl("agentFlowEmptyResult"))}</div>`;
 
   return `
-    <section class="ollama-quick-perspective-panel ollama-quick-agent-flow-panel is-compact">
+    <section class="ollama-quick-perspective-panel ollama-quick-agent-flow-panel ${run.isComplete ? "" : "is-compact"}">
       <div class="ollama-quick-perspective-head ollama-quick-agent-flow-head">
         <div>
           <div class="ollama-quick-perspective-title">${escapeHtml(run.name || tl("agentFlowPanelTitle"))}</div>
           <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("agentFlowProgressSummary", { current: currentStepNumber, total: steps.length }))}</div>
+          ${modelLine ? `<div class="ollama-quick-picker-subtitle">${escapeHtml(modelLine)}</div>` : ""}
         </div>
         <div class="ollama-quick-agent-flow-inline-meta">
           <span class="ollama-quick-agent-flow-step-badge is-running">${escapeHtml(String(currentStepNumber))}</span>
@@ -8664,9 +8739,24 @@ function renderAgentFlowPanel(run) {
           <span class="ollama-quick-agent-flow-inline-progress">${escapeHtml(`${completedCount}/${steps.length}`)}</span>
         </div>
       </div>
-      <div class="ollama-quick-agent-flow-running-strip" aria-hidden="true">
-        <span class="ollama-quick-agent-flow-running-bar"></span>
-      </div>
+      ${!run.isComplete ? `
+        <div class="ollama-quick-agent-flow-running-strip" aria-hidden="true">
+          <span class="ollama-quick-agent-flow-running-bar"></span>
+        </div>
+      ` : ""}
+      ${run.isComplete ? `
+        <article class="ollama-quick-perspective-final is-done ${isFinalExpanded ? "is-expanded" : ""}">
+          <div class="ollama-quick-perspective-card-top">
+            <div class="ollama-quick-perspective-card-title">${escapeHtml(tl("agentFlowFinalTitle"))}</div>
+            <div class="ollama-quick-perspective-card-actions">
+              ${run.finalContent ? `<button class="ollama-quick-copy" type="button" data-action="copy-agent-flow-final" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}">${escapeHtml(tl("copy"))}</button>` : ""}
+              ${run.finalContent ? `<button class="ollama-quick-copy" type="button" data-action="download-agent-flow-final" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}">${escapeHtml(tl("downloadMarkdown"))}</button>` : ""}
+            </div>
+          </div>
+          <div class="ollama-quick-perspective-card-body ${isFinalExpanded ? "rendered-markdown" : ""}">${isFinalExpanded ? finalBody : finalPreview}</div>
+          <button class="ollama-quick-message-action-toggle" type="button" data-action="toggle-agent-flow-step" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}" data-agent-flow-step-id="${finalKey}">${escapeHtml(isFinalExpanded ? tl("collapse") : tl("expand"))}</button>
+        </article>
+      ` : ""}
     </section>
   `;
 }
@@ -8775,6 +8865,36 @@ function updateAgentFlowMessage(messageId, updater) {
   return message;
 }
 
+function publishAgentFlowStepMessage(flowMessageId, step) {
+  const stepOutput = String(step?.output || "").trim();
+  if (!stepOutput) {
+    return;
+  }
+
+  const alreadyPublished = chatMessages.some((message) => (
+    message?.agentFlowStepOutput &&
+    String(message.agentFlowStepOutput.flowMessageId || "") === String(flowMessageId || "") &&
+    String(message.agentFlowStepOutput.stepId || "") === String(step.id || "")
+  ));
+  if (alreadyPublished) {
+    return;
+  }
+
+  chatMessages.push({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    role: "assistant",
+    content: `## ${step.index}. ${step.label}\n\n${stepOutput}`,
+    agentFlowStepOutput: {
+      flowMessageId,
+      stepId: step.id,
+      label: step.label,
+      index: step.index,
+    },
+  });
+  renderMessages();
+  scheduleConversationSave();
+}
+
 async function buildAgentFlowStepPrompt(flowStarter, stepStarter, previousOutputs, stepIndex, totalSteps) {
   const immediatePrevious = previousOutputs.length ? previousOutputs[previousOutputs.length - 1] : null;
   const previousBlock = previousOutputs.length
@@ -8834,6 +8954,7 @@ async function saveAgentFlowStarterFromDraft() {
     starterId: step.starterId,
     label: getFlowStarterStepLabel(step, currentPageCopilot),
   }));
+  const outputStepIds = normalizeAgentFlowOutputStepIds(draft.outputStepIds, draft.steps);
   const recommendedScopes = getRecommendedStarterScopes(currentPageCopilot);
 
   await persistGeneratedStarters([
@@ -8844,6 +8965,7 @@ async function saveAgentFlowStarterFromDraft() {
       scopes: recommendedScopes.length ? recommendedScopes : ["generic"],
       mode: "flow",
       flowSteps,
+      outputStepIds,
     },
   ]);
 
@@ -8908,7 +9030,9 @@ async function runAgentFlow(starter, modelOverride = "") {
       id: `agent-flow-${assistantMessageId}`,
       messageId: assistantMessageId,
       name: starter.label,
+      model: effectiveModel,
       steps: resolvedSteps,
+      outputStepIds: normalizeAgentFlowOutputStepIds(starter.outputStepIds, starter.flowSteps),
       currentStepIndex: -1,
       isComplete: false,
       expandedKey: resolvedSteps[0]?.id || "final",
@@ -8950,15 +9074,18 @@ async function runAgentFlow(starter, modelOverride = "") {
           target.status = "done";
           target.output = String(response || "").trim();
         }
-        const isLastStep = step.id === run.steps[run.steps.length - 1]?.id;
-        if (isLastStep) {
-          run.finalContent = String(response || "").trim();
-          message.content = run.finalContent;
-        } else {
-          run.finalContent = "";
-          message.content = "";
-        }
+        run.finalContent = "";
+        message.content = "";
       });
+
+      const isLastStep = index === resolvedSteps.length - 1;
+      const shouldPublishStep = !isLastStep && normalizeAgentFlowOutputStepIds(starter.outputStepIds, starter.flowSteps).includes(step.starterId);
+      if (shouldPublishStep) {
+        publishAgentFlowStepMessage(assistantMessageId, {
+          ...step,
+          output: String(response || "").trim(),
+        });
+      }
 
       collectedOutputs.push({
         label: step.label,
@@ -8970,7 +9097,7 @@ async function runAgentFlow(starter, modelOverride = "") {
       const lastStep = run.steps[run.steps.length - 1] || null;
       run.currentStepIndex = run.steps.length - 1;
       run.isComplete = true;
-      run.expandedKey = lastStep?.id || "";
+      run.expandedKey = "final";
       run.finalContent = String(lastStep?.output || "").trim();
       message.content = run.finalContent;
     });
@@ -9096,7 +9223,7 @@ async function startStarterExecution(plan, modelOverride = "") {
       ? tl("starterVisionModelReady", { model: effectiveModel })
       : plan.routeKind === "reasoning" && effectiveModel === plan.reasoningModel
         ? tl("starterReasoningModelReady", { model: effectiveModel })
-        : (starter.composeMode === "perspective" ? tl("perspectiveModeReady") : tl("starterReady", { starter: starter.label }))
+        : tl("starterRouteResolved", { route: getRouteLabel(plan.routeKind), model: effectiveModel })
   );
   await sendCurrentPrompt({ modelOverride: effectiveModel });
 }
@@ -9383,6 +9510,21 @@ async function handleClick(event) {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : tl("exportHtmlFailed"));
     }
+    return;
+  }
+
+  if (action === "download-message-markdown") {
+    const messageId = actionNode.dataset.messageId || "";
+    const message = getChatMessageById(messageId);
+    const content = String(message?.content || "").trim();
+    if (!content) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+    const label = message?.agentFlowStepOutput?.label || "message";
+    const filename = `${sanitizeFileSegment(label, "message")}.md`;
+    downloadTextBlob(filename, content, "text/markdown;charset=utf-8");
+    setStatus(tl("exportMarkdownSuccess", { file: filename }));
     return;
   }
 
@@ -9768,6 +9910,7 @@ async function handleClick(event) {
       return;
     }
     draft.steps = [...draft.steps, { starterId }];
+    draft.outputStepIds = normalizeAgentFlowOutputStepIds(draft.outputStepIds, draft.steps);
     renderShell();
     return;
   }
@@ -9779,6 +9922,7 @@ async function handleClick(event) {
       return;
     }
     draft.steps = draft.steps.filter((_step, index) => index !== stepIndex);
+    draft.outputStepIds = normalizeAgentFlowOutputStepIds(draft.outputStepIds, draft.steps);
     renderShell();
     return;
   }
@@ -9791,6 +9935,20 @@ async function handleClick(event) {
     }
     const nextIndex = action === "move-agent-flow-step-up" ? stepIndex - 1 : stepIndex + 1;
     draft.steps = moveArrayItem(draft.steps, stepIndex, nextIndex);
+    renderShell();
+    return;
+  }
+
+  if (action === "toggle-agent-flow-output-step") {
+    const starterId = String(actionNode.dataset.flowStarterId || "").trim();
+    const draft = ensureAgentFlowBuilderDraft();
+    if (!starterId || !draft.steps.some((step) => step.starterId === starterId)) {
+      return;
+    }
+    const nextOutputIds = draft.outputStepIds.includes(starterId)
+      ? draft.outputStepIds.filter((item) => item !== starterId)
+      : [...draft.outputStepIds, starterId];
+    draft.outputStepIds = normalizeAgentFlowOutputStepIds(nextOutputIds, draft.steps);
     renderShell();
     return;
   }
@@ -9952,6 +10110,20 @@ async function handleClick(event) {
     } catch {
       setStatus(tl("copyFailed"));
     }
+    return;
+  }
+
+  if (action === "download-agent-flow-final") {
+    const messageId = actionNode.dataset.agentFlowMessageId || "";
+    const message = getChatMessageById(messageId);
+    const finalContent = String(message?.flowRun?.finalContent || "").trim();
+    if (!finalContent) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+    const filename = `${sanitizeFileSegment(message?.flowRun?.name || "agent-flow-final", "agent-flow-final")}.md`;
+    downloadAgentFlowMarkdown(filename, finalContent);
+    setStatus(tl("exportMarkdownSuccess", { file: filename }));
     return;
   }
 
