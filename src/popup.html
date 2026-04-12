@@ -8,27 +8,27 @@
   </head>
   <body class="popup-page">
     <main class="panel popup-panel">
-      <div class="panel-header compact">
+      <div class="panel-header compact popup-hero">
         <div>
           <div id="popupEyebrow" class="eyebrow">Local Copilot Route</div>
           <h1 id="popupTitle">Open Copilot</h1>
         </div>
       </div>
 
-      <div class="inline-row">
-        <div class="label-stack">
+      <div class="inline-row popup-inline-row">
+        <div class="label-stack popup-endpoint-card">
           <span id="popupEndpointLabel" class="label-title">Endpoint</span>
           <span id="endpointValue" class="label-value"></span>
         </div>
-        <button id="openOptions" class="secondary-button" type="button">Settings</button>
+        <button id="openOptions" class="secondary-button popup-toolbar-button" type="button">Settings</button>
       </div>
 
-      <section>
+      <section class="popup-models-section">
         <div class="status-header">
           <h2 id="popupModelsTitle">Models</h2>
-          <button id="refreshModels" class="secondary-button" type="button">Refresh</button>
+          <button id="refreshModels" class="secondary-button popup-toolbar-button" type="button">Refresh</button>
         </div>
-        <div id="popupMessage" class="status-message">Loading...</div>
+        <div id="popupMessage" class="status-message popup-status-message">Loading...</div>
         <div id="popupModels" class="models-grid compact"></div>
       </section>
     </main>

@@ -189,6 +189,11 @@ let launcherDragState = null;
 let suppressLauncherToggle = false;
 let currentPageCopilot = null;
 let composeMode = "chat";
+const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
+const SYSTEM_THEME_MEDIA_QUERY =
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: light)")
+    : null;
 let latestPerspectiveRun = null;
 let githubTargetRepo = "";
 let githubTargetRef = "";
@@ -5760,6 +5765,25 @@ async function loadModels() {
   }
 }
 
+function normalizeSettingsTheme(value) {
+  const normalized = String(value || "system").trim().toLowerCase();
+  return SETTINGS_THEME_OPTIONS.has(normalized) ? normalized : "system";
+}
+
+function resolveSettingsTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  if (normalized === "system") {
+    return SYSTEM_THEME_MEDIA_QUERY?.matches ? "light" : "dark";
+  }
+  return normalized;
+}
+
+function applyShellTheme(host = ensureHost()) {
+  const preference = normalizeSettingsTheme(currentConfig?.settingsTheme);
+  host.dataset.themePreference = preference;
+  host.dataset.theme = resolveSettingsTheme(preference);
+}
+
 function sanitizeLauncherPosition(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -5862,6 +5886,7 @@ function syncHostScale(host = ensureHost()) {
 function syncHostState(host = ensureHost()) {
   host.classList.toggle("is-panel-open", isPanelOpen);
   host.classList.toggle("is-panel-maximized", isPanelOpen && isPanelMaximized);
+  applyShellTheme(host);
 }
 
 function getLauncherSize(host = ensureHost()) {
@@ -11313,6 +11338,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     changes.ollamaUrl ||
     changes.selectedModel ||
     changes.replyLanguage ||
+    changes.settingsTheme ||
     changes.systemPrompt ||
     changes.multiPerspectiveProfiles ||
     changes.githubApiKeyConfigured ||
@@ -11425,6 +11451,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 if (IS_TOP_FRAME) {
+  SYSTEM_THEME_MEDIA_QUERY?.addEventListener("change", () => {
+    if (document.getElementById(HOST_ID) && normalizeSettingsTheme(currentConfig?.settingsTheme) === "system") {
+      syncHostState();
+    }
+  });
+
   window.setTimeout(() => {
     bootstrap().catch(() => {});
   }, 250);

@@ -1403,6 +1403,284 @@
   -webkit-text-fill-color: #ffffff;
 }
 
+#ollama-quick-chat-host[data-theme="light"] {
+  color: #163249;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-launcher {
+  border-color: rgba(132, 169, 204, 0.28);
+  background:
+    radial-gradient(circle at center, rgba(212, 234, 255, 0.9), rgba(176, 202, 239, 0.72) 58%, rgba(240, 247, 255, 0.4) 100%),
+    rgba(245, 250, 255, 0.92);
+  color: #234460;
+  box-shadow:
+    0 14px 34px rgba(52, 92, 128, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-launcher::before {
+  background: rgba(121, 152, 204, 0.64);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-launcher:hover {
+  border-color: rgba(87, 153, 213, 0.4);
+  box-shadow:
+    0 18px 40px rgba(52, 92, 128, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel {
+  border-color: rgba(106, 150, 191, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(239, 247, 255, 0.56)),
+    rgba(235, 244, 252, 0.42);
+  box-shadow:
+    0 28px 80px rgba(35, 73, 106, 0.16),
+    0 0 0 1px rgba(106, 150, 191, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(135%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-header {
+  border-bottom-color: rgba(106, 150, 191, 0.14);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-header h2,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message.is-user .ollama-quick-message-body,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-attachment-doc-name {
+  color: #17324a;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-eyebrow,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-attachment-doc-label,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-route-kicker {
+  color: #0f86af;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-icon-button,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-secondary,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-select,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-compose-upload,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-textarea,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-page-copilot-pill,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starters-toggle,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-attachment {
+  border-color: rgba(106, 150, 191, 0.22);
+  background: rgba(247, 251, 255, 0.54);
+  color: #21425d;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 8px 20px rgba(53, 88, 119, 0.06);
+  backdrop-filter: blur(14px) saturate(125%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-icon-button:hover,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-icon-button:focus-visible,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-secondary:hover,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-secondary:focus-visible,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter:hover,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter:focus-visible {
+  border-color: rgba(56, 173, 226, 0.42);
+  background: rgba(239, 248, 253, 0.72);
+  box-shadow: 0 10px 20px rgba(53, 88, 119, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-select {
+  color: #17324a;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-toggle,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-picker-meta,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-github-empty,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-empty,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-perspective-title {
+  color: rgba(34, 64, 90, 0.8);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-custom-mark {
+  color: rgba(70, 104, 133, 0.72);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-custom-tag {
+  background: linear-gradient(135deg, rgba(255, 210, 236, 0.95), rgba(252, 231, 246, 0.92));
+  color: #c04d8f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 2px 8px rgba(192, 77, 143, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow .ollama-quick-starter-custom-tag {
+  background: linear-gradient(135deg, rgba(214, 247, 226, 0.98), rgba(234, 251, 240, 0.94));
+  color: #2c8f5a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 2px 8px rgba(44, 143, 90, 0.08);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow .ollama-quick-starter-custom-mark {
+  color: #47a978;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-status,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-include-text,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-task-panel-hint,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-task-disabled-hint {
+  color: rgba(34, 64, 90, 0.76);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-status-indicator {
+  background: rgba(56, 173, 226, 0.35);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-messages {
+  border-top-color: rgba(106, 150, 191, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-empty,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-perspective-panel,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-perspective-card,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-perspective-final {
+  border-color: rgba(106, 150, 191, 0.16);
+  background: rgba(247, 251, 255, 0.42);
+  backdrop-filter: blur(14px) saturate(120%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message.is-user {
+  background:
+    linear-gradient(135deg, rgba(205, 232, 255, 0.78), rgba(228, 244, 255, 0.74)),
+    rgba(255, 255, 255, 0.34);
+  border-color: rgba(106, 150, 191, 0.18);
+  backdrop-filter: blur(14px) saturate(120%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message.is-assistant {
+  background: rgba(247, 251, 255, 0.36);
+  border-color: rgba(106, 150, 191, 0.14);
+  backdrop-filter: blur(12px) saturate(120%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message-role,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message-action-hint,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-message-body {
+  color: #21425d;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown h1,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown h2,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown h3,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown strong,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown b {
+  color: #163249 !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown p,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown ul,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown ol,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown li,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown blockquote,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown pre,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown table,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown em,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown i,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown span,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown .mermaid-diagram-status {
+  color: #21425d !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown li::marker {
+  color: rgba(22, 50, 73, 0.72) !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown a {
+  color: #0f86af !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown code {
+  background: rgba(223, 238, 249, 0.72);
+  color: #163249 !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown pre,
+#ollama-quick-chat-host[data-theme="light"] .rendered-markdown .mermaid-diagram,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-markdown-table {
+  border-color: rgba(106, 150, 191, 0.16);
+  background: rgba(244, 249, 253, 0.5);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-markdown-table th,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-markdown-table td {
+  border-color: rgba(106, 150, 191, 0.12);
+  color: #21425d !important;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-route-banner,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-include-panel,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-task-panel {
+  color: #17324a;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-route-banner {
+  border-color: rgba(106, 150, 191, 0.18);
+  background: linear-gradient(135deg, rgba(232, 246, 255, 0.72), rgba(221, 241, 255, 0.6));
+  backdrop-filter: blur(14px) saturate(120%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-compose {
+  border-top-color: rgba(106, 150, 191, 0.14);
+  background:
+    linear-gradient(180deg, rgba(245, 250, 255, 0.18), rgba(247, 251, 255, 0.54) 22%),
+    rgba(247, 251, 255, 0.34);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-dropzone {
+  border-color: rgba(56, 173, 226, 0.34);
+  background: rgba(237, 247, 255, 0.94);
+  color: #1f5f86;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-textarea,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-textarea:focus,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-textarea:active {
+  background: rgba(249, 252, 255, 0.4);
+  color: #17324a !important;
+  -webkit-text-fill-color: #17324a;
+  caret-color: #17324a;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-textarea::placeholder {
+  color: rgba(76, 104, 129, 0.88) !important;
+  -webkit-text-fill-color: rgba(76, 104, 129, 0.88);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel.is-open.is-maximized .ollama-quick-main-pane {
+  border-right-color: rgba(106, 150, 191, 0.12);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel.is-open.is-maximized .ollama-quick-task-rail,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
+  border-right-color: rgba(106, 150, 191, 0.12);
+  background:
+    linear-gradient(180deg, rgba(240, 247, 255, 0.34), rgba(231, 241, 250, 0.22)),
+    rgba(237, 245, 252, 0.2);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
+  border-right-color: transparent;
+  border-left: 1px solid rgba(106, 150, 191, 0.12);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-panel.is-open.is-maximized .ollama-quick-icon-button.is-active {
+  border-color: rgba(56, 173, 226, 0.42);
+  background: rgba(219, 239, 251, 0.62);
+  color: #163249;
+  box-shadow:
+    inset 0 0 0 1px rgba(56, 173, 226, 0.08),
+    0 8px 18px rgba(53, 88, 119, 0.08);
+}
+
 @keyframes ollama-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(82, 196, 255, 0.42);
