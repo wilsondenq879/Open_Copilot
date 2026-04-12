@@ -3221,6 +3221,292 @@ async function streamChatWithOllama(port, messages, model) {
   });
 }
 
+function getDefaultProvider(config = {}) {
+  return String(config?.defaultProvider || "ollama").trim() || "ollama";
+}
+
+function getConfiguredProviderModel(config = {}, overrideModel = "") {
+  const provider = getDefaultProvider(config);
+  const explicitModel = String(overrideModel || "").trim();
+  if (explicitModel) {
+    return explicitModel;
+  }
+  if (provider === "lmStudio") {
+    return String(config?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(config?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(config?.azureOpenAiDeployment || "").trim();
+  }
+  return String(config?.selectedModel || "").trim();
+}
+
+function extractGeminiTextFromResponse(payload = {}) {
+  return (Array.isArray(payload?.candidates) ? payload.candidates : [])
+    .flatMap((candidate) => Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [])
+    .map((part) => String(part?.text || ""))
+    .filter(Boolean)
+    .join("");
+}
+
+function buildGeminiPartsFromMessage(message = {}) {
+  const parts = [];
+  const text = String(message?.content || "").trim();
+  if (text) {
+    parts.push({ text });
+  }
+
+  const imageAttachments = Array.isArray(message?.imageAttachments) ? message.imageAttachments : [];
+  if (imageAttachments.length) {
+    imageAttachments.forEach((item) => {
+      const data = String(item?.base64 || "").trim();
+      if (!data) {
+        return;
+      }
+      parts.push({
+        inline_data: {
+          mime_type: String(item?.mimeType || "image/png").trim() || "image/png",
+          data,
+        },
+      });
+    });
+  } else if (Array.isArray(message?.images)) {
+    message.images.forEach((data) => {
+      const normalized = String(data || "").trim();
+      if (!normalized) {
+        return;
+      }
+      parts.push({
+        inline_data: {
+          mime_type: "image/png",
+          data: normalized,
+        },
+      });
+    });
+  }
+
+  return parts;
+}
+
+function convertMessagesToGeminiPayload(messages = []) {
+  const normalizedMessages = Array.isArray(messages) ? messages : [];
+  const systemParts = [];
+  const contents = [];
+
+  normalizedMessages.forEach((message) => {
+    const role = String(message?.role || "").trim().toLowerCase();
+    const parts = buildGeminiPartsFromMessage(message);
+    if (!parts.length) {
+      return;
+    }
+
+    if (role === "system") {
+      systemParts.push(...parts);
+      return;
+    }
+
+    contents.push({
+      role: role === "assistant" ? "model" : "user",
+      parts,
+    });
+  });
+
+  return {
+    systemInstruction: systemParts.length ? { parts: systemParts } : undefined,
+    contents,
+  };
+}
+
+function buildGeminiRequestUrl(model, { stream = false } = {}) {
+  const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${action}`;
+}
+
+async function generateWithGemini(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.geminiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Gemini model configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured.");
+  }
+
+  const payload = await fetchJson(buildGeminiRequestUrl(selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: String(prompt || "") }],
+        },
+      ],
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractGeminiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function streamChatWithGemini(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.geminiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Gemini model configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured.");
+  }
+
+  const geminiPayload = convertMessagesToGeminiPayload(messages);
+  if (!Array.isArray(geminiPayload.contents) || !geminiPayload.contents.length) {
+    throw new Error("Gemini request has no content.");
+  }
+
+  const response = await fetch(buildGeminiRequestUrl(selectedModel, { stream: true }), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(geminiPayload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const dataLines = rawEvent
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .filter(Boolean);
+
+      if (!dataLines.length) {
+        continue;
+      }
+
+      const chunkText = dataLines
+        .map((line) => extractGeminiTextFromResponse(JSON.parse(line)))
+        .join("");
+
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const dataLines = trailingEvent
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    const trailingText = dataLines
+      .map((line) => extractGeminiTextFromResponse(JSON.parse(line)))
+      .join("");
+
+    if (trailingText) {
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: trailingText,
+        done: false,
+      })) {
+        return;
+      }
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function generateWithConfiguredProvider(prompt, model) {
+  const config = await getConfig();
+  const provider = getDefaultProvider(config);
+
+  if (provider === "gemini") {
+    return generateWithGemini(prompt, model);
+  }
+
+  if (provider === "lmStudio" || provider === "azureOpenAi") {
+    throw new Error(`${provider === "lmStudio" ? "LM Studio" : "Azure OpenAI"} provider execution is not implemented yet.`);
+  }
+
+  return generateWithOllama(prompt, model);
+}
+
+async function streamChatWithConfiguredProvider(port, messages, model) {
+  const config = await getConfig();
+  const provider = getDefaultProvider(config);
+
+  if (provider === "gemini") {
+    return streamChatWithGemini(port, messages, model);
+  }
+
+  if (provider === "lmStudio" || provider === "azureOpenAi") {
+    throw new Error(`${provider === "lmStudio" ? "LM Studio" : "Azure OpenAI"} provider execution is not implemented yet.`);
+  }
+
+  return streamChatWithOllama(port, messages, model);
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureSecretConfigMigrated();
   const config = await getConfig();
@@ -3380,7 +3666,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       case "ollama:generate": {
-        sendResponse({ ok: true, ...(await generateWithOllama(message.prompt || "", message.model)) });
+        sendResponse({ ok: true, ...(await generateWithConfiguredProvider(message.prompt || "", message.model)) });
         return;
       }
       case "browser:list-tabs": {
@@ -3578,7 +3864,7 @@ chrome.runtime.onConnect.addListener((port) => {
     }
 
     if (message?.type === "ollama:stream-chat") {
-      streamChatWithOllama(port, message.messages || [], message.model)
+      streamChatWithConfiguredProvider(port, message.messages || [], message.model)
         .catch((error) => {
           tryPostPortMessage(port, {
             type: "ollama:stream-error",

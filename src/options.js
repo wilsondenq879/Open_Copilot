@@ -3806,6 +3806,78 @@ function renderStarterModelRoutingSelects(models, config = {}) {
   renderOptions(visionSelect, config.starterVisionModel || "", { includeAuto: true });
 }
 
+function getProviderDisplayName(provider) {
+  switch (provider) {
+    case "lmStudio":
+      return "LM Studio";
+    case "gemini":
+      return "Gemini";
+    case "azureOpenAi":
+      return "Azure OpenAI";
+    case "ollama":
+    default:
+      return "Ollama";
+  }
+}
+
+function getConfiguredProviderModelLabel(provider) {
+  if (provider === "lmStudio") {
+    return document.getElementById("lmStudioModel")?.value.trim() || "";
+  }
+  if (provider === "gemini") {
+    return document.getElementById("geminiModel")?.value.trim() || "";
+  }
+  if (provider === "azureOpenAi") {
+    return document.getElementById("azureOpenAiDeployment")?.value.trim() || "";
+  }
+  return currentSelectedModel || document.getElementById("starterQuickModel")?.value.trim() || "";
+}
+
+function getStarterRoutingSupportMessage(provider) {
+  const providerName = getProviderDisplayName(provider);
+  const providerModel = getConfiguredProviderModelLabel(provider);
+  const locale = currentReplyLanguage || "en";
+
+  if (locale === "zh-TW") {
+    return provider === "ollama"
+      ? "Starter routing 目前會使用 Ollama 已安裝模型作為 quick / reasoning / vision 路由來源。"
+      : `目前 Starter routing 實際上仍只支援 Ollama。你現在把預設 provider 設成 ${providerName}${providerModel ? `（${providerModel}）` : ""}，這會保留該 provider 的設定，但下方 quick / reasoning / vision 路由尚未接到 ${providerName}。`;
+  }
+
+  if (locale === "zh-CN") {
+    return provider === "ollama"
+      ? "Starter routing 当前会使用 Ollama 已安装模型作为 quick / reasoning / vision 路由来源。"
+      : `当前 Starter routing 实际上仍只支持 Ollama。你现在把默认 provider 设成 ${providerName}${providerModel ? `（${providerModel}）` : ""}，这会保留该 provider 的配置，但下方 quick / reasoning / vision 路由尚未接到 ${providerName}。`;
+  }
+
+  return provider === "ollama"
+    ? "Starter routing currently uses installed Ollama models for quick, reasoning, and vision routing."
+    : `Starter routing is still Ollama-only right now. Your default provider is set to ${providerName}${providerModel ? ` (${providerModel})` : ""}, but the quick / reasoning / vision routing controls below are not wired to ${providerName} yet.`;
+}
+
+function updateStarterRoutingAvailability() {
+  const providerSelect = document.getElementById("defaultProvider");
+  const quickSelect = document.getElementById("starterQuickModel");
+  const reasoningSelect = document.getElementById("starterReasoningModel");
+  const visionSelect = document.getElementById("starterVisionModel");
+  const routingEnabled = document.getElementById("starterModelRoutingEnabled");
+  const hintNode = document.getElementById("starterRoutingHint");
+  const provider = providerSelect instanceof HTMLSelectElement ? (providerSelect.value || "ollama") : "ollama";
+  const isOllama = provider === "ollama";
+
+  if (hintNode) {
+    hintNode.textContent = getStarterRoutingSupportMessage(provider);
+  }
+
+  [quickSelect, reasoningSelect, visionSelect, routingEnabled].forEach((node) => {
+    if (node instanceof HTMLElement) {
+      node.toggleAttribute("disabled", !isOllama);
+      node.setAttribute("aria-disabled", String(!isOllama));
+      node.title = isOllama ? "" : getStarterRoutingSupportMessage(provider);
+    }
+  });
+}
+
 function setStatus(message, isError = false) {
   const node = document.getElementById("statusMessage");
   node.textContent = message;
@@ -3977,6 +4049,7 @@ async function loadConfig() {
     renderCustomStartersPreview();
     applySettingsTheme(settingsTheme);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
+    updateStarterRoutingAvailability();
     await loadWorkFolderStatus();
     await loadGoogleDriveStatus();
     setStatus(t("waiting"));
@@ -4081,10 +4154,12 @@ async function refreshModels() {
   const result = await sendMessage({ type: "ollama:list-models" });
   if (!result?.ok) {
     renderModels([], result?.config || {});
+    updateStarterRoutingAvailability();
     throw new Error(result?.error || t("fetchModelsFailed"));
   }
 
   renderModels(result.models || [], result.config || {});
+  updateStarterRoutingAvailability();
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
 
@@ -4757,7 +4832,14 @@ document.getElementById("defaultProvider").addEventListener("change", (event) =>
   const target = event.target;
   if (target instanceof HTMLSelectElement) {
     setActiveProviderTab(target.value || "ollama");
+    updateStarterRoutingAvailability();
   }
+});
+
+["lmStudioModel", "geminiModel", "azureOpenAiDeployment"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("input", () => {
+    updateStarterRoutingAvailability();
+  });
 });
 
 document.getElementById("replyLanguage").addEventListener("change", (event) => {

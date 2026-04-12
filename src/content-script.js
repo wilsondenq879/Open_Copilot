@@ -3871,7 +3871,72 @@ function normalizeStarterSearchText(value) {
 }
 
 function getDefaultQuickReplyModel() {
+  const provider = getDefaultProvider();
+  if (provider === "lmStudio") {
+    return String(currentConfig?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(currentConfig?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(currentConfig?.azureOpenAiDeployment || "").trim();
+  }
   return String(currentConfig?.selectedModel || "").trim();
+}
+
+function getDefaultProvider() {
+  return String(currentConfig?.defaultProvider || "ollama").trim() || "ollama";
+}
+
+function getProviderDisplayName(provider = getDefaultProvider()) {
+  if (provider === "lmStudio") {
+    return "LM Studio";
+  }
+  if (provider === "gemini") {
+    return "Gemini";
+  }
+  if (provider === "azureOpenAi") {
+    return "Azure OpenAI";
+  }
+  return "Ollama";
+}
+
+function getConfiguredProviderModel() {
+  const provider = getDefaultProvider();
+  if (provider === "lmStudio") {
+    return String(currentConfig?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(currentConfig?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(currentConfig?.azureOpenAiDeployment || "").trim();
+  }
+  return String(currentConfig?.selectedModel || "").trim();
+}
+
+function providerSupportsInPageModelSelection(provider = getDefaultProvider()) {
+  return provider === "ollama";
+}
+
+function getProviderModelStatusText() {
+  const provider = getDefaultProvider();
+  const providerName = getProviderDisplayName(provider);
+  const model = getConfiguredProviderModel();
+
+  if (provider === "ollama") {
+    return model
+      ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model }))
+      : tl("pickModelToStart");
+  }
+
+  if (currentConfig?.replyLanguage === "zh-TW") {
+    return `${providerName} 已設定${model ? `：${model}` : ""}。目前聊天會使用這個 provider，但聊天面板內的手動模型切換仍只支援 Ollama。`;
+  }
+  if (currentConfig?.replyLanguage === "zh-CN") {
+    return `${providerName} 已配置${model ? `：${model}` : ""}。当前聊天会使用这个 provider，但聊天面板内的手动模型切换仍只支持 Ollama。`;
+  }
+  return `${providerName} is configured${model ? `: ${model}` : ""}. Chat execution uses this provider, but in-panel manual model switching is still Ollama-only.`;
 }
 
 function getModelSelectionMode() {
@@ -3883,6 +3948,10 @@ function isAutoModelSelectionEnabled() {
 }
 
 function getAvailableModelNames() {
+  if (!providerSupportsInPageModelSelection()) {
+    const configuredModel = getConfiguredProviderModel();
+    return configuredModel ? [configuredModel] : [];
+  }
   return Array.isArray(cachedModels)
     ? cachedModels.map((item) => String(item?.name || "").trim()).filter(Boolean)
     : [];
@@ -5754,6 +5823,11 @@ async function loadConfig() {
 }
 
 async function loadModels() {
+  if (!providerSupportsInPageModelSelection(getDefaultProvider())) {
+    cachedModels = [];
+    return;
+  }
+
   const result = await runtimeMessage({ type: "ollama:list-models" });
   if (!result?.ok) {
     throw new Error(result?.error || "Failed to fetch Ollama models.");
@@ -6757,6 +6831,13 @@ async function buildPrompt(userMessage) {
   const wrappedAttachedDocumentsContext = wrapUntrustedPromptSection("attached documents", attachedDocumentsContext);
   const wrappedBrowserTabsContext = wrapUntrustedPromptSection("browser tab context", browserTabsContext);
   const wrappedHistory = history ? wrapUntrustedPromptSection("recent chat history", history) : "";
+  const attachedDocumentsInstruction = attachedDocumentsContext
+    ? [
+        "ATTACHED DOCUMENTS ARE INCLUDED IN THIS REQUEST.",
+        "If an ATTACHED DOCUMENTS section is present, treat it as user-provided source data that is available for direct analysis.",
+        "Do not claim that no file, spreadsheet, CSV, or document content was provided when that section is present.",
+      ].join("\n")
+    : "";
   const starterBuilderInstruction = starterRequest
     ? [
         "STARTER GENERATION MODE",
@@ -6805,6 +6886,7 @@ async function buildPrompt(userMessage) {
     wrappedGithubPageContext,
     wrappedGithubVisibleCodeContext,
     wrappedGithubContext,
+    attachedDocumentsInstruction,
     wrappedAttachedDocumentsContext,
     wrappedBrowserTabsContext,
     wrappedHistory,
@@ -7927,7 +8009,8 @@ async function buildTaskExtractionPrompt() {
 }
 
 async function extractTaskCandidatesFromChat() {
-  if (!currentConfig?.selectedModel) {
+  const executionModel = getDefaultQuickReplyModel();
+  if (!executionModel) {
     setStatus(tl("taskExtractModelRequired"));
     return;
   }
@@ -7948,7 +8031,7 @@ async function extractTaskCandidatesFromChat() {
 
   try {
     const prompt = await buildTaskExtractionPrompt();
-    const response = await runGenerate(prompt, currentConfig.selectedModel);
+    const response = await runGenerate(prompt, executionModel);
     extractedTaskCandidates = filterOutSavedTaskDuplicates(parseTaskCandidatesFromResponse(response));
     taskInboxView = "candidates";
     taskInboxExpanded = false;
@@ -8347,16 +8430,22 @@ function renderShell() {
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelSelectionMode = getModelSelectionMode();
-  const modelOptions = cachedModels.length
-    ? [
-        `<option value="__auto__" ${modelSelectionMode === "auto" ? "selected" : ""}>${escapeHtml(tl("modelAutoOption"))}</option>`,
-        ...cachedModels
-        .map((model) => {
-          const selected = modelSelectionMode === "manual" && currentConfig?.selectedModel === model.name ? "selected" : "";
-          return `<option value="${escapeHtml(model.name)}" ${selected}>${escapeHtml(model.name)}</option>`;
-        })
-      ].join("")
-    : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`;
+  const provider = getDefaultProvider();
+  const providerName = getProviderDisplayName(provider);
+  const providerModel = getConfiguredProviderModel();
+  const canSelectInPageModel = providerSupportsInPageModelSelection(provider);
+  const modelOptions = canSelectInPageModel
+    ? (cachedModels.length
+      ? [
+          `<option value="__auto__" ${modelSelectionMode === "auto" ? "selected" : ""}>${escapeHtml(tl("modelAutoOption"))}</option>`,
+          ...cachedModels
+          .map((model) => {
+            const selected = modelSelectionMode === "manual" && currentConfig?.selectedModel === model.name ? "selected" : "";
+            return `<option value="${escapeHtml(model.name)}" ${selected}>${escapeHtml(model.name)}</option>`;
+          })
+        ].join("")
+      : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`)
+    : `<option value="__provider__" selected>${escapeHtml(providerModel ? `${providerName}: ${providerModel}` : providerName)}</option>`;
 
   host.innerHTML = `
     <div class="ollama-quick-shell">
@@ -8437,7 +8526,7 @@ function renderShell() {
           <div class="ollama-quick-controls">
             <label class="ollama-quick-toggle ollama-quick-toggle-below ollama-quick-model-control">
               <span>${escapeHtml(tl("modelLabel"))}</span>
-              <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
+              <select class="ollama-quick-select" data-role="model-select" ${canSelectInPageModel ? "" : "disabled"} title="${escapeHtml(canSelectInPageModel ? "" : getProviderModelStatusText())}">${modelOptions}</select>
             </label>
             <label class="ollama-quick-toggle ollama-quick-toggle-below">
               <span>${escapeHtml(pageContextControlLabel)}</span>
@@ -10357,7 +10446,8 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderFillMore"));
       return;
     }
-    if (!currentConfig?.selectedModel) {
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
     }
@@ -10378,7 +10468,7 @@ async function handleClick(event) {
     setStatus(tl("customStarterBuilderThinking"));
 
     try {
-      const response = await runGenerate(await buildCustomStarterDiscussionPrompt(userMessage), currentConfig.selectedModel);
+      const response = await runGenerate(await buildCustomStarterDiscussionPrompt(userMessage), executionModel);
       customStarterBuilderConversation = [
         ...customStarterBuilderConversation,
         {
@@ -10406,7 +10496,8 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderNeedDiscussion"));
       return;
     }
-    if (!currentConfig?.selectedModel) {
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
     }
@@ -10419,7 +10510,7 @@ async function handleClick(event) {
     setStatus(tl("customStarterBuilderThinking"));
 
     try {
-      const response = await runGenerate(await buildCustomStarterCreationPrompt(), currentConfig.selectedModel);
+      const response = await runGenerate(await buildCustomStarterCreationPrompt(), executionModel);
       const drafts = extractStarterDraftsFromText(response);
       if (!drafts.length) {
         throw new Error(tl("starterSaveFailed"));
@@ -10739,6 +10830,10 @@ async function handleClick(event) {
 async function handleChange(event) {
   const target = event.target;
   if (target instanceof HTMLSelectElement && target.dataset.role === "model-select") {
+    if (!providerSupportsInPageModelSelection()) {
+      setStatus(getProviderModelStatusText());
+      return;
+    }
     const result = target.value === "__auto__"
       ? await runtimeMessage({ type: "ollama:set-config", config: { modelSelectionMode: "auto" } })
       : await runtimeMessage({ type: "ollama:set-config", config: { selectedModel: target.value, modelSelectionMode: "manual" } });
@@ -11004,7 +11099,12 @@ async function sendCurrentPrompt(options = {}) {
   const documentAttachments = Array.isArray(options.documentAttachments) ? options.documentAttachments : attachedDocuments;
   const typedUserMessage = promptNode.value.trim();
   const starterPrompt = String(pendingStarter?.prompt || "").trim();
-  const userMessage = hasUserMessageOverride ? String(options.userMessageOverride || "").trim() : (typedUserMessage || starterPrompt);
+  const implicitAttachmentPrompt = !typedUserMessage && !starterPrompt
+    ? (documentAttachments.length ? tl("analyzeTextFile") : (imageAttachments.length ? tl("analyzeImage") : ""))
+    : "";
+  const userMessage = hasUserMessageOverride
+    ? String(options.userMessageOverride || "").trim()
+    : (typedUserMessage || starterPrompt || implicitAttachmentPrompt);
   if (!userMessage && !imageAttachments.length && !documentAttachments.length) {
     setStatus(tl("typePromptOrAttach"));
     return;
@@ -11175,6 +11275,11 @@ async function buildChatMessages(userMessage, options = {}) {
     role: "user",
     content: contextPrompt,
     images: imageAttachments.map((item) => item.base64),
+    imageAttachments: imageAttachments.map((item) => ({
+      name: item.name,
+      mimeType: item.mimeType,
+      base64: item.base64,
+    })),
   });
 
   return messages;
@@ -11303,11 +11408,7 @@ async function bootstrap() {
     await loadSavedTaskReminders().catch(() => {});
     await loadLauncherPosition();
     renderShell();
-    setStatus(
-      currentConfig?.selectedModel
-        ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model: currentConfig.selectedModel }))
-        : tl("pickModelToStart")
-    );
+    setStatus(getProviderModelStatusText());
   } catch (error) {
     renderShell();
     setStatus(error instanceof Error ? error.message : String(error));
@@ -11335,7 +11436,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   if (
+    changes.defaultProvider ||
     changes.ollamaUrl ||
+    changes.lmStudioModel ||
+    changes.geminiModel ||
+    changes.azureOpenAiDeployment ||
     changes.selectedModel ||
     changes.replyLanguage ||
     changes.settingsTheme ||
