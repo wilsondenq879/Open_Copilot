@@ -35,6 +35,15 @@
       "48": "assets/icons/icon-48.png"
     }
   },
+  "commands": {
+    "open-in-page-copilot": {
+      "suggested_key": {
+        "default": "Alt+Shift+O",
+        "mac": "Command+Shift+O"
+      },
+      "description": "Open Open Copilot on the current page"
+    }
+  },
   "options_page": "src/options.html",
   "content_scripts": [
     {

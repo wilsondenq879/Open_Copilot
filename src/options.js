@@ -156,10 +156,10 @@ const OPTION_I18N = {
     starterFlowEditorStepsLabel: "Flow 步驟",
     starterFlowEditorOutputLabel: "完成時先輸出結果的步驟",
     starterFlowEditorOutputHint: "勾選後，該步驟完成時會先顯示結果與複製/下載按鈕；整條 flow 仍會繼續執行。",
-    starterFlowEditorAvailableLabel: "加入自訂 skills",
+    starterFlowEditorAvailableLabel: "目前可加入的 skills",
     starterFlowEditorNoSteps: "這條 flow 還沒有步驟。",
     starterFlowEditorNoOutputSteps: "先加入步驟後，才能指定輸出內容。",
-    starterFlowEditorNoAvailable: "目前沒有可加入的自訂 skills。",
+    starterFlowEditorNoAvailable: "目前沒有可加入的 skills。",
     starterFlowEditorSave: "儲存 Flow",
     starterFlowEditorSaved: "已更新 Agent Flow：{name}",
     starterFlowEditorNeedName: "請先填寫 Flow 名稱。",
@@ -344,10 +344,10 @@ const OPTION_I18N = {
     starterFlowEditorStepsLabel: "Flow Steps",
     starterFlowEditorOutputLabel: "Steps that publish results early",
     starterFlowEditorOutputHint: "When selected, a step shows its result with copy/download actions as soon as it finishes, while the flow continues running.",
-    starterFlowEditorAvailableLabel: "Add Custom Skills",
+    starterFlowEditorAvailableLabel: "Available Skills",
     starterFlowEditorNoSteps: "This flow has no steps yet.",
     starterFlowEditorNoOutputSteps: "Add steps first before choosing final output.",
-    starterFlowEditorNoAvailable: "No custom skills are available to add right now.",
+    starterFlowEditorNoAvailable: "No skills are available to add right now.",
     starterFlowEditorSave: "Save Flow",
     starterFlowEditorSaved: "Updated Agent Flow: {name}",
     starterFlowEditorNeedName: "Enter a flow name first.",
@@ -2477,8 +2477,25 @@ function normalizeStarterScopes(value) {
 }
 
 function normalizeFlowStepReference(step) {
+  const canonicalizeFlowStarterId = (value) => {
+    const starterId = String(value || "").trim();
+    if (!starterId) {
+      return "";
+    }
+    if (starterId.startsWith("builtin:") || starterId.startsWith("custom:")) {
+      return starterId;
+    }
+    if (BUILTIN_STARTER_KEYS.includes(starterId)) {
+      return `builtin:${starterId}`;
+    }
+    if (currentCustomStarters.some((item) => item.id === starterId && item.mode !== "flow")) {
+      return `custom:${starterId}`;
+    }
+    return starterId;
+  };
+
   if (typeof step === "string") {
-    const starterId = String(step).trim();
+    const starterId = canonicalizeFlowStarterId(step);
     return starterId ? { starterId } : null;
   }
 
@@ -2486,7 +2503,7 @@ function normalizeFlowStepReference(step) {
     return null;
   }
 
-  const starterId = String(step.starterId || step.refId || step.id || "").trim();
+  const starterId = canonicalizeFlowStarterId(step.starterId || step.refId || step.id || "");
   if (!starterId) {
     return null;
   }
@@ -2729,8 +2746,12 @@ function getStarterFlowEditorDraft() {
   return starterFlowEditorState.draft;
 }
 
-function getAvailableCustomFlowSkills() {
-  return currentCustomStarters.filter((item) => item.mode !== "flow");
+function getAvailableFlowSkills() {
+  const builtinEntries = getBuiltinSkillEntries().filter((item) => item.id !== "builtin:createCustomStarter" && item.id !== "builtin:createAgentFlow");
+  const customEntries = currentCustomStarters
+    .filter((item) => item.mode !== "flow")
+    .map((item) => ({ ...item, id: `custom:${item.id}`, sourceType: "custom", isCustomStarter: true }));
+  return [...builtinEntries, ...customEntries];
 }
 
 function renderStarterFlowEditorModal() {
@@ -2782,7 +2803,7 @@ function renderStarterFlowEditorModal() {
     outputNode.className = "starter-flow-editor-available empty-state";
     outputNode.textContent = t("starterFlowEditorNoOutputSteps");
   } else {
-    outputNode.className = "starter-flow-editor-available";
+    outputNode.className = "starter-flow-editor-output";
     outputNode.innerHTML = draft.flowSteps
       .map((step, index) => {
         const checked = draft.outputStepIds.includes(step.starterId);
@@ -2796,7 +2817,7 @@ function renderStarterFlowEditorModal() {
       .join("");
   }
 
-  const availableSkills = getAvailableCustomFlowSkills().filter((item) => !draft.flowSteps.some((step) => step.starterId === item.id));
+  const availableSkills = getAvailableFlowSkills().filter((item) => !draft.flowSteps.some((step) => step.starterId === item.id));
   if (!availableSkills.length) {
     availableNode.className = "starter-flow-editor-available empty-state";
     availableNode.textContent = t("starterFlowEditorNoAvailable");
@@ -2805,10 +2826,11 @@ function renderStarterFlowEditorModal() {
     availableNode.innerHTML = availableSkills
       .map((skill) => `
         <article class="starter-flow-editor-available-card">
-          <div class="starter-flow-editor-step-main">
+          <div class="starter-flow-editor-step-main starter-flow-editor-available-main">
             <div class="starter-flow-editor-step-copy">
               <div class="starter-preview-name">${escapeHtml(skill.label)}</div>
               <div class="starter-preview-skill-kicker">${escapeHtml(skill.id)}</div>
+              ${skill.description ? `<div class="starter-flow-editor-available-description">${escapeHtml(skill.description)}</div>` : ""}
             </div>
           </div>
           <button class="secondary-button starter-preview-edit" type="button" data-action="flow-editor-add-step" data-flow-starter-id="${escapeHtml(skill.id)}">${escapeHtml(t("starterFlowEditorAddStep"))}</button>
@@ -2835,7 +2857,7 @@ function openStarterFlowEditor(starterId) {
       scopes: Array.isArray(starter.scopes) ? [...starter.scopes] : ["all"],
       mode: "flow",
       flowSteps: (Array.isArray(starter.flowSteps) ? starter.flowSteps : []).map((step) => ({
-        starterId: step.starterId,
+        starterId: normalizeFlowStepReference(step)?.starterId || step.starterId,
         label: step.label || step.starterId,
       })),
       outputStepIds: normalizeFlowOutputStepIds(starter.outputStepIds, starter.flowSteps),
@@ -4012,7 +4034,7 @@ document.getElementById("starterFlowEditorModal").addEventListener("click", (eve
 
   if (actionNode.dataset.action === "flow-editor-add-step") {
     const starterId = String(actionNode.dataset.flowStarterId || "").trim();
-    const skill = currentCustomStarters.find((item) => item.id === starterId && item.mode !== "flow");
+    const skill = getAvailableFlowSkills().find((item) => item.id === starterId);
     if (!skill || draft.flowSteps.some((step) => step.starterId === starterId)) {
       return;
     }

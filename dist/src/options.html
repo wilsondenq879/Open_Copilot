@@ -531,18 +531,24 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
           <span id="starterFlowEditorNameLabel">Flow Name</span>
           <input id="starterFlowEditorName" type="text" />
         </label>
-        <div class="starter-ai-editor-current">
-          <div id="starterFlowEditorStepsLabel" class="starter-ai-editor-current-label">Flow Steps</div>
-          <div id="starterFlowEditorSteps" class="starter-flow-editor-steps empty-state">No steps yet.</div>
-        </div>
-        <div class="starter-ai-editor-current">
-          <div id="starterFlowEditorOutputLabel" class="starter-ai-editor-current-label">Final output steps</div>
-          <div id="starterFlowEditorOutput" class="starter-flow-editor-available empty-state">Add steps first before choosing final output.</div>
-          <p id="starterFlowEditorOutputHint" class="field-hint">Select one or more steps. If nothing is specified, the last step is used by default.</p>
-        </div>
-        <div class="starter-ai-editor-current">
-          <div id="starterFlowEditorAvailableLabel" class="starter-ai-editor-current-label">Add Custom Skills</div>
-          <div id="starterFlowEditorAvailable" class="starter-flow-editor-available empty-state">No custom skills available.</div>
+        <div class="starter-flow-editor-layout">
+          <div class="starter-flow-editor-column">
+            <div class="starter-ai-editor-current">
+              <div id="starterFlowEditorStepsLabel" class="starter-ai-editor-current-label">Flow Steps</div>
+              <div id="starterFlowEditorSteps" class="starter-flow-editor-steps empty-state">No steps yet.</div>
+            </div>
+            <div class="starter-ai-editor-current">
+              <div id="starterFlowEditorOutputLabel" class="starter-ai-editor-current-label">Final output steps</div>
+              <div id="starterFlowEditorOutput" class="starter-flow-editor-output empty-state">Add steps first before choosing final output.</div>
+              <p id="starterFlowEditorOutputHint" class="field-hint">Select one or more steps. If nothing is specified, the last step is used by default.</p>
+            </div>
+          </div>
+          <div class="starter-flow-editor-column">
+            <div class="starter-ai-editor-current">
+              <div id="starterFlowEditorAvailableLabel" class="starter-ai-editor-current-label">Add Custom Skills</div>
+              <div id="starterFlowEditorAvailable" class="starter-flow-editor-available empty-state">No custom skills available.</div>
+            </div>
+          </div>
         </div>
         <div class="actions settings-inline-actions starter-ai-editor-actions">
           <button id="starterFlowEditorSave" class="primary-button" type="button">Save Flow</button>

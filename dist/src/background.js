@@ -1896,6 +1896,21 @@ function isHttpTabUrl(url) {
   return /^https?:\/\//i.test(String(url || ""));
 }
 
+async function injectContentScriptsIntoTab(tabId) {
+  if (!chrome.scripting?.executeScript || !chrome.scripting?.insertCSS) {
+    return;
+  }
+
+  await chrome.scripting.insertCSS({
+    target: { tabId, allFrames: true },
+    files: ["src/injected.css"],
+  });
+  await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    files: ["src/content-script.js"],
+  });
+}
+
 async function reinjectContentScriptsIntoOpenTabs() {
   if (!chrome.scripting?.executeScript || !chrome.scripting?.insertCSS) {
     return;
@@ -1909,19 +1924,30 @@ async function reinjectContentScriptsIntoOpenTabs() {
   await Promise.all(
     injectableTabIds.map(async (tabId) => {
       try {
-        await chrome.scripting.insertCSS({
-          target: { tabId, allFrames: true },
-          files: ["src/injected.css"],
-        });
-        await chrome.scripting.executeScript({
-          target: { tabId, allFrames: true },
-          files: ["src/content-script.js"],
-        });
+        await injectContentScriptsIntoTab(tabId);
       } catch (error) {
         console.warn("[Edge AI Chat] Failed to re-inject content scripts", { tabId, error });
       }
     })
   );
+}
+
+async function openCopilotInTab(tabId) {
+  if (!Number.isFinite(Number(tabId))) {
+    throw new Error("Missing tab id for in-page copilot.");
+  }
+
+  try {
+    return await chrome.tabs.sendMessage(Number(tabId), { type: "edge-ai-chat:toggle-panel", open: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/Receiving end does not exist|Could not establish connection/i.test(message)) {
+      throw error;
+    }
+  }
+
+  await injectContentScriptsIntoTab(Number(tabId));
+  return chrome.tabs.sendMessage(Number(tabId), { type: "edge-ai-chat:toggle-panel", open: true });
 }
 
 async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
@@ -2206,6 +2232,22 @@ chrome.runtime.onStartup?.addListener(() => {
   });
 });
 
+chrome.commands?.onCommand.addListener(async (command) => {
+  if (command !== "open-in-page-copilot") {
+    return;
+  }
+
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!activeTab?.id || !isHttpTabUrl(activeTab.url)) {
+      return;
+    }
+    await openCopilotInTab(activeTab.id);
+  } catch (error) {
+    console.warn("[Edge AI Chat] Failed to open in-page copilot from command", error);
+  }
+});
+
 chrome.alarms.onAlarm.addListener((alarm) => {
   const taskId = getTaskIdFromAlarmName(alarm?.name || "");
   if (!taskId) {
@@ -2289,6 +2331,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "browser:get-tab-contexts": {
         sendResponse({ ok: true, tabs: await getBrowserTabContexts({ tabIds: message.tabIds || [], excludedTabId: sender?.tab?.id }) });
+        return;
+      }
+      case "ollama:open-in-page-copilot": {
+        const tabId = sender?.tab?.id ?? message.tabId;
+        sendResponse({ ok: true, ...(await openCopilotInTab(tabId)) });
         return;
       }
       case "commons:search-image": {

@@ -235,6 +235,7 @@ let taskInboxExpanded = false;
 let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
 let pendingStarterExecution = null;
+let activeSearchCompositionRole = "";
 let confirmDialogState = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
 const HTML_LAYOUT_GUARD_STYLE_ID = "edge-ai-chat-layout-guard";
@@ -3609,9 +3610,27 @@ function normalizeCustomStarterScope(value) {
   return CUSTOM_STARTER_SCOPE_ALIASES[normalized] || normalized || "all";
 }
 
+function canonicalizeAgentFlowStarterId(value) {
+  const starterId = String(value || "").trim();
+  if (!starterId) {
+    return "";
+  }
+  if (starterId.startsWith("builtin:") || starterId.startsWith("custom:")) {
+    return starterId;
+  }
+  if (BUILTIN_STARTER_KEYS.includes(starterId)) {
+    return `builtin:${starterId}`;
+  }
+  const customStarters = Array.isArray(currentConfig?.customStarters) ? currentConfig.customStarters : [];
+  if (customStarters.some((item) => String(item?.id || "").trim() === starterId && String(item?.mode || item?.composeMode || "").trim().toLowerCase() !== "flow")) {
+    return `custom:${starterId}`;
+  }
+  return starterId;
+}
+
 function normalizeAgentFlowStepReference(step) {
   if (typeof step === "string") {
-    const starterId = String(step).trim();
+    const starterId = canonicalizeAgentFlowStarterId(step);
     return starterId ? { starterId } : null;
   }
 
@@ -3619,7 +3638,7 @@ function normalizeAgentFlowStepReference(step) {
     return null;
   }
 
-  const starterId = String(step.starterId || step.refId || step.id || "").trim();
+  const starterId = canonicalizeAgentFlowStarterId(step.starterId || step.refId || step.id || "");
   if (!starterId) {
     return null;
   }
@@ -3971,6 +3990,31 @@ function isStarterReasoningRouteEnabled() {
   return currentConfig?.starterModelRoutingEnabled !== false && isAutoModelSelectionEnabled();
 }
 
+function shouldAvoidVisionForGithubCodeContext(pageCopilot = currentPageCopilot) {
+  return isGithubAdapterActive(pageCopilot) && getGithubStarterContext() === "codeView";
+}
+
+function isGithubReasoningStarterCandidate(starter, pageCopilot = currentPageCopilot) {
+  if (!isGithubAdapterActive(pageCopilot)) {
+    return false;
+  }
+
+  const githubStarterContext = getGithubStarterContext();
+  if (!STARTER_REASONING_GITHUB_CONTEXT_SET.has(githubStarterContext)) {
+    return false;
+  }
+
+  const starterId = String(starter.id || "").trim().replace(/^builtin:/, "");
+  if (STARTER_REASONING_BUILTIN_KEY_SET.has(starterId) && !STARTER_VISION_BUILTIN_KEY_SET.has(starterId)) {
+    return true;
+  }
+
+  const routingText = [starter.id, starter.label, starter.prompt, starter.description]
+    .filter(Boolean)
+    .join(" ");
+  return STARTER_REASONING_REVIEW_PATTERN.test(routingText);
+}
+
 function starterNeedsReasoningModel(starter, pageCopilot = currentPageCopilot) {
   if (!starter || !isStarterReasoningRouteEnabled()) {
     return false;
@@ -3982,24 +4026,7 @@ function starterNeedsReasoningModel(starter, pageCopilot = currentPageCopilot) {
     return false;
   }
 
-  if (!isGithubAdapterActive(pageCopilot)) {
-    return false;
-  }
-
-  const githubStarterContext = getGithubStarterContext();
-  if (!STARTER_REASONING_GITHUB_CONTEXT_SET.has(githubStarterContext)) {
-    return false;
-  }
-
-  const starterId = String(starter.id || "").trim().replace(/^builtin:/, "");
-  if (STARTER_REASONING_BUILTIN_KEY_SET.has(starterId)) {
-    return true;
-  }
-
-  const routingText = [starter.id, starter.label, starter.prompt, starter.description]
-    .filter(Boolean)
-    .join(" ");
-  return STARTER_REASONING_REVIEW_PATTERN.test(routingText);
+  return isGithubReasoningStarterCandidate(starter, pageCopilot);
 }
 
 function taskNeedsVisionModel(userMessage = "", starter = null) {
@@ -4008,13 +4035,26 @@ function taskNeedsVisionModel(userMessage = "", starter = null) {
     return false;
   }
 
+  if (shouldAvoidVisionForGithubCodeContext()) {
+    return false;
+  }
+
+  if (isGithubReasoningStarterCandidate(starter)) {
+    return false;
+  }
+
+  const starterId = String(starter?.id || "").trim().replace(/^builtin:/, "");
+
   if (attachedImages.length) {
     return true;
   }
 
-  const starterId = String(starter?.id || "").trim().replace(/^builtin:/, "");
   if (STARTER_VISION_BUILTIN_KEY_SET.has(starterId)) {
     return true;
+  }
+
+  if (STARTER_REASONING_BUILTIN_KEY_SET.has(starterId)) {
+    return false;
   }
 
   const routingText = [
@@ -4040,11 +4080,30 @@ function taskNeedsVisionReasoning(userMessage = "", starter = null) {
   return /(ux|ui|layout|readability|hierarchy|contrast|design|accessibility|視覺|视觉|版面|排版|可讀性|可读性|層級|层级|對比|对比|設計|设计|可近用)/i.test(routingText);
 }
 
+function starterShouldPreferReasoningOverVision(starter, pageCopilot = currentPageCopilot) {
+  const starterId = String(starter?.id || "").trim().replace(/^builtin:/, "");
+  if (!starterNeedsReasoningModel(starter, pageCopilot)) {
+    return false;
+  }
+  return !STARTER_VISION_BUILTIN_KEY_SET.has(starterId);
+}
+
 function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {}) {
   const quickModel = getDefaultQuickReplyModel();
   const preferVisionReasoning = taskNeedsVisionReasoning(userMessage, starter);
   const visionModel = getStarterVisionModel({ preferReasoning: preferVisionReasoning });
   const reasoningModel = getStarterReasoningModel();
+  const shouldPreferReasoning = starterShouldPreferReasoningOverVision(starter);
+
+  if (shouldPreferReasoning && reasoningModel) {
+    return {
+      kind: "reasoning",
+      model: reasoningModel,
+      quickModel,
+      reasoningModel,
+      visionModel,
+    };
+  }
 
   if (taskNeedsVisionModel(userMessage, starter) && visionModel) {
     return {
@@ -8199,6 +8258,8 @@ function renderShell() {
   host.onclick = handleClick;
   host.onchange = handleChange;
   host.oninput = handleInput;
+  host.oncompositionstart = handleCompositionStart;
+  host.oncompositionend = handleCompositionEnd;
   host.onpaste = handlePaste;
   host.ondragenter = handleDragEnter;
   host.ondragover = handleDragOver;
@@ -8720,10 +8781,6 @@ function renderAgentFlowPanel(run) {
   const currentLabel = currentStep?.label || tl("agentFlowPendingStep");
   const completedCount = steps.filter((step) => step.status === "done").length;
   const modelLine = run.model ? tl("agentFlowRunningWith", { model: run.model }) : "";
-  const finalKey = "final";
-  const isFinalExpanded = run.expandedKey === finalKey;
-  const finalBody = run.finalContent ? renderMarkdown(run.finalContent) : `<div class="ollama-quick-perspective-preview">${escapeHtml(tl("agentFlowEmptyResult"))}</div>`;
-  const finalPreview = run.finalContent ? `<div class="ollama-quick-perspective-preview">${escapeHtml(getPerspectivePreview(run.finalContent))}</div>` : `<div class="ollama-quick-perspective-preview">${escapeHtml(tl("agentFlowEmptyResult"))}</div>`;
 
   return `
     <section class="ollama-quick-perspective-panel ollama-quick-agent-flow-panel ${run.isComplete ? "" : "is-compact"}">
@@ -8743,19 +8800,6 @@ function renderAgentFlowPanel(run) {
         <div class="ollama-quick-agent-flow-running-strip" aria-hidden="true">
           <span class="ollama-quick-agent-flow-running-bar"></span>
         </div>
-      ` : ""}
-      ${run.isComplete ? `
-        <article class="ollama-quick-perspective-final is-done ${isFinalExpanded ? "is-expanded" : ""}">
-          <div class="ollama-quick-perspective-card-top">
-            <div class="ollama-quick-perspective-card-title">${escapeHtml(tl("agentFlowFinalTitle"))}</div>
-            <div class="ollama-quick-perspective-card-actions">
-              ${run.finalContent ? `<button class="ollama-quick-copy" type="button" data-action="copy-agent-flow-final" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}">${escapeHtml(tl("copy"))}</button>` : ""}
-              ${run.finalContent ? `<button class="ollama-quick-copy" type="button" data-action="download-agent-flow-final" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}">${escapeHtml(tl("downloadMarkdown"))}</button>` : ""}
-            </div>
-          </div>
-          <div class="ollama-quick-perspective-card-body ${isFinalExpanded ? "rendered-markdown" : ""}">${isFinalExpanded ? finalBody : finalPreview}</div>
-          <button class="ollama-quick-message-action-toggle" type="button" data-action="toggle-agent-flow-step" data-agent-flow-message-id="${escapeHtml(String(run.messageId || ""))}" data-agent-flow-step-id="${finalKey}">${escapeHtml(isFinalExpanded ? tl("collapse") : tl("expand"))}</button>
-        </article>
       ` : ""}
     </section>
   `;
@@ -8889,6 +8933,32 @@ function publishAgentFlowStepMessage(flowMessageId, step) {
       stepId: step.id,
       label: step.label,
       index: step.index,
+    },
+  });
+  renderMessages();
+  scheduleConversationSave();
+}
+
+function publishAgentFlowFinalMessage(flowName, step) {
+  const finalOutput = String(step?.output || "").trim();
+  const finalLabel = String(step?.label || "").trim();
+  const finalIndex = Number(step?.index || 0);
+  const finalContent = finalOutput
+    ? `## ${finalIndex || "Final"}. ${finalLabel || tl("agentFlowFinalTitle")}\n\n${finalOutput}`
+    : "";
+  if (!finalContent) {
+    return;
+  }
+
+  chatMessages.push({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    role: "assistant",
+    content: finalContent,
+    agentFlowFinalOutput: {
+      flowName: String(flowName || "").trim(),
+      stepId: String(step?.id || "").trim(),
+      label: finalLabel,
+      index: finalIndex,
     },
   });
   renderMessages();
@@ -9067,12 +9137,14 @@ async function runAgentFlow(starter, modelOverride = "") {
         await buildAgentFlowStepPrompt(starter, step, collectedOutputs, index + 1, resolvedSteps.length),
         effectiveModel
       );
+      const stepOutput = String(response || "").trim();
+      step.output = stepOutput;
 
       updateAgentFlowMessage(assistantMessageId, (run, message) => {
         const target = run.steps.find((item) => item.id === step.id);
         if (target) {
           target.status = "done";
-          target.output = String(response || "").trim();
+          target.output = stepOutput;
         }
         run.finalContent = "";
         message.content = "";
@@ -9083,13 +9155,13 @@ async function runAgentFlow(starter, modelOverride = "") {
       if (shouldPublishStep) {
         publishAgentFlowStepMessage(assistantMessageId, {
           ...step,
-          output: String(response || "").trim(),
+          output: stepOutput,
         });
       }
 
       collectedOutputs.push({
         label: step.label,
-        output: String(response || "").trim(),
+        output: stepOutput,
       });
     }
 
@@ -9097,10 +9169,11 @@ async function runAgentFlow(starter, modelOverride = "") {
       const lastStep = run.steps[run.steps.length - 1] || null;
       run.currentStepIndex = run.steps.length - 1;
       run.isComplete = true;
-      run.expandedKey = "final";
+      run.expandedKey = "";
       run.finalContent = String(lastStep?.output || "").trim();
-      message.content = run.finalContent;
+      message.content = "";
     });
+    publishAgentFlowFinalMessage(starter.label, resolvedSteps[resolvedSteps.length - 1]);
     setStatus(tl("doneWithModel", { model: effectiveModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -9204,13 +9277,7 @@ async function startStarterExecution(plan, modelOverride = "") {
   }
 
   const starter = plan.starter;
-  const prompt = ensureHost().querySelector("[data-role='prompt']");
-  if (!(prompt instanceof HTMLTextAreaElement)) {
-    return;
-  }
-
   composeMode = starter.composeMode;
-  prompt.value = starter.prompt || "";
   renderShell();
 
   if (starter.isAgentFlow) {
@@ -9225,7 +9292,7 @@ async function startStarterExecution(plan, modelOverride = "") {
         ? tl("starterReasoningModelReady", { model: effectiveModel })
         : tl("starterRouteResolved", { route: getRouteLabel(plan.routeKind), model: effectiveModel })
   );
-  await sendCurrentPrompt({ modelOverride: effectiveModel });
+  await sendCurrentPrompt({ modelOverride: effectiveModel, starterPlan: plan });
 }
 
 async function handleClick(event) {
@@ -9847,25 +9914,11 @@ async function handleClick(event) {
       return;
     }
 
-    const prompt = ensureHost().querySelector("[data-role='prompt']");
-    if (!(prompt instanceof HTMLTextAreaElement)) {
-      return;
-    }
-
     if (isGenerating || customStarterBuilderIsGenerating || customStarterBuilderIsSaving) {
       return;
     }
 
     const executionPlan = resolveStarterExecutionPlan(starter);
-    if (executionPlan.routeKind === "vision" || executionPlan.routeKind === "reasoning") {
-      setPendingStarterExecution(executionPlan);
-      composeMode = starter.composeMode;
-      prompt.value = starter.prompt || "";
-      renderShell();
-      setStatus(tl(executionPlan.routeKind === "vision" ? "starterVisionModelReady" : "starterReasoningModelReady", { model: executionPlan.suggestedModel }));
-      return;
-    }
-
     clearPendingStarterExecution();
     await startStarterExecution(executionPlan, executionPlan.suggestedModel);
     return;
@@ -10366,6 +10419,11 @@ async function handleChange(event) {
 
 function handleInput(event) {
   const target = event.target;
+  const finalizeSearchComposition = (role) => {
+    if (!event.isComposing && activeSearchCompositionRole === role) {
+      activeSearchCompositionRole = "";
+    }
+  };
   if (target instanceof HTMLTextAreaElement && target.dataset.role === "custom-starter-purpose") {
     ensureCustomStarterBuilderDraft().purpose = target.value;
     return;
@@ -10378,12 +10436,20 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement && target.dataset.role === "browser-tab-search") {
     browserTabSearch = target.value;
+    finalizeSearchComposition("browser-tab-search");
+    if (event.isComposing || activeSearchCompositionRole === "browser-tab-search") {
+      return;
+    }
     renderShell();
     return;
   }
 
   if (target instanceof HTMLInputElement && target.dataset.role === "local-document-search") {
     localDocumentSearch = target.value;
+    finalizeSearchComposition("local-document-search");
+    if (event.isComposing || activeSearchCompositionRole === "local-document-search") {
+      return;
+    }
     renderShell();
     restorePickerInputFocus("local-document-search");
     return;
@@ -10391,6 +10457,10 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement && target.dataset.role === "include-repo-search") {
     includeRepoSearch = target.value;
+    finalizeSearchComposition("include-repo-search");
+    if (event.isComposing || activeSearchCompositionRole === "include-repo-search") {
+      return;
+    }
     renderShell();
     restorePickerInputFocus("include-repo-search");
     return;
@@ -10398,12 +10468,80 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement && target.dataset.role === "include-file-search") {
     includeFileSearch = target.value;
+    finalizeSearchComposition("include-file-search");
+    if (event.isComposing || activeSearchCompositionRole === "include-file-search") {
+      return;
+    }
     renderShell();
     restorePickerInputFocus("include-file-search");
     return;
   }
 
   if (target instanceof HTMLInputElement && target.dataset.role === "starter-search") {
+    starterSearch = target.value;
+    finalizeSearchComposition("starter-search");
+    if (event.isComposing || activeSearchCompositionRole === "starter-search") {
+      return;
+    }
+    renderShell();
+    restorePickerInputFocus("starter-search");
+  }
+}
+
+function handleCompositionStart(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const role = String(target.dataset.role || "").trim();
+  if (role.endsWith("-search")) {
+    activeSearchCompositionRole = role;
+  }
+}
+
+function handleCompositionEnd(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const role = String(target.dataset.role || "").trim();
+  if (!role.endsWith("-search")) {
+    return;
+  }
+
+  activeSearchCompositionRole = "";
+
+  if (role === "browser-tab-search") {
+    browserTabSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("browser-tab-search");
+    return;
+  }
+
+  if (role === "local-document-search") {
+    localDocumentSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("local-document-search");
+    return;
+  }
+
+  if (role === "include-repo-search") {
+    includeRepoSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("include-repo-search");
+    return;
+  }
+
+  if (role === "include-file-search") {
+    includeFileSearch = target.value;
+    renderShell();
+    restorePickerInputFocus("include-file-search");
+    return;
+  }
+
+  if (role === "starter-search") {
     starterSearch = target.value;
     renderShell();
     restorePickerInputFocus("starter-search");
@@ -10464,15 +10602,18 @@ async function sendCurrentPrompt(options = {}) {
     return;
   }
 
-  const userMessage = promptNode.value.trim();
+  const starterPlan = options.starterPlan || pendingStarterExecution || null;
+  const pendingStarter = starterPlan?.starter || null;
+  const typedUserMessage = promptNode.value.trim();
+  const starterPrompt = String(pendingStarter?.prompt || "").trim();
+  const userMessage = typedUserMessage || starterPrompt;
   if (!userMessage && !attachedImages.length && !attachedDocuments.length) {
     setStatus(tl("typePromptOrAttach"));
     return;
   }
 
-  const autoRoute = resolveExecutionModelForTask({ starter: pendingStarterExecution?.starter || null, userMessage });
-  const pendingStarter = pendingStarterExecution?.starter || null;
-  const effectiveModel = String(options.modelOverride || pendingStarterExecution?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
+  const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage });
+  const effectiveModel = String(options.modelOverride || starterPlan?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -10488,7 +10629,7 @@ async function sendCurrentPrompt(options = {}) {
       ? getAutoModelStatusText({ starter: pendingStarter, userMessage })
       : tl("preparingRequest", { model: effectiveModel })
   );
-  const displayMessage = userMessage || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
+  const displayMessage = typedUserMessage || pendingStarter?.label || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
   const outgoingAttachments = {
     images: attachedImages.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
     documents: attachedDocuments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
@@ -10529,7 +10670,7 @@ async function sendCurrentPrompt(options = {}) {
   setStatus(tl("waitingForModel", { model: effectiveModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(await buildChatMessages(displayMessage), effectiveModel);
+    await startStreamingChat(await buildChatMessages(userMessage), effectiveModel);
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
     attachedDocuments = [];
@@ -10831,16 +10972,38 @@ window.addEventListener("message", (event) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "edge-ai-chat:get-page-context") {
+  if (message?.type === "edge-ai-chat:get-page-context") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Context is only available from the top frame." });
+      return false;
+    }
+
+    sendResponse({ ok: true, context: getPageContext(true) });
     return false;
   }
 
-  if (!IS_TOP_FRAME) {
-    sendResponse({ ok: false, error: "Context is only available from the top frame." });
+  if (message?.type === "edge-ai-chat:toggle-panel") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Panel is only available from the top frame." });
+      return false;
+    }
+
+    try {
+      if (!document.getElementById(HOST_ID)) {
+        renderShell();
+      }
+      togglePanel(message.open !== false);
+      const prompt = ensureHost().querySelector("[data-role='prompt']");
+      if (prompt instanceof HTMLTextAreaElement && message.focus !== false) {
+        prompt.focus();
+      }
+      sendResponse({ ok: true, isOpen: isPanelOpen });
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
     return false;
   }
 
-  sendResponse({ ok: true, context: getPageContext(true) });
   return false;
 });
 

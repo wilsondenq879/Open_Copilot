@@ -1414,7 +1414,25 @@ textarea:focus {
 }
 
 .starter-flow-editor-modal {
-  width: min(980px, 100%);
+  width: min(1360px, 100%);
+}
+
+.starter-flow-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.98fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.starter-flow-editor-column {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.starter-flow-editor-column .starter-ai-editor-current {
+  margin-top: 0;
 }
 
 .starter-detail-modal {
@@ -1476,9 +1494,23 @@ textarea:focus {
 }
 
 .starter-flow-editor-steps,
-.starter-flow-editor-available {
+.starter-flow-editor-available,
+.starter-flow-editor-output {
   display: grid;
   gap: 12px;
+}
+
+.starter-flow-editor-steps,
+.starter-flow-editor-available {
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.starter-flow-editor-output {
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .starter-flow-editor-step,
@@ -1518,6 +1550,17 @@ textarea:focus {
   min-width: 0;
 }
 
+.starter-flow-editor-available-main {
+  align-items: flex-start;
+}
+
+.starter-flow-editor-available-description {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(214, 235, 255, 0.72);
+}
+
 .starter-flow-editor-step-actions {
   display: flex;
   align-items: center;
@@ -1530,6 +1573,10 @@ body[data-theme="light"] .starter-flow-editor-step,
 body[data-theme="light"] .starter-flow-editor-available-card {
   border-color: rgba(91, 143, 181, 0.18);
   background: rgba(247, 251, 255, 0.86);
+}
+
+body[data-theme="light"] .starter-flow-editor-available-description {
+  color: rgba(42, 79, 112, 0.78);
 }
 
 body[data-theme="light"] .starter-detail-block,
@@ -1555,7 +1602,8 @@ body[data-theme="light"] .starter-detail-meta-value {
   .split-fields,
   .behavior-grid,
   .starter-studio-shell,
-  .starter-detail-grid {
+  .starter-detail-grid,
+  .starter-flow-editor-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1608,5 +1656,11 @@ body[data-theme="light"] .starter-detail-meta-value {
 
   .starter-ai-editor-backdrop {
     padding: 12px;
+  }
+
+  .starter-flow-editor-steps,
+  .starter-flow-editor-available,
+  .starter-flow-editor-output {
+    max-height: none;
   }
 }
