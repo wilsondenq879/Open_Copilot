@@ -3833,17 +3833,36 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
 
 function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
   const entries = getActiveStarterEntries(pageCopilot).filter((starter) => starter.showInPopup !== false);
-  const query = starterSearch.trim().toLowerCase();
+  const query = normalizeStarterSearchText(starterSearch);
   if (!query) {
     return entries;
   }
 
+  const queryTerms = query.split(" ").filter(Boolean);
   return entries.filter((starter) => {
-    const label = String(starter.label || "").toLowerCase();
-    const description = String(starter.description || "").toLowerCase();
-    const prompt = String(starter.prompt || "").toLowerCase();
-    return label.includes(query) || description.includes(query) || prompt.includes(query);
+    const searchTerms = [
+      starter.label,
+      starter.description,
+      starter.prompt,
+      starter.composeMode,
+      starter.isCustomStarter ? "custom starter custom skill custom 自訂 自定义 自訂工具 自訂技能 技能" : "",
+      starter.isCustomStarterBuilder ? "custom starter builder create custom starter teach ai new skill custom 自訂 starter 建立自訂 starter 教 ai 一個新技能 新技能" : "",
+      starter.isAgentFlowBuilder ? "agent flow flow builder workflow create agent flow custom agent flow flow agent 流程 工作流 建立流程 建立 agent flow" : "",
+      starter.isAgentFlow ? "agent flow flow workflow custom agent flow agent 流程 工作流 自訂流程 自訂 agent flow" : "",
+    ]
+      .map((value) => normalizeStarterSearchText(value))
+      .filter(Boolean)
+      .join(" ");
+    return queryTerms.every((term) => searchTerms.includes(term));
   });
+}
+
+function normalizeStarterSearchText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getDefaultQuickReplyModel() {
@@ -5415,6 +5434,20 @@ function buildAgentFlowSummary(starter, pageCopilot = currentPageCopilot) {
   return steps
     .map((step, index) => `${index + 1}. ${getFlowStarterStepLabel(step, pageCopilot)}`)
     .join(" -> ");
+}
+
+function buildStarterHoverTip(starter, pageCopilot = currentPageCopilot) {
+  const description = String(starter?.description || starter?.prompt || starter?.label || "").trim();
+  if (!starter?.isAgentFlow) {
+    return description;
+  }
+
+  const steps = Array.isArray(starter?.flowSteps) ? starter.flowSteps : [];
+  const flowLines = steps
+    .map((step, index) => `${index + 1}. ${getFlowStarterStepLabel(step, pageCopilot)}`)
+    .filter(Boolean);
+
+  return [description, flowLines.length ? "FLOW STEPS" : "", ...flowLines].filter(Boolean).join("\n");
 }
 
 function moveArrayItem(list, fromIndex, toIndex) {
@@ -7493,6 +7526,31 @@ function createImageAttachmentFromPayload(payload = {}) {
   };
 }
 
+function appendTextToPrompt(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    setStatus(tl("noSelectedText"));
+    return false;
+  }
+
+  if (!document.getElementById(HOST_ID)) {
+    renderShell();
+  }
+
+  togglePanel(true);
+  const prompt = ensureHost().querySelector("[data-role='prompt']");
+  if (!(prompt instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  const existing = prompt.value.trim();
+  prompt.value = existing ? `${existing}\n\n${normalized}` : normalized;
+  prompt.focus();
+  prompt.selectionStart = prompt.selectionEnd = prompt.value.length;
+  setStatus(tl("insertedSelection"));
+  return true;
+}
+
 async function analyzeImageFromContextMenu(payload = {}) {
   if (!document.getElementById(HOST_ID)) {
     renderShell();
@@ -7513,6 +7571,10 @@ async function analyzeImageFromContextMenu(payload = {}) {
     userMessageOverride: starter.prompt,
     displayMessageOverride: `${starter.label}: ${imageAttachment.name}`,
   });
+}
+
+function pasteSelectionFromContextMenu(selectionText) {
+  return appendTextToPrompt(selectionText);
 }
 
 function isTaskInboxVisible() {
@@ -8226,6 +8288,9 @@ function renderShell() {
     includePickerOpen = false;
   }
   const activeStarterEntries = getFilteredActiveStarterEntries(currentPageCopilot);
+  const visibleStarterEntries = isPanelMaximized
+    ? activeStarterEntries
+    : activeStarterEntries.filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelSelectionMode = getModelSelectionMode();
@@ -8262,7 +8327,6 @@ function renderShell() {
               aria-pressed="${canDetachTaskRail ? String(showDetachedTaskRail) : "false"}"
             >☰${canExtractTaskCandidates ? `<span class="ollama-quick-icon-badge" aria-hidden="true"></span>` : ""}</button>
           ` : ""}
-          <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
             <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M9 4h6" />
@@ -8367,8 +8431,10 @@ function renderShell() {
             </div>
             ${isPanelMaximized ? `<input class="ollama-quick-starter-search" type="text" data-role="starter-search" value="${escapeHtml(starterSearch)}" aria-label="${escapeHtml(tl("searchStarters"))}" title="${escapeHtml(tl("searchStarters"))}" />` : ""}
             <div class="ollama-quick-starters">
-            ${activeStarterEntries.map((starter) => {
-              const title = starterHoverTipsEnabled ? ` title="${escapeHtml(starter.description || starter.prompt || starter.label)}"` : "";
+            ${visibleStarterEntries.map((starter) => {
+              const hoverTip = starterHoverTipsEnabled ? buildStarterHoverTip(starter, currentPageCopilot) : "";
+              const title = hoverTip ? ` title="${escapeHtml(hoverTip)}"` : "";
+              const hoverTipAttr = hoverTip ? ` data-hover-tip="${escapeHtml(hoverTip)}"` : "";
               const classNames = [
                 "ollama-quick-starter",
                 starter.isRecommended ? "is-recommended" : "",
@@ -8382,15 +8448,15 @@ function renderShell() {
                 ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
                 : starter.isAgentFlow || starter.isAgentFlowBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
-                : starter.isCustomStarter
+                : starter.isCustomStarter || starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
                   : "";
               const suffix = starter.isAgentFlow
                 ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
                 : starter.isCustomStarter && !starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
-                : "";
-              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
+                  : "";
+              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}${hoverTipAttr}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
             }).join("")}
             </div>
           </div>
@@ -8411,6 +8477,7 @@ function renderShell() {
   host.oninput = handleInput;
   host.oncompositionstart = handleCompositionStart;
   host.oncompositionend = handleCompositionEnd;
+  host.onkeyup = handleKeyup;
   host.onpaste = handlePaste;
   host.ondragenter = handleDragEnter;
   host.ondragover = handleDragOver;
@@ -10001,20 +10068,8 @@ async function handleClick(event) {
   }
 
   if (action === "use-selection") {
-    const prompt = ensureHost().querySelector("[data-role='prompt']");
-    if (!(prompt instanceof HTMLTextAreaElement)) {
-      return;
-    }
-
     const selectedText = window.getSelection?.()?.toString().trim() || "";
-    if (!selectedText) {
-      setStatus(tl("noSelectedText"));
-      return;
-    }
-
-    prompt.value = tl("selectionPrompt", { selection: selectedText.slice(0, MAX_SELECTION_TEXT) });
-    prompt.focus();
-    setStatus(tl("insertedSelection"));
+    appendTextToPrompt(tl("selectionPrompt", { selection: selectedText.slice(0, MAX_SELECTION_TEXT) }));
     return;
   }
 
@@ -10731,9 +10786,24 @@ function handleCompositionEnd(event) {
 
   if (role === "starter-search") {
     starterSearch = target.value;
-    renderShell();
-    restorePickerInputFocus("starter-search");
+    requestAnimationFrame(() => {
+      renderShell();
+      restorePickerInputFocus("starter-search");
+    });
   }
+}
+
+function handleKeyup(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.dataset.role !== "starter-search") {
+    return;
+  }
+  if (event.isComposing || activeSearchCompositionRole === "starter-search") {
+    return;
+  }
+  starterSearch = target.value;
+  renderShell();
+  restorePickerInputFocus("starter-search");
 }
 
 async function handleKeydown(event) {
@@ -11220,6 +11290,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
       });
     return true;
+  }
+
+  if (message?.type === "edge-ai-chat:paste-selection-context-menu") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Selection paste is only available from the top frame." });
+      return false;
+    }
+
+    try {
+      const inserted = pasteSelectionFromContextMenu(message.selectionText || "");
+      sendResponse({ ok: inserted });
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return false;
   }
 
   return false;

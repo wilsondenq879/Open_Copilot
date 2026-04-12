@@ -25,6 +25,7 @@ const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
 const TASK_NOTIFICATION_PREFIX = "task-notification:";
 const CONTEXT_MENU_ANALYZE_IMAGE_ID = "open-copilot-analyze-image";
+const CONTEXT_MENU_PASTE_SELECTION_ID = "open-copilot-paste-selection";
 const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
 const DEFAULT_TASK_EXTRACTION_WINDOW_DAYS = 3;
 const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
@@ -1959,8 +1960,13 @@ async function ensureContextMenus() {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: CONTEXT_MENU_ANALYZE_IMAGE_ID,
-    title: "Analyze Image with Open Copilot",
+    title: "用 Open Copilot 分析這張圖片",
     contexts: ["image"],
+  });
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_PASTE_SELECTION_ID,
+    title: "貼上選取文字到 Open Copilot",
+    contexts: ["selection"],
   });
 }
 
@@ -2024,6 +2030,21 @@ async function analyzeImageInTab(tabId, imageUrl) {
   return chrome.tabs.sendMessage(Number(tabId), {
     type: "edge-ai-chat:analyze-image-context-menu",
     image,
+  });
+}
+
+async function pasteSelectionIntoCopilot(tabId, selectionText) {
+  if (!Number.isFinite(Number(tabId))) {
+    throw new Error("Missing tab id for selection paste.");
+  }
+  if (!String(selectionText || "").trim()) {
+    throw new Error("Missing selected text.");
+  }
+
+  await openCopilotInTab(tabId);
+  return chrome.tabs.sendMessage(Number(tabId), {
+    type: "edge-ai-chat:paste-selection-context-menu",
+    selectionText: String(selectionText),
   });
 }
 
@@ -2330,13 +2351,22 @@ chrome.commands?.onCommand.addListener(async (command) => {
 });
 
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== CONTEXT_MENU_ANALYZE_IMAGE_ID || !tab?.id || !isHttpTabUrl(tab.url) || !info.srcUrl) {
+  if (!tab?.id || !isHttpTabUrl(tab.url)) {
     return;
   }
 
-  analyzeImageInTab(tab.id, info.srcUrl).catch((error) => {
-    console.warn("[Edge AI Chat] Failed to analyze image from context menu", error);
-  });
+  if (info.menuItemId === CONTEXT_MENU_ANALYZE_IMAGE_ID && info.srcUrl) {
+    analyzeImageInTab(tab.id, info.srcUrl).catch((error) => {
+      console.warn("[Edge AI Chat] Failed to analyze image from context menu", error);
+    });
+    return;
+  }
+
+  if (info.menuItemId === CONTEXT_MENU_PASTE_SELECTION_ID && info.selectionText) {
+    pasteSelectionIntoCopilot(tab.id, info.selectionText).catch((error) => {
+      console.warn("[Edge AI Chat] Failed to paste selection from context menu", error);
+    });
+  }
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
