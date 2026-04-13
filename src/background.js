@@ -2435,7 +2435,7 @@ function normalizeBatchUrlQaCount(value) {
   if (!Number.isFinite(parsed)) {
     return DEFAULT_BATCH_URL_QA_COUNT;
   }
-  return Math.min(10, Math.max(1, parsed));
+  return Math.min(8, Math.max(2, parsed));
 }
 
 function normalizeBatchUrlQaFilename(value) {
@@ -2486,17 +2486,52 @@ function parseBatchUrlInput(value) {
   };
 }
 
+function normalizeBatchUrlQaQuestions(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : [value];
+  return rawItems
+    .map((item) => normalizeTaskText(item || "", 500))
+    .filter(Boolean)
+    .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+    .filter((item) => !isWeakTrainingQuestion(item))
+    .slice(0, 4);
+}
+
+function hasEmbeddedQaMarker(value, selfLabel) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return false;
+  }
+  const otherLabel = selfLabel === "Q" ? "A" : "Q";
+  const selfPattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${selfLabel}\\s*:`, "i");
+  const otherPattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${otherLabel}\\s*:`, "i");
+  return selfPattern.test(text) || otherPattern.test(text);
+}
+
 function normalizeBatchUrlQaPair(item = {}) {
-  const question = normalizeTaskText(item.question || "", 500);
+  const rawQuestions = Array.isArray(item.question_variants || item.questionVariants || item.questions)
+    ? (item.question_variants || item.questionVariants || item.questions)
+    : [item.question_variants || item.questionVariants || item.questions || item.question || ""];
+  if (rawQuestions.some((question) => hasEmbeddedQaMarker(question, "Q"))) {
+    return null;
+  }
+  if (hasEmbeddedQaMarker(item.answer || "", "A") || hasEmbeddedQaMarker(item.evidence || "", "A")) {
+    return null;
+  }
+  const questionVariants = normalizeBatchUrlQaQuestions(
+    item.question_variants || item.questionVariants || item.questions || item.question || "",
+  );
   const answer = normalizeTaskText(item.answer || "", 1500);
   const evidence = normalizeTaskText(item.evidence || "", 1200);
-  if (!question || !answer || !evidence) {
+  const topic = normalizeTaskText(item.topic || item.subject || "", 300);
+  if (!questionVariants.length || !answer || !evidence) {
     return null;
   }
-  if (isLowSignalBatchUrlQaPair(question, answer, evidence)) {
+  if (isLowSignalBatchUrlQaPair(questionVariants, answer, evidence)) {
     return null;
   }
-  return { question, answer, evidence };
+  return { topic, questions: questionVariants, answer, evidence };
 }
 
 function normalizeQaTextForSimilarity(value, { stripQuestionWords = false } = {}) {
@@ -2556,8 +2591,9 @@ function computeQaDiceSimilarity(left, right) {
   return (2 * overlap) / (leftGrams.length + rightGrams.length);
 }
 
-function isLowSignalBatchUrlQaPair(question, answer, evidence) {
-  const normalizedQuestion = normalizeQaTextForSimilarity(question, { stripQuestionWords: true });
+function isLowSignalBatchUrlQaPair(questions, answer, evidence) {
+  const primaryQuestion = Array.isArray(questions) ? questions[0] || "" : questions || "";
+  const normalizedQuestion = normalizeQaTextForSimilarity(primaryQuestion, { stripQuestionWords: true });
   const normalizedAnswer = normalizeQaTextForSimilarity(answer);
   const normalizedEvidence = normalizeQaTextForSimilarity(evidence);
 
@@ -2565,7 +2601,7 @@ function isLowSignalBatchUrlQaPair(question, answer, evidence) {
     return true;
   }
 
-  if (isWeakTrainingQuestion(question)) {
+  if (isWeakTrainingQuestion(primaryQuestion)) {
     return true;
   }
 
@@ -2588,6 +2624,90 @@ function isLowSignalBatchUrlQaPair(question, answer, evidence) {
   }
 
   return false;
+}
+
+function estimateBatchUrlQaTargetCount(pageText, headings, requestedCap = DEFAULT_BATCH_URL_QA_COUNT) {
+  const cap = Math.min(8, Math.max(2, Number(requestedCap) || DEFAULT_BATCH_URL_QA_COUNT));
+  const text = String(pageText || "").trim();
+  const headingText = String(headings || "").trim();
+  const textLength = text.length;
+  const headingCount = headingText
+    ? headingText.split(/\n+/).map((item) => item.trim()).filter(Boolean).length
+    : 0;
+
+  let score = 0;
+  if (textLength >= 1200) score += 1;
+  if (textLength >= 2500) score += 1;
+  if (textLength >= 4500) score += 1;
+  if (textLength >= 7000) score += 1;
+  if (headingCount >= 4) score += 1;
+  if (headingCount >= 8) score += 1;
+
+  const dynamicTarget = Math.min(8, Math.max(2, 2 + score));
+  return Math.min(cap, dynamicTarget);
+}
+
+function normalizeBatchUrlQaScopeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 $2")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[【】\[\]（）()<>《》「」『』"'`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanBatchUrlQaAnchorTerm(value) {
+  return String(value || "")
+    .replace(/(?:^|\s)(faq|how to|how do i|how can i|what is|what are|enable|enabled|set up|setup|configure|config|guide|tutorial|support)(?:\s|$)/gi, " ")
+    .replace(/(?:^|\s)(如何|怎麼|怎样|怎樣|設定|設置|啟用|开启|開啟|功能|教學|說明|常見問題|問題)(?:\s|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[，,、；;:：.\- ]+|[，,、；;:：.\- ]+$/gu, "");
+}
+
+function extractBatchUrlQaScopeAnchors(title, headings) {
+  const lines = [title, ...(String(headings || "").split(/\n+/).slice(0, 6))]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const candidates = new Set();
+
+  for (const line of lines) {
+    const bracketMatches = Array.from(line.matchAll(/[\[\(（【]([^\]\)）】]{2,40})[\]\)）】]/g));
+    bracketMatches.forEach((match) => candidates.add(cleanBatchUrlQaAnchorTerm(match[1] || "")));
+
+    const parts = line
+      .split(/[|｜:：\-–—/·•,，。！？!?\n]/)
+      .map((part) => cleanBatchUrlQaAnchorTerm(part))
+      .filter(Boolean);
+    parts.forEach((part) => candidates.add(part));
+  }
+
+  return Array.from(candidates)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+    .sort((left, right) => right.length - left.length)
+    .slice(0, 8);
+}
+
+function isBatchUrlQaPairAlignedToScope(pair, { title = "", headings = "" } = {}) {
+  const anchors = extractBatchUrlQaScopeAnchors(title, headings);
+  if (anchors.length < 2) {
+    return true;
+  }
+  const questionText = normalizeBatchUrlQaScopeText([
+    pair?.topic || "",
+    ...(Array.isArray(pair?.questions) ? pair.questions : []),
+  ].join(" "));
+  const combinedText = normalizeBatchUrlQaScopeText([
+    questionText,
+    pair?.answer || "",
+  ].join(" "));
+  const questionHits = anchors.filter((anchor) => questionText.includes(normalizeBatchUrlQaScopeText(anchor))).length;
+  const combinedHits = anchors.filter((anchor) => combinedText.includes(normalizeBatchUrlQaScopeText(anchor))).length;
+
+  return questionHits >= Math.min(2, anchors.length) && combinedHits >= Math.min(2, anchors.length);
 }
 
 function isWeakTrainingQuestion(question) {
@@ -2735,29 +2855,33 @@ function buildBatchUrlQaPrompt({
   const remainingCount = Math.max(1, Number(qaPerUrl) || 1);
   const existingSummary = Array.isArray(existingPairs) && existingPairs.length
     ? existingPairs
-      .map((pair, index) => `${index + 1}. Q: ${pair.question}\nA: ${pair.answer}`)
+      .map((pair, index) => `${index + 1}. Topic: ${pair.topic || "-"}\nQuestions: ${(pair.questions || []).join(" | ")}\nAnswer: ${pair.answer}`)
       .join("\n")
     : "";
   return [
-    "You are creating grounded QA training data from a single webpage.",
+    "You are creating grounded FAQ training data from a single webpage.",
     "Return one JSON object only.",
-    `Generate at least ${remainingCount} QA pairs from the provided page.`,
-    `Write each question and answer in this language: ${outputLanguage || "zh-TW"}.`,
+    `Generate exactly ${remainingCount} FAQ items from the provided page.`,
+    `Write every question variant and answer in this language: ${outputLanguage || "zh-TW"}.`,
     "Rules:",
-    `1. Use only the provided webpage content for both questions and answers.`,
+    "1. Use only the provided webpage content for all questions, answers, and evidence.",
     "2. Do not use outside knowledge.",
-    "3. Every QA pair must include question, answer, and evidence.",
-    "4. Evidence must be a short supporting passage copied from the provided page text.",
-    "5. Questions should be specific, non-duplicate, and answerable from the page.",
-    "6. Answers should be concise and faithful to the page.",
-    "7. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of the question.",
-    "8. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
-    "9. If the page only hints at a topic but does not provide a concrete answer, skip that QA pair instead of guessing.",
-    "10. Prefer standalone questions that still make sense outside the original page. Avoid weak forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
-    "11. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
-    '12. JSON schema: {"qa_pairs":[{"question":"...","answer":"...","evidence":"..."}]}',
-    existingSummary ? "13. Do not repeat or paraphrase the existing QA pairs listed below. Only create new ones." : "",
-    extraPrompt ? `14. Additional task instructions: ${extraPrompt}` : "",
+    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
+    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
+    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
+    "6. Prefer standalone questions that still make sense outside the original page.",
+    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
+    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
+    "12. Evidence must be a short supporting passage copied from the provided page text.",
+    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
+    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
+    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
+    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
+    existingSummary ? "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones." : "",
+    extraPrompt ? `18. Additional task instructions: ${extraPrompt}` : "",
     "",
     `URL: ${url}`,
     title ? `Title: ${title}` : "",
@@ -2794,7 +2918,7 @@ async function getPageContextFromUrl(url) {
     let injectedFallback = false;
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
-        const response = await chrome.tabs.sendMessage(Number(tab.id), { type: "edge-ai-chat:get-page-context" });
+        const response = await chrome.tabs.sendMessage(Number(tab.id), { type: "edge-ai-chat:get-page-context", expandDetails: true });
         if (response?.ok && response.context) {
           return response.context;
         }
@@ -2827,7 +2951,7 @@ function mergeUniqueBatchUrlQaPairs(existingPairs = [], incomingPairs = []) {
     if (!normalized) {
       continue;
     }
-    const key = `${normalized.question}`.trim().toLowerCase();
+    const key = `${normalized.topic}|${normalized.answer}`.trim().toLowerCase();
     if (!key || seen.has(key)) {
       continue;
     }
@@ -2852,23 +2976,63 @@ function convertPlainUrlsToMarkdownLinks(value) {
   });
 }
 
+function normalizeBatchUrlQaOutputLine(value) {
+  return String(value || "")
+    .replace(/^\s*[，,、；;:：.\-]+\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripLeadingQaLabel(value, label) {
+  const pattern = new RegExp(`^\\s*${label}\\s*:\\s*`, "i");
+  return String(value || "").replace(pattern, "").trim();
+}
+
+function truncateEmbeddedQaMarker(value, markerLabel) {
+  const text = String(value || "");
+  if (!text) {
+    return "";
+  }
+  const pattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${markerLabel}\\s*:`, "i");
+  const match = pattern.exec(text);
+  if (!match || typeof match.index !== "number") {
+    return text;
+  }
+  return text.slice(0, match.index).trim().replace(/[，,、；;:：.\-]+\s*$/u, "").trim();
+}
+
 function buildBatchUrlQaMarkdown(results = []) {
-  const markdown = (Array.isArray(results) ? results : [])
+  const entries = (Array.isArray(results) ? results : [])
     .filter((item) => item.status === "ok" && Array.isArray(item.qaPairs) && item.qaPairs.length)
-    .flatMap((item) => item.qaPairs.map((pair) => {
-      const question = convertPlainUrlsToMarkdownLinks(pair.question);
-      const answer = convertPlainUrlsToMarkdownLinks(pair.answer);
-      return `Q: ${question}\nA: ${answer}\n`;
-    }))
-    .join("\n");
-  return markdown ? `${markdown}\n` : "";
+    .flatMap((item) => item.qaPairs)
+    .flatMap((pair) => {
+      const questions = Array.isArray(pair.questions) ? pair.questions : [];
+      const answer = normalizeBatchUrlQaOutputLine(
+        truncateEmbeddedQaMarker(
+          stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(pair.answer), "A"),
+          "Q",
+        ),
+      );
+      return questions.map((question) => {
+        const cleanedQuestion = normalizeBatchUrlQaOutputLine(
+          truncateEmbeddedQaMarker(
+            stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(question), "Q"),
+            "A",
+          ),
+        );
+        return `Q: ${cleanedQuestion}\nA: ${answer}`;
+      });
+    })
+    .filter(Boolean);
+  return entries.length ? `${entries.join("\n\n")}\n` : "";
 }
 
 async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
+  const targetCount = estimateBatchUrlQaTargetCount(pageText, headings, qaPerUrl);
   let collectedPairs = [];
   const maxAttempts = 3;
 
-  for (let attempt = 0; attempt < maxAttempts && collectedPairs.length < qaPerUrl; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts && collectedPairs.length < targetCount; attempt += 1) {
     const response = await generateWithConfiguredProvider(
       buildBatchUrlQaPrompt({
         url,
@@ -2876,7 +3040,7 @@ async function generateQaPairsForPage({ url, title, metaDescription, headings, p
         metaDescription,
         headings,
         pageText,
-        qaPerUrl: qaPerUrl - collectedPairs.length,
+        qaPerUrl: targetCount - collectedPairs.length,
         outputLanguage,
         extraPrompt,
         existingPairs: collectedPairs,
@@ -2885,15 +3049,18 @@ async function generateQaPairsForPage({ url, title, metaDescription, headings, p
     );
     const parsed = extractJsonObjectFromText(response?.response || "");
     const qaPairs = Array.isArray(parsed?.qa_pairs)
-      ? parsed.qa_pairs.map((item) => normalizeBatchUrlQaPair(item)).filter(Boolean)
+      ? parsed.qa_pairs
+        .map((item) => normalizeBatchUrlQaPair(item))
+        .filter(Boolean)
+        .filter((item) => isBatchUrlQaPairAlignedToScope(item, { title, headings }))
       : [];
     collectedPairs = mergeUniqueBatchUrlQaPairs(collectedPairs, qaPairs);
   }
 
-  if (collectedPairs.length < qaPerUrl) {
-    throw new Error(`Model returned only ${collectedPairs.length} grounded QA pair(s) after retries.`);
+  if (collectedPairs.length < Math.max(2, Math.min(targetCount, 2))) {
+    throw new Error(`Model returned only ${collectedPairs.length} grounded FAQ item(s) after retries.`);
   }
-  return collectedPairs.slice(0, qaPerUrl);
+  return collectedPairs.slice(0, targetCount);
 }
 
 async function processBatchUrlQaJob(jobId) {

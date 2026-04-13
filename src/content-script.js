@@ -893,14 +893,14 @@ const CONTENT_I18N = {
     agentFlowNeedMoreSteps: "至少要選擇 {min} 個 skill 才能建立 Agent Flow。",
     agentFlowTooManySteps: "目前最多只能放 {max} 個 skill。",
     batchUrlQaWorkflowTitle: "網址清單生成 QA",
-    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容、生成 QA pairs、寫入單一 md 檔，並在完成後發送通知。",
+    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容，依內容密度生成 2 到 8 組高品質 FAQ，寫入單一 md 檔，並在完成後發送通知。",
     batchUrlQaUrlsLabel: "網址列表",
     batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
-    batchUrlQaCountLabel: "每頁 QA 數量",
+    batchUrlQaCountLabel: "每頁 FAQ 上限",
     batchUrlQaLanguageLabel: "輸出語言",
     batchUrlQaFileLabel: "輸出檔名",
     batchUrlQaExtraPromptLabel: "額外指示",
-    batchUrlQaExtraPromptPlaceholder: "例如：問題請更偏向產品功能、避免太技術化，答案保持一句到兩句。",
+    batchUrlQaExtraPromptPlaceholder: "例如：問題請偏向使用者常見 FAQ，答案若有操作流程請保留完整步驟。",
     batchUrlQaSettingsTitle: "任務設定",
     batchUrlQaStatusTitle: "執行狀態",
     batchUrlQaStart: "開始執行",
@@ -1351,14 +1351,14 @@ const CONTENT_I18N = {
     agentFlowImagesUnsupported: "The first Agent Flow version does not support image attachments yet.",
     agentFlowUserMessage: "Run Agent Flow: {name}",
     batchUrlQaWorkflowTitle: "URL List To QA",
-    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate QA pairs, write one Markdown file, and send completion notifications.",
+    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate 2 to 8 high-quality FAQ items based on content density, write one Markdown file, and send completion notifications.",
     batchUrlQaUrlsLabel: "URL List",
     batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
-    batchUrlQaCountLabel: "QA Per URL",
+    batchUrlQaCountLabel: "FAQ Cap Per Page",
     batchUrlQaLanguageLabel: "Output Language",
     batchUrlQaFileLabel: "Output File",
     batchUrlQaExtraPromptLabel: "Extra Instructions",
-    batchUrlQaExtraPromptPlaceholder: "For example: focus questions on product features, avoid overly technical phrasing, and keep answers within one or two sentences.",
+    batchUrlQaExtraPromptPlaceholder: "For example: favor common FAQ wording, and preserve full step-by-step answers when the source is procedural.",
     batchUrlQaSettingsTitle: "Workflow Settings",
     batchUrlQaStatusTitle: "Run Status",
     batchUrlQaStart: "Start Workflow",
@@ -2572,6 +2572,30 @@ function collectHeadingsFromDocument(doc) {
   }
 }
 
+function withExpandedDetails(includeChildFrames, callback) {
+  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+  const toggledNodes = [];
+  try {
+    documents.forEach((doc) => {
+      queryAllIncludingShadow(doc, "details", 120).forEach((node) => {
+        if (node instanceof HTMLDetailsElement && !node.open) {
+          node.open = true;
+          toggledNodes.push(node);
+        }
+      });
+    });
+    return callback();
+  } finally {
+    toggledNodes.forEach((node) => {
+      try {
+        node.open = false;
+      } catch (_error) {
+        // Ignore restore errors.
+      }
+    });
+  }
+}
+
 function queryAllIncludingShadow(root, selectors, maxNodes = 100) {
   const results = [];
   const seen = new Set();
@@ -3110,32 +3134,38 @@ function detectDocumentWorkspaceSignals(signals) {
   };
 }
 
-function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true) {
-  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
-  const blocks = [];
-  const seen = new Set();
+function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true, options = {}) {
+  const collectSnapshot = () => {
+    const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+    const blocks = [];
+    const seen = new Set();
 
-  documents.forEach((doc) => {
-    collectTextBlocksFromDocument(doc).forEach((block) => {
-      appendUniqueTextBlock(blocks, seen, block, maxLength);
+    documents.forEach((doc) => {
+      collectTextBlocksFromDocument(doc).forEach((block) => {
+        appendUniqueTextBlock(blocks, seen, block, maxLength);
+      });
     });
-  });
 
-  const normalized = normalizeExtractedText(blocks.join("\n\n"));
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
+    const normalized = normalizeExtractedText(blocks.join("\n\n"));
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
 
-  const officeSignals = detectDocumentWorkspaceSignals({
-    hostname: window.location.hostname.toLowerCase(),
-    pathname: window.location.pathname.toLowerCase(),
-    title: document.title || "",
-    sampleText: normalized.slice(0, 2500),
-  });
+    const officeSignals = detectDocumentWorkspaceSignals({
+      hostname: window.location.hostname.toLowerCase(),
+      pathname: window.location.pathname.toLowerCase(),
+      title: document.title || "",
+      sampleText: normalized.slice(0, 2500),
+    });
 
-  return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
-    ? normalized.slice(-maxLength)
-    : normalized.slice(0, maxLength);
+    return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
+      ? normalized.slice(-maxLength)
+      : normalized.slice(0, maxLength);
+  };
+
+  return options?.expandDetails
+    ? withExpandedDetails(includeChildFrames, collectSnapshot)
+    : collectSnapshot();
 }
 
 function toAbsolutePageUrl(value) {
@@ -3236,22 +3266,28 @@ function getPageImageSnapshot(maxItems = MAX_PAGE_IMAGE_CANDIDATES, includeChild
   return items;
 }
 
-function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true) {
-  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
-  const headings = [];
-  const seen = new Set();
+function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true, options = {}) {
+  const collectSnapshot = () => {
+    const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+    const headings = [];
+    const seen = new Set();
 
-  documents.forEach((doc) => {
-    collectHeadingsFromDocument(doc).forEach((heading) => {
-      const key = heading.toLowerCase();
-      if (!seen.has(key) && headings.length < maxItems) {
-        seen.add(key);
-        headings.push(heading);
-      }
+    documents.forEach((doc) => {
+      collectHeadingsFromDocument(doc).forEach((heading) => {
+        const key = heading.toLowerCase();
+        if (!seen.has(key) && headings.length < maxItems) {
+          seen.add(key);
+          headings.push(heading);
+        }
+      });
     });
-  });
 
-  return headings;
+    return headings;
+  };
+
+  return options?.expandDetails
+    ? withExpandedDetails(includeChildFrames, collectSnapshot)
+    : collectSnapshot();
 }
 
 function getSelectionText() {
@@ -5580,7 +5616,7 @@ function createDefaultAgentFlowBuilderDraft() {
 function createDefaultBatchUrlQaBuilderDraft() {
   return {
     urls: "",
-    qaPerUrl: "5",
+    qaPerUrl: "8",
     outputLanguage: getUiLanguage(),
     fileName: `batch-url-qa-${Date.now()}.md`,
     extraPrompt: "",
@@ -6432,11 +6468,11 @@ function renderMarkdown(markdown, options = {}) {
   }, blocks);
 }
 
-function getPageContext(includeChildFrames = true) {
+function getPageContext(includeChildFrames = true, options = {}) {
   const selection = getSelectionText();
-  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames);
+  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames, options);
   const imageCandidates = getPageImageSnapshot(MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
-  const headings = getPageHeadingsSnapshot(12, includeChildFrames)
+  const headings = getPageHeadingsSnapshot(12, includeChildFrames, options)
     .slice(0, 12)
     .join(" | ");
 
@@ -9437,7 +9473,7 @@ function renderBatchUrlQaBuilder() {
                 <div class="ollama-quick-batch-url-qa-config-grid">
                   <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-count">
                     <span>${escapeHtml(tl("batchUrlQaCountLabel"))}</span>
-                    <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="number" min="1" max="10" data-role="batch-url-qa-count" value="${escapeHtml(draft.qaPerUrl)}" />
+                    <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="number" min="2" max="8" data-role="batch-url-qa-count" value="${escapeHtml(draft.qaPerUrl)}" />
                   </label>
                   <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-language">
                     <span>${escapeHtml(tl("batchUrlQaLanguageLabel"))}</span>
@@ -11358,7 +11394,10 @@ function handleInput(event) {
   }
 
   if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-count") {
-    ensureBatchUrlQaBuilderDraft().qaPerUrl = target.value;
+    const parsed = Number.parseInt(target.value, 10);
+    const normalized = Number.isFinite(parsed) ? String(Math.min(8, Math.max(2, parsed))) : "8";
+    target.value = normalized;
+    ensureBatchUrlQaBuilderDraft().qaPerUrl = normalized;
     return;
   }
 
@@ -11956,7 +11995,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return false;
     }
 
-    sendResponse({ ok: true, context: getPageContext(true) });
+    sendResponse({ ok: true, context: getPageContext(true, { expandDetails: message?.expandDetails === true }) });
     return false;
   }
 
