@@ -1785,7 +1785,7 @@ const LOCALIZED_DEFAULT_MULTI_PERSPECTIVE_PROFILES = {
 
 let currentLocale = OPTION_I18N["zh-TW"];
 let activeProviderTab = "ollama";
-let activeSettingsView = "settings";
+let activeSettingsView = "general";
 let currentCustomStarters = [];
 let currentHiddenBuiltinStarterIds = [];
 let currentReplyLanguage = "zh-TW";
@@ -2191,6 +2191,7 @@ function sendMessage(message) {
 
 Object.assign(OPTION_I18N["zh-TW"], {
   utilityTabGeneral: "General",
+  utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "通知",
   utilityTabStarterLibrary: "Starter",
   utilityTabAgentFlowLibrary: "Agent Flow",
@@ -2257,6 +2258,7 @@ Object.assign(OPTION_I18N["zh-TW"], {
 
 Object.assign(OPTION_I18N.en, {
   utilityTabGeneral: "General",
+  utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "Notifications",
   utilityTabStarterLibrary: "Starter",
   utilityTabAgentFlowLibrary: "Agent Flow",
@@ -2534,6 +2536,7 @@ function applyTranslations() {
   document.getElementById("googleDriveSyncHint").textContent = t("googleDriveSyncHint");
   document.getElementById("googleDriveRedirectLabel").textContent = t("googleDriveRedirectLabel");
   document.getElementById("defaultProviderLabel").textContent = t("defaultProviderLabel");
+  document.getElementById("defaultProviderSelectLabel").textContent = t("defaultProviderLabel");
   document.getElementById("defaultProviderHint").textContent = t("defaultProviderHint");
   document.getElementById("starterRoutingKicker").textContent = t("starterRoutingKicker");
   document.getElementById("starterRoutingTitle").textContent = t("starterRoutingTitle");
@@ -2571,6 +2574,7 @@ function applyTranslations() {
   document.getElementById("starterLibraryGridTitle").textContent = t("starterLibraryGridTitle");
   document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
   document.getElementById("tabGeneral").textContent = t("utilityTabGeneral");
+  document.getElementById("tabAiProvider").textContent = t("utilityTabAiProvider");
   document.getElementById("tabNotifications").textContent = t("utilityTabNotifications");
   document.getElementById("tabStarterLibrary").textContent = t("utilityTabStarterLibrary");
   document.getElementById("tabAgentFlowLibrary").textContent = t("utilityTabAgentFlowLibrary");
@@ -3533,9 +3537,10 @@ function buildDuplicatedBuiltinStarter(starter) {
 }
 
 function setActiveSettingsView(view) {
-  activeSettingsView = ["settings", "notifications", "skills", "flows"].includes(view) ? view : "settings";
+  activeSettingsView = ["general", "provider", "notifications", "skills", "flows"].includes(view) ? view : "general";
   const viewMap = {
-    settings: "generalTabPanel",
+    general: "generalTabPanel",
+    provider: "aiProviderTabPanel",
     notifications: "notificationTabPanel",
     skills: "starterTabPanel",
     flows: "flowTabPanel",
@@ -4731,7 +4736,7 @@ document.getElementById("flowDetailActions").addEventListener("click", handleSta
 
 document.querySelectorAll("[data-settings-view]").forEach((button) => {
   button.addEventListener("click", () => {
-    setActiveSettingsView(button.dataset.settingsView || "settings");
+    setActiveSettingsView(button.dataset.settingsView || "general");
   });
 });
 

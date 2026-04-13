@@ -41,7 +41,8 @@
       </div>
 
       <div class="utility-tabs settings-page-tabs" role="tablist" aria-label="Settings sections">
-        <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="settings">General</button>
+        <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="general">General</button>
+        <button id="tabAiProvider" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="aiProviderTabPanel" data-settings-view="provider">AI Provider</button>
         <button id="tabNotifications" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="notificationTabPanel" data-settings-view="notifications">Notifications</button>
         <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
         <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
@@ -50,6 +51,148 @@
       <section class="settings-tab-panels">
       <section id="generalTabPanel" class="settings-tab-panel is-active" role="tabpanel">
         <section class="settings-layout">
+        <section class="setting-card utility-card behavior-card side-card">
+          <div class="setting-card-head">
+            <div>
+              <span id="behaviorKicker" class="section-kicker">Behavior</span>
+              <h2 id="generalSectionTitle">Experience</h2>
+            </div>
+            <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
+          </div>
+          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
+            <div class="side-stack">
+              <div class="provider-support-card">
+                <label class="checkbox-field">
+                  <input id="starterHoverTipsEnabled" type="checkbox" />
+                  <span id="starterHoverTipsEnabledLabel">Enable starter hover tips</span>
+                </label>
+                <p id="starterHoverTipsEnabledHint" class="field-hint">Show a short description when you hover over a starter in the chat panel.</p>
+              </div>
+              <label class="field">
+                <span id="systemPromptLabel">System Prompt</span>
+                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
+              </label>
+              <label class="field">
+                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
+                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
+Skeptic|Challenge assumptions, missing evidence, and weak points.
+Action Advisor|Recommend practical next steps and decisions."></textarea>
+              </label>
+            </div>
+            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
+            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
+          </section>
+        </section>
+
+        <div class="provider-support-grid">
+          <div class="provider-support-card general-github-card">
+            <label class="field">
+              <span id="githubApiKeyLabel">GitHub API Key</span>
+              <input id="githubApiKey" type="password" placeholder="ghp_..." />
+            </label>
+            <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
+          </div>
+
+          <div class="provider-support-card general-work-folder-card">
+            <div class="field">
+              <span id="localWorkFolderLabel">Local Work Folder</span>
+              <div class="actions">
+                <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
+                <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
+                <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
+              </div>
+              <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+              <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+              <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
+              <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
+            </div>
+          </div>
+
+          <div class="provider-support-card provider-support-wide">
+            <div class="field">
+              <span id="googleDriveSyncLabel">Google Drive Sync</span>
+              <label class="field">
+                <span id="googleDriveClientIdLabel">OAuth Client ID</span>
+                <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+              </label>
+              <label class="checkbox-field">
+                <input id="googleDriveSyncEnabled" type="checkbox" />
+                <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
+              </label>
+              <label class="checkbox-field">
+                <input id="googleDriveAutoSync" type="checkbox" />
+                <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
+                <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
+                <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
+                <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
+              </div>
+              <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
+              <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
+              <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
+              <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
+            </div>
+          </div>
+        </div>
+        </section>
+      </section>
+
+      <section id="aiProviderTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+        <article class="setting-card provider-priority-card">
+          <div class="setting-card-head">
+            <div>
+              <span class="section-kicker">Default Route</span>
+              <h2 id="defaultProviderLabel">Default Provider</h2>
+            </div>
+            <span class="section-tag">Quick Start</span>
+          </div>
+          <div class="split-fields settings-compact-fields">
+            <label class="field">
+              <span id="defaultProviderSelectLabel">Default Provider</span>
+              <select id="defaultProvider">
+                <option value="ollama">Ollama</option>
+                <option value="lmStudio">LM Studio</option>
+                <option value="gemini">Gemini</option>
+                <option value="azureOpenAi">Azure OpenAI</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="replyLanguageLabel">Reply Language</span>
+              <select id="replyLanguage">
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="zh-CN">简体中文</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="hi">हिन्दी</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
+              <select id="taskExtractionWindowDays">
+                <option value="1">1 day</option>
+                <option value="2">2 days</option>
+                <option value="3">3 days</option>
+                <option value="4">4 days</option>
+                <option value="5">5 days</option>
+                <option value="6">6 days</option>
+                <option value="7">7 days</option>
+              </select>
+            </label>
+          </div>
+          <p id="defaultProviderHint" class="field-hint">Choose which AI provider browser chat should use by default.</p>
+          <p id="providerStatusMessage" class="field-hint">Connection test results will appear here.</p>
+          <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
+        </article>
+
         <article class="setting-card provider-card">
           <div class="setting-card-head">
             <div>
@@ -168,50 +311,6 @@
 
           <div class="provider-support-grid">
             <div class="provider-support-card provider-support-wide">
-              <div class="split-fields settings-compact-fields">
-                <label class="field">
-                  <span id="defaultProviderLabel">Default Provider</span>
-                  <select id="defaultProvider">
-                    <option value="ollama">Ollama</option>
-                    <option value="lmStudio">LM Studio</option>
-                    <option value="gemini">Gemini</option>
-                    <option value="azureOpenAi">Azure OpenAI</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span id="replyLanguageLabel">Reply Language</span>
-                  <select id="replyLanguage">
-                    <option value="zh-TW">繁體中文</option>
-                    <option value="en">English</option>
-                    <option value="ja">日本語</option>
-                    <option value="ko">한국어</option>
-                    <option value="zh-CN">简体中文</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                    <option value="pt-BR">Português (Brasil)</option>
-                    <option value="hi">हिन्दी</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
-                  <select id="taskExtractionWindowDays">
-                    <option value="1">1 day</option>
-                    <option value="2">2 days</option>
-                    <option value="3">3 days</option>
-                    <option value="4">4 days</option>
-                    <option value="5">5 days</option>
-                    <option value="6">6 days</option>
-                    <option value="7">7 days</option>
-                  </select>
-                </label>
-              </div>
-              <p id="defaultProviderHint" class="field-hint">Choose which AI provider browser chat should use by default.</p>
-              <p id="providerStatusMessage" class="field-hint">Connection test results will appear here.</p>
-              <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
-            </div>
-
-            <div class="provider-support-card provider-support-wide">
               <div class="setting-card-head provider-panel-head">
                 <div>
                   <span id="starterRoutingKicker" class="section-kicker">Starter Routing</span>
@@ -239,92 +338,8 @@
               </div>
               <p id="starterRoutingHint" class="field-hint">Use the currently selected model as the default quick-reply model, and automatically switch code-analysis or GitHub review starters to a heavier model for that run only.</p>
             </div>
-
-            <div class="provider-support-card">
-              <label class="field">
-                <span id="githubApiKeyLabel">GitHub API Key</span>
-                <input id="githubApiKey" type="password" placeholder="ghp_..." />
-              </label>
-              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
-            </div>
-            <div class="provider-support-card">
-              <div class="field">
-                <span id="localWorkFolderLabel">Local Work Folder</span>
-                <div class="actions">
-                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
-                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
-                  <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
-                  <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
-                </div>
-                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
-                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
-                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
-                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
-              </div>
-            </div>
-
-            <div class="provider-support-card provider-support-wide">
-              <div class="field">
-                <span id="googleDriveSyncLabel">Google Drive Sync</span>
-                <label class="field">
-                  <span id="googleDriveClientIdLabel">OAuth Client ID</span>
-                  <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
-                </label>
-                <label class="checkbox-field">
-                  <input id="googleDriveSyncEnabled" type="checkbox" />
-                  <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
-                </label>
-                <label class="checkbox-field">
-                  <input id="googleDriveAutoSync" type="checkbox" />
-                  <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
-                </label>
-                <div class="actions settings-inline-actions">
-                  <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
-                  <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
-                  <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
-                  <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
-                </div>
-                <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
-                <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
-                <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
-                <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
-              </div>
-            </div>
           </div>
         </article>
-
-        <section class="setting-card utility-card behavior-card side-card">
-          <div class="setting-card-head">
-            <div>
-              <span id="behaviorKicker" class="section-kicker">Behavior</span>
-              <h2 id="generalSectionTitle">Experience</h2>
-            </div>
-            <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
-          </div>
-          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
-            <div class="side-stack">
-              <div class="provider-support-card">
-                <label class="checkbox-field">
-                  <input id="starterHoverTipsEnabled" type="checkbox" />
-                  <span id="starterHoverTipsEnabledLabel">Enable starter hover tips</span>
-                </label>
-                <p id="starterHoverTipsEnabledHint" class="field-hint">Show a short description when you hover over a starter in the chat panel.</p>
-              </div>
-              <label class="field">
-                <span id="systemPromptLabel">System Prompt</span>
-                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
-              </label>
-              <label class="field">
-                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
-                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
-Skeptic|Challenge assumptions, missing evidence, and weak points.
-Action Advisor|Recommend practical next steps and decisions."></textarea>
-              </label>
-            </div>
-            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
-            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
-          </section>
-        </section>
         </section>
       </section>
 
@@ -463,7 +478,7 @@ Time: triggerBody()['sentAt']</pre>
         </div>
 
         <div class="starter-studio-shell library-page-shell">
-          <section class="starter-studio-intake starter-studio-intake-horizontal">
+          <section class="starter-studio-intake starter-studio-intake-horizontal skill-intake-card">
             <div class="starter-studio-intake-copy">
               <div class="starter-studio-head starter-studio-head-compact">
                 <div>
