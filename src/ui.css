@@ -1733,6 +1733,91 @@ body[data-theme="light"] .notification-code-hint {
   padding-right: 4px;
 }
 
+.batch-url-qa-shell textarea {
+  min-height: 260px;
+}
+
+.batch-url-qa-job-card {
+  padding: 18px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 20px;
+  background: rgba(6, 17, 31, 0.48);
+  display: grid;
+  gap: 12px;
+}
+
+.batch-url-qa-job-head,
+.batch-url-qa-job-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.batch-url-qa-job-title {
+  margin: 0;
+  font-size: 15px;
+  color: rgba(233, 245, 255, 0.94);
+}
+
+.batch-url-qa-job-path,
+.batch-url-qa-job-error,
+.batch-url-qa-job-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(214, 235, 255, 0.74);
+  word-break: break-word;
+}
+
+.batch-url-qa-job-error {
+  color: #ff9b9b;
+}
+
+.batch-url-qa-job-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(104, 187, 255, 0.18);
+  background: rgba(10, 29, 49, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(151, 214, 255, 0.82);
+}
+
+.batch-url-qa-job-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.batch-url-qa-job-stat {
+  padding: 12px 14px;
+  border: 1px solid rgba(104, 187, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(10, 29, 49, 0.58);
+}
+
+.batch-url-qa-job-stat-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(151, 214, 255, 0.72);
+}
+
+.batch-url-qa-job-stat-value {
+  font-size: 14px;
+  color: rgba(233, 245, 255, 0.92);
+}
+
 .starter-flow-editor-step,
 .starter-flow-editor-available-card {
   display: flex;
@@ -1803,6 +1888,22 @@ body[data-theme="light"] .starter-detail-block,
 body[data-theme="light"] .starter-detail-meta-item {
   border-color: rgba(91, 143, 181, 0.18);
   background: rgba(247, 251, 255, 0.86);
+}
+
+body[data-theme="light"] .batch-url-qa-job-card,
+body[data-theme="light"] .batch-url-qa-job-stat {
+  border-color: rgba(91, 143, 181, 0.18);
+  background: rgba(247, 251, 255, 0.86);
+}
+
+body[data-theme="light"] .batch-url-qa-job-title,
+body[data-theme="light"] .batch-url-qa-job-stat-value {
+  color: #163249;
+}
+
+body[data-theme="light"] .batch-url-qa-job-path,
+body[data-theme="light"] .batch-url-qa-job-note {
+  color: rgba(42, 79, 112, 0.78);
 }
 
 body[data-theme="light"] .starter-preview-lock {

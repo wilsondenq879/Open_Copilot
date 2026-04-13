@@ -234,6 +234,11 @@ let customStarterBuilderIsGenerating = false;
 let customStarterBuilderIsSaving = false;
 let agentFlowBuilderOpen = false;
 let agentFlowBuilderDraft = null;
+let batchUrlQaBuilderOpen = false;
+let batchUrlQaBuilderDraft = null;
+let batchUrlQaActiveJob = null;
+let batchUrlQaPollTimer = null;
+let batchUrlQaShouldFocusUrls = false;
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
@@ -770,6 +775,7 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
+    starter_batchUrlQaWorkflow: "網址清單生成 QA",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
@@ -868,6 +874,43 @@ const CONTENT_I18N = {
     agentFlowNeedName: "請先替這條 Agent Flow 命名。",
     agentFlowNeedMoreSteps: "至少要選擇 {min} 個 skill 才能建立 Agent Flow。",
     agentFlowTooManySteps: "目前最多只能放 {max} 個 skill。",
+    batchUrlQaWorkflowTitle: "網址清單生成 QA",
+    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容、生成 QA pairs、寫入單一 md 檔，並在完成後發送通知。",
+    batchUrlQaUrlsLabel: "網址列表",
+    batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
+    batchUrlQaCountLabel: "每頁 QA 數量",
+    batchUrlQaLanguageLabel: "輸出語言",
+    batchUrlQaFileLabel: "輸出檔名",
+    batchUrlQaExtraPromptLabel: "額外指示",
+    batchUrlQaExtraPromptPlaceholder: "例如：問題請更偏向產品功能、避免太技術化，答案保持一句到兩句。",
+    batchUrlQaSettingsTitle: "任務設定",
+    batchUrlQaStatusTitle: "執行狀態",
+    batchUrlQaStart: "開始執行",
+    batchUrlQaRunning: "正在執行",
+    batchUrlQaStatusIdle: "先貼上網址，再開始這條 workflow。",
+    batchUrlQaNeedUrls: "請先貼上至少一個有效網址。",
+    batchUrlQaCurrentStage: "目前步驟",
+    batchUrlQaProgress: "處理進度",
+    batchUrlQaOutputFile: "輸出檔案",
+    batchUrlQaOutputLanguage: "輸出語言",
+    batchUrlQaStageQueued: "步驟 1/5：等待開始",
+    batchUrlQaStageStarting: "步驟 1/5：初始化工作流",
+    batchUrlQaStageReading: "步驟 2/5：讀取網址內容",
+    batchUrlQaStageGenerating: "步驟 3/5：生成 QA pairs",
+    batchUrlQaStageCollecting: "步驟 3/5：整理本頁結果",
+    batchUrlQaStageWriting: "步驟 4/5：寫入 Markdown 檔案",
+    batchUrlQaStageNotifying: "步驟 5/5：發送完成通知",
+    batchUrlQaStageCompleted: "已完成",
+    batchUrlQaStageFailed: "執行失敗",
+    batchUrlQaCompleted: "網址清單 QA workflow 已完成。",
+    batchUrlQaClose: "隱藏",
+    batchUrlQaHideHint: "隱藏視窗不會中止工作，背景流程會繼續執行。",
+    batchUrlQaMiniTitle: "網址清單 QA 執行中",
+    batchUrlQaMiniOpen: "查看詳情",
+    batchUrlQaRailSetup: "初始化",
+    batchUrlQaRailRead: "讀取內容",
+    batchUrlQaRailGenerate: "生成 QA",
+    batchUrlQaRailExport: "輸出完成",
     perspectiveInputFallback: "請從摘要、質疑與行動建議三個角度分析這個頁面，最後整合成一份結論。",
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
@@ -1200,6 +1243,7 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
+    starter_batchUrlQaWorkflow: "URL List To QA",
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
@@ -1279,6 +1323,43 @@ const CONTENT_I18N = {
     agentFlowMissingSteps: "This Agent Flow depends on skills that are not currently available.",
     agentFlowImagesUnsupported: "The first Agent Flow version does not support image attachments yet.",
     agentFlowUserMessage: "Run Agent Flow: {name}",
+    batchUrlQaWorkflowTitle: "URL List To QA",
+    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate QA pairs, write one Markdown file, and send completion notifications.",
+    batchUrlQaUrlsLabel: "URL List",
+    batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
+    batchUrlQaCountLabel: "QA Per URL",
+    batchUrlQaLanguageLabel: "Output Language",
+    batchUrlQaFileLabel: "Output File",
+    batchUrlQaExtraPromptLabel: "Extra Instructions",
+    batchUrlQaExtraPromptPlaceholder: "For example: focus questions on product features, avoid overly technical phrasing, and keep answers within one or two sentences.",
+    batchUrlQaSettingsTitle: "Workflow Settings",
+    batchUrlQaStatusTitle: "Run Status",
+    batchUrlQaStart: "Start Workflow",
+    batchUrlQaRunning: "Running",
+    batchUrlQaStatusIdle: "Paste URLs first, then start this workflow.",
+    batchUrlQaNeedUrls: "Provide at least one valid URL first.",
+    batchUrlQaCurrentStage: "Current Step",
+    batchUrlQaProgress: "Progress",
+    batchUrlQaOutputFile: "Output File",
+    batchUrlQaOutputLanguage: "Output Language",
+    batchUrlQaStageQueued: "Step 1/5: queued",
+    batchUrlQaStageStarting: "Step 1/5: preparing workflow",
+    batchUrlQaStageReading: "Step 2/5: reading webpages",
+    batchUrlQaStageGenerating: "Step 3/5: generating QA pairs",
+    batchUrlQaStageCollecting: "Step 3/5: collecting page result",
+    batchUrlQaStageWriting: "Step 4/5: writing Markdown file",
+    batchUrlQaStageNotifying: "Step 5/5: sending completion notifications",
+    batchUrlQaStageCompleted: "Completed",
+    batchUrlQaStageFailed: "Failed",
+    batchUrlQaCompleted: "URL list QA workflow completed.",
+    batchUrlQaClose: "Hide",
+    batchUrlQaHideHint: "Hiding this window will not stop the workflow. It will keep running in the background.",
+    batchUrlQaMiniTitle: "URL QA Workflow Running",
+    batchUrlQaMiniOpen: "Open Details",
+    batchUrlQaRailSetup: "Setup",
+    batchUrlQaRailRead: "Read",
+    batchUrlQaRailGenerate: "Generate",
+    batchUrlQaRailExport: "Export",
     createAgentFlowTitle: "Create Agent Flow",
     createAgentFlowHint: "Pick 2 to 5 currently available skills and save them as a step-by-step workflow.",
     agentFlowNameLabel: "Flow name",
@@ -3528,7 +3609,7 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "createAgentFlow", "createCustomStarter"];
+  nextKeys = [...nextKeys, "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
 }
@@ -3556,6 +3637,7 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
+    "batchUrlQaWorkflow",
     "createAgentFlow",
     "createCustomStarter",
   ];
@@ -3787,8 +3869,10 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
       isCustomStarter: false,
       starterKey,
-      showInPopup: !Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey),
+      showInPopup: (!Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey))
+        && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized),
       isRecommended: highlightedKeys.includes(starterKey),
+      isBatchUrlQaBuilder: starterKey === "batchUrlQaWorkflow",
       isCustomStarterBuilder: starterKey === "createCustomStarter",
       isAgentFlowBuilder: starterKey === "createAgentFlow",
       recommendationRank,
@@ -3804,19 +3888,22 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
     if (starter.isAgentFlowBuilder) {
       return 1;
     }
-    if (starter.isCustomStarterBuilder) {
+    if (starter.isBatchUrlQaBuilder) {
       return 2;
     }
-    if (starter.isAgentFlow) {
+    if (starter.isCustomStarterBuilder) {
       return 3;
     }
-    if (starter.isCustomStarter) {
+    if (starter.isAgentFlow) {
       return 4;
     }
-    if (starter.isRecommended) {
+    if (starter.isCustomStarter) {
       return 5;
     }
-    return 6;
+    if (starter.isRecommended) {
+      return 6;
+    }
+    return 7;
   }
 
   return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
@@ -3850,6 +3937,7 @@ function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
       starter.description,
       starter.prompt,
       starter.composeMode,
+      starter.isBatchUrlQaBuilder ? "batch url qa workflow url list md markdown dataset qa pairs workflow 網址 qa 工作流 批次" : "",
       starter.isCustomStarter ? "custom starter custom skill custom 自訂 自定义 自訂工具 自訂技能 技能" : "",
       starter.isCustomStarterBuilder ? "custom starter builder create custom starter teach ai new skill custom 自訂 starter 建立自訂 starter 教 ai 一個新技能 新技能" : "",
       starter.isAgentFlowBuilder ? "agent flow flow builder workflow create agent flow custom agent flow flow agent 流程 工作流 建立流程 建立 agent flow" : "",
@@ -5442,6 +5530,16 @@ function createDefaultAgentFlowBuilderDraft() {
   };
 }
 
+function createDefaultBatchUrlQaBuilderDraft() {
+  return {
+    urls: "",
+    qaPerUrl: "5",
+    outputLanguage: getUiLanguage(),
+    fileName: `batch-url-qa-${Date.now()}.md`,
+    extraPrompt: "",
+  };
+}
+
 function resetCustomStarterBuilderState() {
   customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
   customStarterBuilderConversation = [];
@@ -5451,6 +5549,11 @@ function resetCustomStarterBuilderState() {
 
 function resetAgentFlowBuilderState() {
   agentFlowBuilderDraft = createDefaultAgentFlowBuilderDraft();
+}
+
+function resetBatchUrlQaBuilderState() {
+  batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
+  batchUrlQaActiveJob = null;
 }
 
 function ensureCustomStarterBuilderDraft() {
@@ -5469,6 +5572,13 @@ function ensureAgentFlowBuilderDraft() {
   }
   agentFlowBuilderDraft.outputStepIds = normalizeAgentFlowOutputStepIds(agentFlowBuilderDraft.outputStepIds, agentFlowBuilderDraft.steps);
   return agentFlowBuilderDraft;
+}
+
+function ensureBatchUrlQaBuilderDraft() {
+  if (!batchUrlQaBuilderDraft || typeof batchUrlQaBuilderDraft !== "object") {
+    batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
+  }
+  return batchUrlQaBuilderDraft;
 }
 
 function normalizeAgentFlowOutputStepIds(value, steps = []) {
@@ -8489,6 +8599,7 @@ function renderShell() {
             <span class="ollama-quick-status-indicator" data-role="status-indicator"></span>
             <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
           </div>
+          ${renderBatchUrlQaMiniStatus()}
           ${pendingStarterExecution?.starter && pendingStarterExecution?.suggestedModel ? `
             <div class="ollama-quick-starter-route-banner">
               <div class="ollama-quick-starter-route-copy">
@@ -8583,13 +8694,14 @@ function renderShell() {
                 starter.isRecommended ? "is-recommended" : "",
                 starter.isCustomStarter ? "is-custom" : "",
                 starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+                starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
                 starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
                 starter.isAgentFlow ? "is-agent-flow" : "",
                 starter.id === highlightedStarterId ? "is-highlighted" : "",
               ].filter(Boolean).join(" ");
               const prefix = starter.isRecommended
                 ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
-                : starter.isAgentFlow || starter.isAgentFlowBuilder
+                : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
                 : starter.isCustomStarter || starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
@@ -8610,6 +8722,7 @@ function renderShell() {
       ${renderLocalDocumentPicker()}
       ${renderCustomStarterBuilder()}
       ${renderAgentFlowBuilder()}
+      ${renderBatchUrlQaBuilder()}
       ${renderConfirmDialog()}
       </section>
     </div>
@@ -8667,6 +8780,16 @@ function renderShell() {
       window.requestAnimationFrame(() => {
         nameField.focus();
       });
+    }
+  }
+
+  if (batchUrlQaBuilderOpen) {
+    const urlsField = host.querySelector('[data-role="batch-url-qa-urls"]');
+    if (batchUrlQaShouldFocusUrls && urlsField instanceof HTMLTextAreaElement) {
+      window.requestAnimationFrame(() => {
+        urlsField.focus();
+      });
+      batchUrlQaShouldFocusUrls = false;
     }
   }
 }
@@ -9113,6 +9236,206 @@ function renderAgentFlowBuilder() {
           <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="save-agent-flow">${escapeHtml(tl("agentFlowSave"))}</button>
         </div>
       </section>
+    </div>
+  `;
+}
+
+function getBatchUrlQaStageLabel(stage = "") {
+  const normalized = String(stage || "").trim().toLowerCase();
+  if (normalized === "starting") return tl("batchUrlQaStageStarting");
+  if (normalized === "reading") return tl("batchUrlQaStageReading");
+  if (normalized === "generating") return tl("batchUrlQaStageGenerating");
+  if (normalized === "collecting") return tl("batchUrlQaStageCollecting");
+  if (normalized === "writing") return tl("batchUrlQaStageWriting");
+  if (normalized === "notifying") return tl("batchUrlQaStageNotifying");
+  if (normalized === "completed") return tl("batchUrlQaStageCompleted");
+  if (normalized === "failed") return tl("batchUrlQaStageFailed");
+  return tl("batchUrlQaStageQueued");
+}
+
+function getBatchUrlQaRailState(stage = "") {
+  const normalized = String(stage || "").trim().toLowerCase();
+  if (normalized === "completed") {
+    return 4;
+  }
+  if (normalized === "writing" || normalized === "notifying") {
+    return 4;
+  }
+  if (normalized === "generating" || normalized === "collecting") {
+    return 3;
+  }
+  if (normalized === "reading") {
+    return 2;
+  }
+  return 1;
+}
+
+function renderBatchUrlQaProgressRail(activeJob, draft) {
+  const stage = String(activeJob?.stage || "queued").trim().toLowerCase();
+  const currentStep = getBatchUrlQaRailState(stage);
+  const progressText = activeJob ? `${activeJob.progress || 0} / ${activeJob.total || 0}` : "0 / 0";
+  const currentUrl = String(activeJob?.currentUrl || "").trim();
+  const metaText = currentUrl
+    ? `${getBatchUrlQaStageLabel(stage)} · ${progressText} · ${currentUrl}`
+    : `${getBatchUrlQaStageLabel(stage)} · ${progressText} · ${LANGUAGE_LABELS[draft.outputLanguage] || draft.outputLanguage}`;
+  const steps = [
+    tl("batchUrlQaRailSetup"),
+    tl("batchUrlQaRailRead"),
+    tl("batchUrlQaRailGenerate"),
+    tl("batchUrlQaRailExport"),
+  ];
+
+  const items = steps.map((label, index) => {
+    const stepNumber = index + 1;
+    const stateClass = stepNumber < currentStep
+      ? "is-done"
+      : stepNumber === currentStep
+        ? "is-active"
+        : "";
+    return `
+      <div class="ollama-quick-batch-url-qa-progress-step ${stateClass}">
+        <span class="ollama-quick-batch-url-qa-progress-dot">${stepNumber}</span>
+        <span class="ollama-quick-batch-url-qa-progress-label">${escapeHtml(label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="ollama-quick-batch-url-qa-progress-surface">
+      <div class="ollama-quick-batch-url-qa-progress-rail">${items}</div>
+      <div class="ollama-quick-batch-url-qa-progress-meta">${escapeHtml(metaText)}</div>
+    </div>
+  `;
+}
+
+async function loadBatchUrlQaActiveJob() {
+  const result = await runtimeMessage({ type: "batch-url-qa:list-jobs" });
+  if (!result?.ok) {
+    throw new Error(result?.error || "Failed to load batch URL QA jobs.");
+  }
+  const jobs = Array.isArray(result.jobs) ? result.jobs : [];
+  const draft = ensureBatchUrlQaBuilderDraft();
+  const targetJob = jobs.find((item) => item.id === batchUrlQaActiveJob?.id)
+    || jobs.find((item) => item.fileName === draft.fileName && item.status === "running")
+    || jobs.find((item) => item.status === "running" || item.status === "queued")
+    || null;
+  batchUrlQaActiveJob = targetJob;
+  if (targetJob?.status === "completed") {
+    setStatus(tl("batchUrlQaCompleted"));
+    if (!batchUrlQaBuilderOpen && batchUrlQaPollTimer) {
+      window.clearInterval(batchUrlQaPollTimer);
+      batchUrlQaPollTimer = null;
+    }
+  } else if (targetJob?.status === "failed" && targetJob?.error) {
+    setStatus(targetJob.error);
+    if (!batchUrlQaBuilderOpen && batchUrlQaPollTimer) {
+      window.clearInterval(batchUrlQaPollTimer);
+      batchUrlQaPollTimer = null;
+    }
+  }
+  renderShell();
+}
+
+function startBatchUrlQaPolling() {
+  if (batchUrlQaPollTimer) {
+    window.clearInterval(batchUrlQaPollTimer);
+  }
+  batchUrlQaPollTimer = window.setInterval(() => {
+    if (!batchUrlQaBuilderOpen && !batchUrlQaActiveJob?.id) {
+      return;
+    }
+    loadBatchUrlQaActiveJob().catch(() => {});
+  }, 2500);
+}
+
+function renderBatchUrlQaBuilder() {
+  if (!batchUrlQaBuilderOpen) {
+    return "";
+  }
+
+  const draft = ensureBatchUrlQaBuilderDraft();
+  const activeJob = batchUrlQaActiveJob;
+  const isRunning = activeJob?.status === "running" || activeJob?.status === "queued";
+  const stageText = getBatchUrlQaStageLabel(activeJob?.stage || "");
+  const progressText = activeJob ? `${activeJob.progress || 0} / ${activeJob.total || 0}` : "0 / 0";
+  const languageOptions = Object.entries(LANGUAGE_LABELS)
+    .map(([value, label]) => `<option value="${escapeHtml(value)}" ${draft.outputLanguage === value ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-custom-starter-modal ollama-quick-batch-url-qa-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("batchUrlQaWorkflowTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("batchUrlQaWorkflowHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-batch-url-qa-builder" aria-label="${escapeHtml(tl("batchUrlQaClose"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form ollama-quick-batch-url-qa-form">
+          <div class="ollama-quick-batch-url-qa-hint">${escapeHtml(tl("batchUrlQaHideHint"))}</div>
+          <div class="ollama-quick-batch-url-qa-layout">
+            <div class="ollama-quick-batch-url-qa-column is-urls">
+              <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-surface is-urls-surface">
+                <span>${escapeHtml(tl("batchUrlQaUrlsLabel"))}</span>
+                <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-textarea" data-role="batch-url-qa-urls" placeholder="${escapeHtml(tl("batchUrlQaUrlsPlaceholder"))}">${escapeHtml(draft.urls)}</textarea>
+              </label>
+            </div>
+            <div class="ollama-quick-batch-url-qa-column is-side">
+              <div class="ollama-quick-batch-url-qa-surface ollama-quick-batch-url-qa-side-panel is-settings">
+                <div class="ollama-quick-batch-url-qa-panel-title">${escapeHtml(tl("batchUrlQaSettingsTitle"))}</div>
+                <div class="ollama-quick-batch-url-qa-config-grid">
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-count">
+                    <span>${escapeHtml(tl("batchUrlQaCountLabel"))}</span>
+                    <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="number" min="1" max="10" data-role="batch-url-qa-count" value="${escapeHtml(draft.qaPerUrl)}" />
+                  </label>
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-language">
+                    <span>${escapeHtml(tl("batchUrlQaLanguageLabel"))}</span>
+                    <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="batch-url-qa-language">${languageOptions}</select>
+                  </label>
+                </div>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-file">
+                  <span>${escapeHtml(tl("batchUrlQaFileLabel"))}</span>
+                  <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="text" data-role="batch-url-qa-file" value="${escapeHtml(draft.fileName)}" />
+                </label>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-extra-prompt">
+                  <span>${escapeHtml(tl("batchUrlQaExtraPromptLabel"))}</span>
+                  <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-extra-prompt" data-role="batch-url-qa-extra-prompt" placeholder="${escapeHtml(tl("batchUrlQaExtraPromptPlaceholder"))}">${escapeHtml(draft.extraPrompt || "")}</textarea>
+                </label>
+              </div>
+            </div>
+          </div>
+          ${renderBatchUrlQaProgressRail(activeJob, draft)}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaClose"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="start-batch-url-qa-workflow" ${isRunning ? "disabled" : ""}>${escapeHtml(isRunning ? tl("batchUrlQaRunning") : tl("batchUrlQaStart"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderBatchUrlQaMiniStatus() {
+  const activeJob = batchUrlQaActiveJob;
+  const isRunning = activeJob?.status === "running" || activeJob?.status === "queued";
+  if (!isRunning || batchUrlQaBuilderOpen) {
+    return "";
+  }
+
+  const stageText = getBatchUrlQaStageLabel(activeJob?.stage || "");
+  const progressText = `${activeJob?.progress || 0} / ${activeJob?.total || 0}`;
+  const currentUrl = String(activeJob?.currentUrl || "").trim();
+
+  return `
+    <div class="ollama-quick-batch-url-qa-mini-status">
+      <div class="ollama-quick-batch-url-qa-mini-copy">
+        <div class="ollama-quick-batch-url-qa-mini-title">${escapeHtml(tl("batchUrlQaMiniTitle"))}</div>
+        <div class="ollama-quick-batch-url-qa-mini-meta">${escapeHtml(stageText)} · ${escapeHtml(progressText)}</div>
+        ${currentUrl ? `<div class="ollama-quick-batch-url-qa-mini-url">${escapeHtml(currentUrl)}</div>` : ""}
+      </div>
+      <button class="ollama-quick-secondary" type="button" data-action="open-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaMiniOpen"))}</button>
     </div>
   `;
 }
@@ -10311,6 +10634,7 @@ async function handleClick(event) {
     if (starter.id === "builtin:createCustomStarter") {
       customStarterBuilderOpen = true;
       agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -10324,10 +10648,28 @@ async function handleClick(event) {
     if (starter.id === "builtin:createAgentFlow") {
       agentFlowBuilderOpen = true;
       customStarterBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
       resetAgentFlowBuilderState();
+      renderShell();
+      return;
+    }
+
+    if (starter.id === "builtin:batchUrlQaWorkflow") {
+      batchUrlQaBuilderOpen = true;
+      batchUrlQaShouldFocusUrls = true;
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      if (!batchUrlQaBuilderDraft) {
+        resetBatchUrlQaBuilderState();
+      }
+      startBatchUrlQaPolling();
+      loadBatchUrlQaActiveJob().catch(() => {});
       renderShell();
       return;
     }
@@ -10366,6 +10708,51 @@ async function handleClick(event) {
 
   if (action === "close-agent-flow-builder") {
     agentFlowBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "close-batch-url-qa-builder") {
+    batchUrlQaBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "open-batch-url-qa-builder") {
+    batchUrlQaBuilderOpen = true;
+    batchUrlQaShouldFocusUrls = true;
+    loadBatchUrlQaActiveJob().catch(() => {});
+    renderShell();
+    return;
+  }
+
+  if (action === "start-batch-url-qa-workflow") {
+    const draft = ensureBatchUrlQaBuilderDraft();
+    if (!draft.urls.trim()) {
+      setStatus(tl("batchUrlQaNeedUrls"));
+      return;
+    }
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
+      setStatus(tl("pickModelFirst"));
+      return;
+    }
+    const result = await runtimeMessage({
+      type: "batch-url-qa:start-job",
+      urls: draft.urls,
+      qaPerUrl: draft.qaPerUrl,
+      fileName: draft.fileName,
+      extraPrompt: draft.extraPrompt || "",
+      outputLanguage: draft.outputLanguage,
+      model: executionModel,
+    });
+    if (!result?.ok) {
+      setStatus(result?.error || tl("batchUrlQaStageFailed"));
+      return;
+    }
+    batchUrlQaActiveJob = result.job || null;
+    setStatus(batchUrlQaActiveJob?.stageLabel || tl("batchUrlQaStageStarting"));
+    startBatchUrlQaPolling();
     renderShell();
     return;
   }
@@ -10892,6 +11279,11 @@ async function handleChange(event) {
       target.value = "";
     }
   }
+
+  if (target instanceof HTMLSelectElement && target.dataset.role === "batch-url-qa-language") {
+    ensureBatchUrlQaBuilderDraft().outputLanguage = target.value || getUiLanguage();
+    renderShell();
+  }
 }
 
 function handleInput(event) {
@@ -10908,6 +11300,26 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement && target.dataset.role === "agent-flow-name") {
     ensureAgentFlowBuilderDraft().name = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-urls") {
+    ensureBatchUrlQaBuilderDraft().urls = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-count") {
+    ensureBatchUrlQaBuilderDraft().qaPerUrl = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-file") {
+    ensureBatchUrlQaBuilderDraft().fileName = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-extra-prompt") {
+    ensureBatchUrlQaBuilderDraft().extraPrompt = target.value;
     return;
   }
 

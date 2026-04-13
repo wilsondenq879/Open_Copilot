@@ -1792,6 +1792,8 @@ let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
 let latestWorkFolderStatus = null;
 let latestGoogleDriveStatus = null;
+let currentBatchUrlQaJobs = [];
+let batchUrlQaPollTimer = null;
 let skillDetailState = {
   open: false,
   starterId: "",
@@ -2213,6 +2215,27 @@ Object.assign(OPTION_I18N["zh-TW"], {
   flowDetailHint: "這裡會顯示整條 flow 的完整步驟。",
   flowDetailMetaLabel: "Metadata",
   flowDetailStepsLabel: "Flow Steps",
+  batchUrlQaTitle: "Batch URL QA",
+  batchUrlQaHint: "貼上 1 到 100 個網址，逐頁生成有 evidence 的 QA pairs，並把整批結果寫進本機 work folder 的同一個 Markdown 檔。",
+  batchUrlQaCountLabel: "每頁 QA 數量",
+  batchUrlQaFileNameLabel: "輸出檔名",
+  batchUrlQaInputLabel: "貼上網址",
+  batchUrlQaInputHint: "建議一行一個 URL。輸出內容只保留 Q: 與 A: 行。",
+  batchUrlQaStartButton: "開始 Batch Job",
+  batchUrlQaStatusIdle: "Batch job 狀態會顯示在這裡。",
+  batchUrlQaJobsTitle: "Batch URL QA Jobs",
+  batchUrlQaJobsHint: "最近的執行會顯示進度、成功數量，以及寫入 work folder 的單一 Markdown 路徑。",
+  batchUrlQaNoJobs: "目前還沒有 Batch URL QA jobs。",
+  batchUrlQaStarted: "Batch URL QA 已開始：{count} 個 URL，輸出到 {fileName}",
+  batchUrlQaModelMissing: "請先選擇模型，再開始 Batch URL QA。",
+  batchUrlQaStatStatus: "狀態",
+  batchUrlQaStatProgress: "進度",
+  batchUrlQaStatSuccess: "成功",
+  batchUrlQaStatFailed: "失敗",
+  batchUrlQaStatModel: "模型",
+  batchUrlQaInvalidCount: "無效 URL：{count}",
+  batchUrlQaTruncated: "已限制為前 100 個有效 URL。",
+  batchUrlQaOutputPath: "輸出檔案：{path}",
   skillMetaIdLabel: "ID",
   skillMetaSourceLabel: "來源",
   skillMetaModeLabel: "模式",
@@ -2258,6 +2281,27 @@ Object.assign(OPTION_I18N.en, {
   flowDetailHint: "Review the full flow steps here.",
   flowDetailMetaLabel: "Metadata",
   flowDetailStepsLabel: "Flow Steps",
+  batchUrlQaTitle: "Batch URL QA",
+  batchUrlQaHint: "Paste 1 to 100 URLs, generate grounded QA pairs with evidence for each page, then write the whole run into one Markdown file in the local work folder.",
+  batchUrlQaCountLabel: "QA per URL",
+  batchUrlQaFileNameLabel: "Output File Name",
+  batchUrlQaInputLabel: "Paste URLs",
+  batchUrlQaInputHint: "Use one URL per line. The output keeps plain Q: and A: lines only.",
+  batchUrlQaStartButton: "Start Batch Job",
+  batchUrlQaStatusIdle: "Batch job status will appear here.",
+  batchUrlQaJobsTitle: "Batch URL QA Jobs",
+  batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.",
+  batchUrlQaNoJobs: "No Batch URL QA jobs yet.",
+  batchUrlQaStarted: "Batch URL QA started: {count} URL(s), output file {fileName}",
+  batchUrlQaModelMissing: "Pick a model before starting Batch URL QA.",
+  batchUrlQaStatStatus: "Status",
+  batchUrlQaStatProgress: "Progress",
+  batchUrlQaStatSuccess: "Success",
+  batchUrlQaStatFailed: "Failed",
+  batchUrlQaStatModel: "Model",
+  batchUrlQaInvalidCount: "Invalid URLs: {count}",
+  batchUrlQaTruncated: "Only the first 100 valid URLs were kept.",
+  batchUrlQaOutputPath: "Output file: {path}",
   skillMetaIdLabel: "ID",
   skillMetaSourceLabel: "Source",
   skillMetaModeLabel: "Mode",
@@ -2541,6 +2585,19 @@ function applyTranslations() {
   if (agentFlowLibrarySkillsLabel) agentFlowLibrarySkillsLabel.textContent = t("agentFlowLibrarySkillsLabel");
   document.getElementById("agentFlowLibraryGridTitle").textContent = t("agentFlowLibraryGridTitle");
   document.getElementById("agentFlowLibraryGridDescription").textContent = t("agentFlowLibraryGridDescription");
+  document.getElementById("batchUrlQaTitle").textContent = t("batchUrlQaTitle");
+  document.getElementById("batchUrlQaHint").textContent = t("batchUrlQaHint");
+  document.getElementById("batchUrlQaCountLabel").textContent = t("batchUrlQaCountLabel");
+  document.getElementById("batchUrlQaFileNameLabel").textContent = t("batchUrlQaFileNameLabel");
+  document.getElementById("batchUrlQaStartButton").textContent = t("batchUrlQaStartButton");
+  document.getElementById("batchUrlQaInputLabel").textContent = t("batchUrlQaInputLabel");
+  document.getElementById("batchUrlQaInputHint").textContent = t("batchUrlQaInputHint");
+  document.getElementById("batchUrlQaJobsTitle").textContent = t("batchUrlQaJobsTitle");
+  document.getElementById("batchUrlQaJobsHint").textContent = t("batchUrlQaJobsHint");
+  if (!String(document.getElementById("batchUrlQaStatus").textContent || "").trim() || document.getElementById("batchUrlQaStatus").dataset.i18nIdle === "true") {
+    document.getElementById("batchUrlQaStatus").textContent = t("batchUrlQaStatusIdle");
+    document.getElementById("batchUrlQaStatus").dataset.i18nIdle = "true";
+  }
   const starterLibraryCapacityValue = document.getElementById("starterLibraryCapacityValue");
   if (starterLibraryCapacityValue) starterLibraryCapacityValue.textContent = String(MAX_CUSTOM_STARTERS);
   document.getElementById("skillsPageTitle").textContent = t("skillsPageTitle");
@@ -3522,6 +3579,109 @@ function renderCustomStartersPreview() {
   }
 }
 
+function setBatchUrlQaStatus(message, isError = false) {
+  const node = document.getElementById("batchUrlQaStatus");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.textContent = message;
+  node.dataset.i18nIdle = "false";
+  node.classList.toggle("is-error", isError);
+  node.classList.toggle("is-success", !isError && Boolean(String(message || "").trim()));
+}
+
+function renderBatchUrlQaJobs() {
+  const node = document.getElementById("batchUrlQaJobsPreview");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!currentBatchUrlQaJobs.length) {
+    node.className = "starter-preview-list empty-state";
+    node.textContent = t("batchUrlQaNoJobs");
+    return;
+  }
+
+  node.className = "starter-preview-list";
+  node.innerHTML = currentBatchUrlQaJobs.map((job) => {
+    const notes = [];
+    if (Array.isArray(job.invalidUrls) && job.invalidUrls.length) {
+      notes.push(`<p class="batch-url-qa-job-note">${escapeHtml(t("batchUrlQaInvalidCount", { count: job.invalidUrls.length }))}</p>`);
+    }
+    if (job.truncated) {
+      notes.push(`<p class="batch-url-qa-job-note">${escapeHtml(t("batchUrlQaTruncated"))}</p>`);
+    }
+    const outputPath = job.outputPath ? `<p class="batch-url-qa-job-path">${escapeHtml(t("batchUrlQaOutputPath", { path: job.outputPath }))}</p>` : "";
+    const error = job.error ? `<p class="batch-url-qa-job-error">${escapeHtml(job.error)}</p>` : "";
+    return `
+      <article class="batch-url-qa-job-card">
+        <div class="batch-url-qa-job-head">
+          <div>
+            <h3 class="batch-url-qa-job-title">${escapeHtml(job.fileName || "batch-url-qa.md")}</h3>
+            <p class="batch-url-qa-job-note">${escapeHtml(job.createdAt ? new Date(job.createdAt).toLocaleString() : "")}</p>
+          </div>
+          <span class="batch-url-qa-job-chip">${escapeHtml(job.status || "queued")}</span>
+        </div>
+        <div class="batch-url-qa-job-stats">
+          <div class="batch-url-qa-job-stat">
+            <span class="batch-url-qa-job-stat-label">${escapeHtml(t("batchUrlQaStatProgress"))}</span>
+            <div class="batch-url-qa-job-stat-value">${escapeHtml(`${job.progress || 0} / ${job.total || 0}`)}</div>
+          </div>
+          <div class="batch-url-qa-job-stat">
+            <span class="batch-url-qa-job-stat-label">${escapeHtml(t("batchUrlQaStatSuccess"))}</span>
+            <div class="batch-url-qa-job-stat-value">${escapeHtml(String(job.successCount || 0))}</div>
+          </div>
+          <div class="batch-url-qa-job-stat">
+            <span class="batch-url-qa-job-stat-label">${escapeHtml(t("batchUrlQaStatFailed"))}</span>
+            <div class="batch-url-qa-job-stat-value">${escapeHtml(String(job.failureCount || 0))}</div>
+          </div>
+          <div class="batch-url-qa-job-stat">
+            <span class="batch-url-qa-job-stat-label">${escapeHtml(t("batchUrlQaStatModel"))}</span>
+            <div class="batch-url-qa-job-stat-value">${escapeHtml(job.model || "-")}</div>
+          </div>
+        </div>
+        ${outputPath}
+        ${error}
+        ${notes.join("")}
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadBatchUrlQaJobs({ silent = false } = {}) {
+  try {
+    const result = await sendMessage({ type: "batch-url-qa:list-jobs" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Failed to load Batch URL QA jobs.");
+    }
+    currentBatchUrlQaJobs = Array.isArray(result.jobs) ? result.jobs : [];
+    renderBatchUrlQaJobs();
+    if (result.status) {
+      renderWorkFolderStatus(result.status);
+    }
+    if (!silent && !currentBatchUrlQaJobs.length) {
+      const node = document.getElementById("batchUrlQaStatus");
+      if (node instanceof HTMLElement && !String(node.textContent || "").trim()) {
+        node.textContent = t("batchUrlQaStatusIdle");
+        node.dataset.i18nIdle = "true";
+      }
+    }
+  } catch (error) {
+    if (!silent) {
+      setBatchUrlQaStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+}
+
+function startBatchUrlQaPolling() {
+  if (batchUrlQaPollTimer) {
+    window.clearInterval(batchUrlQaPollTimer);
+  }
+  batchUrlQaPollTimer = window.setInterval(() => {
+    loadBatchUrlQaJobs({ silent: true }).catch(() => {});
+  }, 4000);
+}
+
 function getSkillEntryById(starterId) {
   return getSkillLibraryEntries().find((item) => item.id === starterId) || null;
 }
@@ -4046,12 +4206,18 @@ async function loadConfig() {
     currentHiddenBuiltinStarterIds = Array.isArray(result.config.hiddenBuiltinStarterIds)
       ? result.config.hiddenBuiltinStarterIds.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
+    const batchFileNameInput = document.getElementById("batchUrlQaFileName");
+    if (batchFileNameInput instanceof HTMLInputElement && !batchFileNameInput.value.trim()) {
+      batchFileNameInput.value = "batch-url-qa.md";
+    }
     renderCustomStartersPreview();
+    renderBatchUrlQaJobs();
     applySettingsTheme(settingsTheme);
     setActiveProviderTab(result.config.defaultProvider || "ollama");
     updateStarterRoutingAvailability();
     await loadWorkFolderStatus();
     await loadGoogleDriveStatus();
+    await loadBatchUrlQaJobs({ silent: true });
     setStatus(t("waiting"));
   }
 }
@@ -4762,6 +4928,39 @@ document.getElementById("workFolderPullButton").addEventListener("click", async 
   }
 });
 
+document.getElementById("batchUrlQaStartButton").addEventListener("click", async () => {
+  try {
+    await saveConfig();
+    const urls = document.getElementById("batchUrlQaInput").value.trim();
+    const qaPerUrl = document.getElementById("batchUrlQaCount").value.trim();
+    const fileName = document.getElementById("batchUrlQaFileName").value.trim() || "batch-url-qa.md";
+    if (!currentSelectedModel) {
+      throw new Error(t("batchUrlQaModelMissing"));
+    }
+    const result = await sendMessage({
+      type: "batch-url-qa:start-job",
+      urls,
+      qaPerUrl,
+      fileName,
+      model: currentSelectedModel,
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || t("saveFailed"));
+    }
+    setBatchUrlQaStatus(t("batchUrlQaStarted", {
+      count: Array.isArray(result?.job?.urls) ? result.job.urls.length : 0,
+      fileName: result?.job?.fileName || fileName,
+    }));
+    document.getElementById("batchUrlQaInput").value = "";
+    if (result.status) {
+      renderWorkFolderStatus(result.status);
+    }
+    await loadBatchUrlQaJobs({ silent: true });
+  } catch (error) {
+    setBatchUrlQaStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
 document.getElementById("googleDriveConnectButton").addEventListener("click", async () => {
   try {
     document.getElementById("googleDriveSyncEnabled").checked = true;
@@ -4871,6 +5070,7 @@ document.getElementById("replyLanguage").addEventListener("change", (event) => {
 async function initializeOptionsPage() {
   applySettingsTheme("system");
   await loadConfig();
+  startBatchUrlQaPolling();
   try {
     await refreshModels();
   } catch (error) {

@@ -2418,6 +2418,11 @@
   max-height: min(80vh, 760px);
 }
 
+.ollama-quick-batch-url-qa-modal {
+  width: min(100%, 940px);
+  max-height: min(78vh, 760px);
+}
+
 .ollama-quick-agent-flow-modal {
   width: min(100%, 1040px);
   max-height: min(82vh, 820px);
@@ -2433,6 +2438,15 @@
   gap: 12px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.ollama-quick-batch-url-qa-form {
+  gap: 12px;
+}
+
+.ollama-quick-batch-url-qa-form .ollama-quick-picker-headline,
+.ollama-quick-batch-url-qa-form .ollama-quick-picker-subtitle {
+  max-width: 72ch;
 }
 
 .ollama-quick-custom-starter-field {
@@ -2629,6 +2643,436 @@
 
 .ollama-quick-agent-flow-column {
   min-width: 0;
+}
+
+.ollama-quick-batch-url-qa-config-grid {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.ollama-quick-batch-url-qa-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.78fr);
+  gap: 14px;
+  align-items: start;
+  min-height: auto;
+}
+
+.ollama-quick-batch-url-qa-column {
+  min-width: 0;
+}
+
+.ollama-quick-batch-url-qa-column.is-urls,
+.ollama-quick-batch-url-qa-column.is-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.ollama-quick-batch-url-qa-column.is-urls > .ollama-quick-custom-starter-field {
+  height: 100%;
+}
+
+.ollama-quick-batch-url-qa-surface {
+  padding: 14px;
+  border: 1px solid rgba(126, 180, 255, 0.14);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(20, 28, 45, 0.92), rgba(15, 21, 36, 0.94)),
+    radial-gradient(circle at top left, rgba(74, 160, 255, 0.12), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 40px rgba(1, 8, 20, 0.34);
+}
+
+.ollama-quick-batch-url-qa-side-panel {
+  gap: 10px;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings {
+  gap: 12px;
+}
+
+.ollama-quick-batch-url-qa-panel-title {
+  color: #f3f9ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ollama-quick-batch-url-qa-surface .ollama-quick-custom-starter-field > span {
+  color: rgba(218, 233, 255, 0.9);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ollama-quick-batch-url-qa-textarea {
+  min-height: 340px;
+  max-height: 420px;
+  height: 340px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  line-height: 1.45;
+}
+
+.ollama-quick-batch-url-qa-field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+
+.ollama-quick-batch-url-qa-field.is-count {
+  max-width: 104px;
+}
+
+.ollama-quick-batch-url-qa-field.is-language {
+  min-width: 0;
+}
+
+.ollama-quick-batch-url-qa-field.is-file {
+  display: grid;
+  gap: 8px;
+}
+
+.ollama-quick-batch-url-qa-field.is-extra-prompt {
+  display: grid;
+  gap: 8px;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-config-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-count {
+  max-width: 74px;
+}
+
+.ollama-quick-batch-url-qa-extra-prompt {
+  min-height: 84px;
+  max-height: 132px;
+  resize: vertical;
+}
+
+.ollama-quick-batch-url-qa-hint {
+  padding: 10px 14px;
+  border: 1px solid rgba(89, 165, 255, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(16, 44, 78, 0.74), rgba(20, 31, 60, 0.68));
+  color: rgba(230, 241, 255, 0.84);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ollama-quick-batch-url-qa-mini-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(86, 208, 255, 0.22);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(10, 30, 56, 0.88), rgba(14, 48, 88, 0.72));
+}
+
+.ollama-quick-batch-url-qa-mini-copy {
+  min-width: 0;
+}
+
+.ollama-quick-batch-url-qa-mini-title {
+  color: #f3fbff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ollama-quick-batch-url-qa-mini-meta {
+  margin-top: 4px;
+  color: #97ddff;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ollama-quick-batch-url-qa-mini-url {
+  margin-top: 6px;
+  color: rgba(228, 241, 255, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.ollama-quick-batch-url-qa-input,
+.ollama-quick-batch-url-qa-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 162, 214, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f5f9ff;
+  font: inherit;
+  line-height: 1.35;
+  color-scheme: dark;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 6px 18px rgba(2, 8, 20, 0.16);
+  -webkit-text-fill-color: #f5f9ff;
+}
+
+.ollama-quick-batch-url-qa-input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-input,
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-select,
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-extra-prompt {
+  background: linear-gradient(180deg, rgba(38, 46, 66, 0.96), rgba(28, 35, 53, 0.96)) !important;
+  background-color: rgba(32, 40, 58, 0.96) !important;
+  border-color: rgba(112, 146, 201, 0.26);
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-count .ollama-quick-batch-url-qa-input {
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  font-size: 15px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 8px 20px rgba(3, 10, 22, 0.22);
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-file,
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-language,
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-extra-prompt {
+  max-width: none;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-field.is-file .ollama-quick-batch-url-qa-input {
+  font-size: 13px;
+  font-weight: 700;
+  width: 100%;
+}
+
+.ollama-quick-batch-url-qa-side-panel.is-settings .ollama-quick-batch-url-qa-extra-prompt {
+  min-height: 92px;
+  max-height: 120px;
+  line-height: 1.5;
+}
+
+.ollama-quick-batch-url-qa-progress-surface {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(91, 159, 255, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(17, 24, 40, 0.96), rgba(12, 18, 32, 0.96));
+}
+
+.ollama-quick-batch-url-qa-progress-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.ollama-quick-batch-url-qa-progress-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.ollama-quick-batch-url-qa-progress-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: calc(50% + 24px);
+  width: calc(100% - 24px);
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(90, 114, 156, 0.46);
+}
+
+.ollama-quick-batch-url-qa-progress-dot {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(114, 145, 201, 0.36);
+  background: rgba(28, 37, 58, 0.96);
+  color: rgba(214, 228, 255, 0.9);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ollama-quick-batch-url-qa-progress-label {
+  color: rgba(202, 217, 242, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ollama-quick-batch-url-qa-progress-step.is-done .ollama-quick-batch-url-qa-progress-dot {
+  border-color: rgba(97, 224, 255, 0.48);
+  background: linear-gradient(135deg, rgba(32, 186, 255, 0.95), rgba(72, 122, 255, 0.92));
+  color: #ffffff;
+}
+
+.ollama-quick-batch-url-qa-progress-step.is-active .ollama-quick-batch-url-qa-progress-dot {
+  border-color: rgba(110, 229, 255, 0.7);
+  background: linear-gradient(135deg, rgba(20, 136, 255, 0.96), rgba(66, 109, 255, 0.96));
+  color: #ffffff;
+  box-shadow:
+    0 0 0 5px rgba(75, 174, 255, 0.12),
+    0 0 22px rgba(75, 174, 255, 0.34);
+}
+
+.ollama-quick-batch-url-qa-progress-step.is-active .ollama-quick-batch-url-qa-progress-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 1px solid rgba(110, 229, 255, 0.34);
+  animation: ollama-quick-batch-url-qa-pulse 1.8s ease-out infinite;
+}
+
+.ollama-quick-batch-url-qa-progress-step.is-done:not(:last-child)::after,
+.ollama-quick-batch-url-qa-progress-step.is-active:not(:last-child)::after {
+  background: linear-gradient(90deg, rgba(82, 206, 255, 0.78), rgba(95, 127, 255, 0.72));
+}
+
+.ollama-quick-batch-url-qa-progress-meta {
+  color: rgba(191, 214, 249, 0.84);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes ollama-quick-batch-url-qa-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+.ollama-quick-batch-url-qa-input[type="number"]::-webkit-outer-spin-button,
+.ollama-quick-batch-url-qa-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ollama-quick-batch-url-qa-select {
+  padding-right: 36px;
+  border-color: rgba(88, 152, 255, 0.32);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(226, 243, 255, 0.92) 50%),
+    linear-gradient(135deg, rgba(226, 243, 255, 0.92) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  color-scheme: dark;
+}
+
+.ollama-quick-batch-url-qa-select option,
+.ollama-quick-batch-url-qa-select optgroup {
+  background: #172133;
+  color: #eef6ff;
+}
+
+.ollama-quick-batch-url-qa-select::-ms-expand {
+  display: none;
+}
+
+.ollama-quick-batch-url-qa-input:focus,
+.ollama-quick-batch-url-qa-select:focus {
+  outline: none;
+  border-color: rgba(105, 215, 255, 0.52);
+  box-shadow:
+    0 0 0 3px rgba(97, 224, 255, 0.11),
+    0 8px 22px rgba(5, 24, 49, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ollama-quick-batch-url-qa-input::placeholder {
+  color: rgba(216, 231, 255, 0.52);
+}
+
+.ollama-quick-batch-url-qa-input:-webkit-autofill,
+.ollama-quick-batch-url-qa-input:-webkit-autofill:hover,
+.ollama-quick-batch-url-qa-input:-webkit-autofill:focus,
+.ollama-quick-batch-url-qa-extra-prompt:-webkit-autofill,
+.ollama-quick-batch-url-qa-extra-prompt:-webkit-autofill:hover,
+.ollama-quick-batch-url-qa-extra-prompt:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f5f9ff;
+  box-shadow:
+    0 0 0 1000px rgba(255, 255, 255, 0.06) inset,
+    0 8px 24px rgba(2, 8, 20, 0.18);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.ollama-quick-batch-url-qa-discussion .ollama-quick-picker-row {
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(11, 38, 71, 0.86), rgba(23, 28, 68, 0.82));
+  border-color: rgba(83, 176, 255, 0.24);
+}
+
+.ollama-quick-batch-url-qa-discussion .ollama-quick-picker-row:hover {
+  transform: none;
+  background: linear-gradient(135deg, rgba(13, 45, 84, 0.9), rgba(29, 36, 82, 0.86));
+  border-color: rgba(97, 196, 255, 0.28);
+  box-shadow: none;
+}
+
+.ollama-quick-batch-url-qa-discussion .ollama-quick-picker-row.is-selected {
+  background: linear-gradient(135deg, rgba(11, 42, 80, 0.92), rgba(21, 27, 73, 0.88));
+}
+
+.ollama-quick-batch-url-qa-discussion .ollama-quick-picker-name {
+  color: rgba(237, 246, 255, 0.96);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.ollama-quick-batch-url-qa-discussion .ollama-quick-picker-meta {
+  color: rgba(188, 218, 255, 0.88);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .ollama-quick-agent-flow-selected-list,
@@ -3248,6 +3692,29 @@
 
   .ollama-quick-panel.is-open.is-maximized .ollama-quick-sidebar {
     max-height: 34vh;
+  }
+
+  .ollama-quick-batch-url-qa-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ollama-quick-batch-url-qa-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .ollama-quick-batch-url-qa-textarea {
+    min-height: 220px;
+    height: auto;
+  }
+
+  .ollama-quick-batch-url-qa-field.is-count {
+    max-width: none;
+  }
+
+  .ollama-quick-batch-url-qa-mini-status {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .ollama-quick-include-panel {
