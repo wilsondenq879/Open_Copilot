@@ -2491,7 +2491,9 @@ function normalizeBatchUrlQaQuestions(value) {
     ? value
     : [value];
   return rawItems
-    .map((item) => normalizeTaskText(item || "", 500))
+    .flatMap((item) => String(item || "")
+      .split(/\r?\n|[|；;]+/g)
+      .map((part) => normalizeTaskText(part || "", 500)))
     .filter(Boolean)
     .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
     .filter((item) => !isWeakTrainingQuestion(item))
@@ -2832,12 +2834,44 @@ function extractJsonObjectFromText(value) {
   }
   const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fencedMatch?.[1]?.trim() || text;
-  const firstBrace = candidate.indexOf("{");
-  const lastBrace = candidate.lastIndexOf("}");
-  if (firstBrace < 0 || lastBrace < firstBrace) {
-    throw new Error("Model did not return a JSON object.");
+
+  const firstObjectBrace = candidate.indexOf("{");
+  const lastObjectBrace = candidate.lastIndexOf("}");
+  if (firstObjectBrace >= 0 && lastObjectBrace >= firstObjectBrace) {
+    return JSON.parse(candidate.slice(firstObjectBrace, lastObjectBrace + 1));
   }
-  return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+
+  const firstArrayBrace = candidate.indexOf("[");
+  const lastArrayBrace = candidate.lastIndexOf("]");
+  if (firstArrayBrace >= 0 && lastArrayBrace >= firstArrayBrace) {
+    return JSON.parse(candidate.slice(firstArrayBrace, lastArrayBrace + 1));
+  }
+
+  throw new Error("Model did not return JSON.");
+}
+
+function extractBatchUrlQaPairsFromPayload(payload) {
+  const normalizedPayload = payload && typeof payload === "object" ? payload : {};
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  const candidateLists = [
+    normalizedPayload.qa_pairs,
+    normalizedPayload.qaPairs,
+    normalizedPayload.faq_items,
+    normalizedPayload.faqItems,
+    normalizedPayload.items,
+    normalizedPayload.results,
+    normalizedPayload.faqs,
+    normalizedPayload.data?.qa_pairs,
+    normalizedPayload.data?.qaPairs,
+    normalizedPayload.data?.items,
+    normalizedPayload.output?.qa_pairs,
+    normalizedPayload.output?.qaPairs,
+  ];
+
+  return candidateLists.find((item) => Array.isArray(item)) || [];
 }
 
 function buildBatchUrlQaPrompt({
@@ -3024,7 +3058,34 @@ function buildBatchUrlQaMarkdown(results = []) {
       });
     })
     .filter(Boolean);
-  return entries.length ? `${entries.join("\n\n")}\n` : "";
+  if (entries.length) {
+    return `${entries.join("\n\n")}\n`;
+  }
+
+  const failures = (Array.isArray(results) ? results : [])
+    .filter((item) => item.status === "failed")
+    .map((item, index) => {
+      const url = String(item.url || "").trim();
+      const reason = String(item.reason || "Unknown error.").trim();
+      return [
+        `## Failed URL ${index + 1}`,
+        url ? `URL: ${url}` : "",
+        `Reason: ${reason}`,
+      ].filter(Boolean).join("\n");
+    });
+
+  if (failures.length) {
+    return [
+      "# Batch URL QA",
+      "",
+      "No valid QA pairs were written for this run.",
+      "",
+      ...failures,
+      "",
+    ].join("\n");
+  }
+
+  return "# Batch URL QA\n\nNo QA pairs were generated yet.\n";
 }
 
 async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
@@ -3048,12 +3109,11 @@ async function generateQaPairsForPage({ url, title, metaDescription, headings, p
       model,
     );
     const parsed = extractJsonObjectFromText(response?.response || "");
-    const qaPairs = Array.isArray(parsed?.qa_pairs)
-      ? parsed.qa_pairs
-        .map((item) => normalizeBatchUrlQaPair(item))
-        .filter(Boolean)
-        .filter((item) => isBatchUrlQaPairAlignedToScope(item, { title, headings }))
-      : [];
+    const normalizedPairs = extractBatchUrlQaPairsFromPayload(parsed)
+      .map((item) => normalizeBatchUrlQaPair(item))
+      .filter(Boolean);
+    const scopedPairs = normalizedPairs.filter((item) => isBatchUrlQaPairAlignedToScope(item, { title, headings }));
+    const qaPairs = scopedPairs.length ? scopedPairs : normalizedPairs;
     collectedPairs = mergeUniqueBatchUrlQaPairs(collectedPairs, qaPairs);
   }
 
