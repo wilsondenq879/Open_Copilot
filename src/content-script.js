@@ -246,6 +246,7 @@ let taskInboxExpanded = false;
 let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
 let pendingStarterExecution = null;
+let pendingSuggestedStarterAction = null;
 let activeSearchCompositionRole = "";
 let confirmDialogState = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
@@ -649,6 +650,18 @@ const CONTENT_I18N = {
     starterDraftSaved: "已儲存",
     starterDraftImportHint: "請將 JSON 貼入設定中的「教 AI 一個新技能」內建立。",
     starterDraftActionHint: "貼到 Settings 內的「教 AI 一個新技能」",
+    messageFollowupTitle: "直接繼續",
+    messageFollowupPrompt: "請直接延續你上一則回覆，幫我完成這個版本：{action}\n\n請直接輸出完整結果，不要先解釋你會怎麼做。",
+    messageFollowupSkillConfirm: "這個動作已經跑完，要不要把它整理成 custom skill？",
+    messageFollowupSkillConfirmAction: "加入 custom skill",
+    messageFollowupSkillPurpose: "把「{action}」整理成可重複使用的 custom skill，直接延續上一則回覆的處理方式與輸出風格。",
+    messageFollowupSkillOpened: "已打開 custom skill builder。",
+    suggestedStarterBadge: "AI 建議",
+    suggestedStarterRun: "直接執行",
+    suggestedStarterSave: "加入 custom starter",
+    suggestedStarterDismiss: "先不要",
+    suggestedStarterBannerTitle: "AI 建議下一步",
+    suggestedStarterBannerBody: "要直接執行「{action}」，還是先把它整理成可重複使用的 custom starter？",
     copyStarterJson: "複製 JSON",
     customStarterBuilderTitle: "教 AI 一個新技能",
     customStarterBuilderHint: "先用白話文跟 AI 一起把這個 skill 談清楚，確認後再建立成可儲存的 starter。",
@@ -1111,6 +1124,18 @@ const CONTENT_I18N = {
     starterDraftSaved: "Saved",
     starterDraftImportHint: "Paste this JSON into Teach Your AI a New Skill in Settings to create it.",
     starterDraftActionHint: "Paste into Teach Your AI a New Skill in Settings",
+    messageFollowupTitle: "Continue With",
+    messageFollowupPrompt: "Please continue directly from your previous reply and produce this version: {action}\n\nOutput the full result directly without first explaining what you will do.",
+    messageFollowupSkillConfirm: "This follow-up is finished. Do you want to turn it into a custom skill?",
+    messageFollowupSkillConfirmAction: "Add custom skill",
+    messageFollowupSkillPurpose: "Turn \"{action}\" into a reusable custom skill that follows the same workflow and output style as the previous reply.",
+    messageFollowupSkillOpened: "Opened the custom skill builder.",
+    suggestedStarterBadge: "AI Suggested",
+    suggestedStarterRun: "Run Now",
+    suggestedStarterSave: "Add Custom Starter",
+    suggestedStarterDismiss: "Not Now",
+    suggestedStarterBannerTitle: "AI Suggested Next Step",
+    suggestedStarterBannerBody: "Do you want to run \"{action}\" now, or turn it into a reusable custom starter first?",
     copyStarterJson: "Copy JSON",
     customStarterBuilderTitle: "Teach Your AI a New Skill",
     customStarterBuilderHint: "Talk it through with AI in plain language first, then create the starter once it looks right.",
@@ -3949,31 +3974,34 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
 
 function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
   function getStarterPriority(starter) {
-    if (starter.id === highlightedStarterId) {
+    if (starter.isSuggestedFollowup) {
       return 0;
     }
-    if (starter.isAgentFlowBuilder) {
+    if (starter.id === highlightedStarterId) {
       return 1;
     }
-    if (starter.isBatchUrlQaBuilder) {
+    if (starter.isAgentFlowBuilder) {
       return 2;
     }
-    if (starter.isCustomStarterBuilder) {
+    if (starter.isBatchUrlQaBuilder) {
       return 3;
     }
-    if (starter.isAgentFlow) {
+    if (starter.isCustomStarterBuilder) {
       return 4;
     }
-    if (starter.isCustomStarter) {
+    if (starter.isAgentFlow) {
       return 5;
     }
-    if (starter.isRecommended) {
+    if (starter.isCustomStarter) {
       return 6;
     }
-    return 7;
+    if (starter.isRecommended) {
+      return 7;
+    }
+    return 8;
   }
 
-  return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
+  return [...getLatestAssistantSuggestedStarterEntries(), ...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
     .map((starter, index) => ({ ...starter, sortIndex: index }))
     .sort((left, right) => {
       const leftPriority = getStarterPriority(left);
@@ -4004,6 +4032,7 @@ function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
       starter.description,
       starter.prompt,
       starter.composeMode,
+      starter.isSuggestedFollowup ? "ai suggested followup next step recommended 建議下一步 推薦動作 建議動作" : "",
       starter.isBatchUrlQaBuilder ? "batch url qa workflow url list md markdown dataset qa pairs workflow 網址 qa 工作流 批次" : "",
       starter.isCustomStarter ? "custom starter custom skill custom 自訂 自定义 自訂工具 自訂技能 技能" : "",
       starter.isCustomStarterBuilder ? "custom starter builder create custom starter teach ai new skill custom 自訂 starter 建立自訂 starter 教 ai 一個新技能 新技能" : "",
@@ -6468,6 +6497,214 @@ function renderMarkdown(markdown, options = {}) {
   }, blocks);
 }
 
+function normalizeQuickFollowupLabel(rawLabel) {
+  return String(rawLabel || "")
+    .replace(/^[-*•]\s+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .replace(/^\*\*(.*?)\*\*$/g, "$1")
+    .replace(/^__(.*?)__$/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[。．.!！?？:：;,，、]+$/g, "")
+    .trim();
+}
+
+function isLikelyQuickFollowupIntro(line) {
+  const value = String(line || "").trim();
+  if (!value) {
+    return false;
+  }
+
+  return /(如果你(?:想|要|希望)|如果需要|若你想|若需要|要的話|需要的話|我也可以|我還可以|我可以再|If you want|If you'd like|If needed|If helpful|I can also|I can turn this into|I can also turn this)/i.test(value);
+}
+
+function isLikelyQuickFollowupLine(line) {
+  const value = normalizeQuickFollowupLabel(line);
+  if (!value || value.length > 40) {
+    return false;
+  }
+
+  if (/[|`]/.test(value)) {
+    return false;
+  }
+
+  if (/^(#+|---+)$/.test(value)) {
+    return false;
+  }
+
+  if (/[。.!！?？]/.test(value) && value.length > 24) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractSingleLineQuickFollowup(line) {
+  const value = String(line || "").trim().replace(/[。．.!！?？]+$/g, "").trim();
+  if (!value || !isLikelyQuickFollowupIntro(value)) {
+    return "";
+  }
+
+  const quotedMatch = value.match(/[「『“"]([^」』”"]+)[」』”"]([^。．.!！?？]*)$/);
+  let candidate = "";
+  if (quotedMatch) {
+    candidate = `${quotedMatch[1]}${quotedMatch[2] || ""}`;
+  } else {
+    const actionMatch = value.match(/(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/);
+    candidate = actionMatch ? actionMatch[1] : "";
+  }
+
+  candidate = String(candidate || "")
+    .replace(/^(一個|一份|一版|一種)/, "")
+    .replace(/^的/, "")
+    .trim();
+  candidate = normalizeQuickFollowupLabel(candidate);
+
+  if (!candidate || candidate.length < 3 || candidate.length > 48) {
+    return "";
+  }
+
+  return candidate;
+}
+
+function extractMessageQuickFollowups(content) {
+  const normalized = String(content || "").replace(/\r\n/g, "\n");
+  if (!normalized.trim()) {
+    return { body: "", actions: [] };
+  }
+
+  const lines = normalized.split("\n");
+  let introIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (isLikelyQuickFollowupIntro(lines[index])) {
+      introIndex = index;
+      break;
+    }
+  }
+
+  if (introIndex < 0) {
+    return { body: normalized.trim(), actions: [] };
+  }
+
+  const actionLines = lines
+    .slice(introIndex + 1)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+
+  let actions = [];
+  if (actionLines.length >= 2 && actionLines.length <= 5) {
+    if (actionLines.some((line) => !/^[-*•]\s+/.test(line) && !/^\d+\.\s+/.test(line))) {
+      return { body: normalized.trim(), actions: [] };
+    }
+
+    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line))) {
+      return { body: normalized.trim(), actions: [] };
+    }
+
+    actions = actionLines
+      .map((line, index) => ({
+        id: `followup-${index + 1}`,
+        label: normalizeQuickFollowupLabel(line),
+      }))
+      .filter((item) => item.label);
+  } else if (introIndex >= 0) {
+    const singleAction = extractSingleLineQuickFollowup(lines[introIndex]);
+    if (singleAction) {
+      actions = [{ id: "followup-1", label: singleAction }];
+    }
+  }
+
+  if (!actions.length) {
+    return { body: normalized.trim(), actions: [] };
+  }
+
+  const body = lines
+    .slice(0, introIndex)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return { body, actions };
+}
+
+function renderMessageQuickFollowups(messageId, actions) {
+  if (!Array.isArray(actions) || !actions.length) {
+    return "";
+  }
+
+  const buttons = actions
+    .map((action, index) => `
+      <button
+        class="ollama-quick-followup-action"
+        type="button"
+        data-action="run-message-followup"
+        data-message-id="${escapeHtml(messageId)}"
+        data-followup-index="${index}"
+      >${escapeHtml(action.label)}</button>
+    `)
+    .join("");
+
+  return `
+    <section class="ollama-quick-message-followups">
+      <div class="ollama-quick-message-followups-title">${escapeHtml(tl("messageFollowupTitle"))}</div>
+      <div class="ollama-quick-message-followups-list">${buttons}</div>
+    </section>
+  `;
+}
+
+function openCustomStarterBuilderFromFollowup(actionLabel) {
+  customStarterBuilderOpen = true;
+  agentFlowBuilderOpen = false;
+  batchUrlQaBuilderOpen = false;
+  includePickerOpen = false;
+  localDocumentPickerOpen = false;
+  browserTabPickerOpen = false;
+  resetCustomStarterBuilderState();
+  ensureCustomStarterBuilderDraft().purpose = tl("messageFollowupSkillPurpose", { action: actionLabel });
+  renderShell();
+  setStatus(tl("messageFollowupSkillOpened"));
+}
+
+function getLatestAssistantSuggestedStarterEntries() {
+  const entries = [];
+  const seenLabels = new Set();
+  for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+    const message = chatMessages[index];
+    if (!message || message.role !== "assistant" || message.flowRun) {
+      continue;
+    }
+    const parsed = extractMessageQuickFollowups(message.content);
+    if (!Array.isArray(parsed.actions) || !parsed.actions.length) {
+      continue;
+    }
+    parsed.actions.forEach((action, actionIndex) => {
+      const dedupeKey = normalizeStarterSearchText(action.label);
+      if (!dedupeKey || seenLabels.has(dedupeKey) || entries.length >= 4) {
+        return;
+      }
+      seenLabels.add(dedupeKey);
+      entries.push({
+        id: `suggested:${message.id}:${actionIndex}`,
+        label: action.label,
+        prompt: tl("messageFollowupPrompt", { action: action.label }),
+        description: tl("suggestedStarterBannerBody", { action: action.label }),
+        composeMode: "chat",
+        isCustomStarter: false,
+        isSuggestedFollowup: true,
+        sourceMessageId: String(message.id),
+        sourceActionIndex: actionIndex,
+        showInPopup: true,
+        isRecommended: true,
+        recommendationRank: entries.length,
+      });
+    });
+    if (entries.length >= 4) {
+      break;
+    }
+  }
+  return entries;
+}
+
 function getPageContext(includeChildFrames = true, options = {}) {
   const selection = getSelectionText();
   const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames, options);
@@ -8682,6 +8919,19 @@ function renderShell() {
             <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
           </div>
           ${renderBatchUrlQaMiniStatus()}
+          ${pendingSuggestedStarterAction?.label ? `
+            <div class="ollama-quick-starter-route-banner">
+              <div class="ollama-quick-starter-route-copy">
+                <div class="ollama-quick-starter-route-kicker">${escapeHtml(tl("suggestedStarterBannerTitle"))}</div>
+                <div class="ollama-quick-starter-route-title">${escapeHtml(tl("suggestedStarterBannerBody", { action: pendingSuggestedStarterAction.label }))}</div>
+              </div>
+              <div class="ollama-quick-starter-route-actions">
+                <button class="ollama-quick-secondary" type="button" data-action="run-suggested-starter">${escapeHtml(tl("suggestedStarterRun"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="save-suggested-starter">${escapeHtml(tl("suggestedStarterSave"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="dismiss-suggested-starter">${escapeHtml(tl("suggestedStarterDismiss"))}</button>
+              </div>
+            </div>
+          ` : ""}
           ${pendingStarterExecution?.starter && pendingStarterExecution?.suggestedModel ? `
             <div class="ollama-quick-starter-route-banner">
               <div class="ollama-quick-starter-route-copy">
@@ -8774,6 +9024,7 @@ function renderShell() {
               const classNames = [
                 "ollama-quick-starter",
                 starter.isRecommended ? "is-recommended" : "",
+                starter.isSuggestedFollowup ? "is-suggested-followup" : "",
                 starter.isCustomStarter ? "is-custom" : "",
                 starter.isCustomStarterBuilder ? "is-custom-builder" : "",
                 starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
@@ -8788,7 +9039,9 @@ function renderShell() {
                 : starter.isCustomStarter || starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
                   : "";
-              const suffix = starter.isAgentFlow
+              const suffix = starter.isSuggestedFollowup
+                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">${escapeHtml(tl("suggestedStarterBadge"))}</span>`
+                : starter.isAgentFlow
                 ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
                 : starter.isCustomStarter && !starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
@@ -10715,7 +10968,20 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.isSuggestedFollowup) {
+      pendingSuggestedStarterAction = {
+        label: starter.label,
+        prompt: starter.prompt,
+        sourceMessageId: starter.sourceMessageId || "",
+        sourceActionIndex: starter.sourceActionIndex,
+      };
+      clearPendingStarterExecution();
+      renderShell();
+      return;
+    }
+
     if (starter.id === "builtin:createCustomStarter") {
+      pendingSuggestedStarterAction = null;
       customStarterBuilderOpen = true;
       agentFlowBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
@@ -10762,6 +11028,7 @@ async function handleClick(event) {
       return;
     }
 
+    pendingSuggestedStarterAction = null;
     const executionPlan = resolveStarterExecutionPlan(starter);
     clearPendingStarterExecution();
     await startStarterExecution(executionPlan, executionPlan.suggestedModel);
@@ -10769,6 +11036,7 @@ async function handleClick(event) {
   }
 
   if (action === "use-starter-default-route") {
+    pendingSuggestedStarterAction = null;
     if (!pendingStarterExecution?.starter) {
       return;
     }
@@ -10777,10 +11045,41 @@ async function handleClick(event) {
   }
 
   if (action === "use-starter-quick-reply") {
+    pendingSuggestedStarterAction = null;
     if (!pendingStarterExecution?.starter) {
       return;
     }
     await startStarterExecution(pendingStarterExecution, pendingStarterExecution.quickModel);
+    return;
+  }
+
+  if (action === "dismiss-suggested-starter") {
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    return;
+  }
+
+  if (action === "save-suggested-starter") {
+    if (!pendingSuggestedStarterAction?.label) {
+      return;
+    }
+    openCustomStarterBuilderFromFollowup(pendingSuggestedStarterAction.label);
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    return;
+  }
+
+  if (action === "run-suggested-starter") {
+    if (!pendingSuggestedStarterAction?.label || !pendingSuggestedStarterAction?.prompt) {
+      return;
+    }
+    const plannedAction = { ...pendingSuggestedStarterAction };
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    await sendCurrentPrompt({
+      userMessageOverride: plannedAction.prompt,
+      displayMessageOverride: plannedAction.label,
+    });
     return;
   }
 
@@ -11111,6 +11410,44 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "run-message-followup") {
+    if (isGenerating || customStarterBuilderIsGenerating || customStarterBuilderIsSaving) {
+      return;
+    }
+
+    const messageId = actionNode.dataset.messageId || "";
+    const followupIndex = Number.parseInt(actionNode.dataset.followupIndex || "-1", 10);
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const followupData = extractMessageQuickFollowups(message.content);
+    const selectedFollowup = Array.isArray(followupData.actions) ? followupData.actions[followupIndex] : null;
+    if (!selectedFollowup?.label) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const followupPrompt = tl("messageFollowupPrompt", { action: selectedFollowup.label });
+    const completed = await sendCurrentPrompt({
+      userMessageOverride: followupPrompt,
+      displayMessageOverride: selectedFollowup.label,
+    });
+    if (!completed) {
+      return;
+    }
+
+    if (await requestConfirmation(tl("messageFollowupSkillConfirm"), {
+      title: tl("customStarterBuilderTitle"),
+      confirmLabel: tl("messageFollowupSkillConfirmAction"),
+    })) {
+      openCustomStarterBuilderFromFollowup(selectedFollowup.label);
+    }
+    return;
+  }
+
   if (action === "save-generated-starter" || action === "save-generated-starters") {
     const messageId = actionNode.dataset.messageId || "";
     const message = chatMessages.find((item) => String(item.id) === String(messageId));
@@ -11242,6 +11579,7 @@ async function handleClick(event) {
     chatMessages = [];
     latestPerspectiveRun = null;
     composeMode = "chat";
+    pendingSuggestedStarterAction = null;
     clearPendingStarterExecution();
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
@@ -11294,6 +11632,7 @@ async function handleClick(event) {
   }
 
   if (action === "send-message") {
+    pendingSuggestedStarterAction = null;
     await sendCurrentPrompt();
   }
 }
@@ -11606,20 +11945,21 @@ async function sendCurrentPrompt(options = {}) {
     : (typedUserMessage || starterPrompt || implicitAttachmentPrompt);
   if (!userMessage && !imageAttachments.length && !documentAttachments.length) {
     setStatus(tl("typePromptOrAttach"));
-    return;
+    return false;
   }
 
   const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage });
   const effectiveModel = String(options.modelOverride || starterPlan?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
-    return;
+    return false;
   }
 
   if (imageAttachments.length && !modelLikelySupportsVision(effectiveModel)) {
     setStatus(tl("sendingVisionWarning", { count: imageAttachments.length, model: effectiveModel }));
   }
 
+  pendingSuggestedStarterAction = null;
   clearPendingStarterExecution();
   setStatus(
     getModelSelectionMode() === "auto"
@@ -11651,7 +11991,7 @@ async function sendCurrentPrompt(options = {}) {
       attachedDocuments = [];
       renderAttachments();
     }
-    return;
+    return true;
   }
 
   chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
@@ -11683,17 +12023,21 @@ async function sendCurrentPrompt(options = {}) {
     if (!Array.isArray(options.documentAttachments)) {
       attachedDocuments = [];
     }
+    renderShell();
     renderAttachments();
     isGenerating = false;
     scheduleConversationSave();
     setStatus(tl("doneWithModel", { model: effectiveModel }));
+    return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    renderShell();
     renderMessages();
     isGenerating = false;
     scheduleConversationSave();
     setStatus(message);
+    return false;
   }
 }
 
