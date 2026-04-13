@@ -7074,7 +7074,6 @@ async function buildPrompt(userMessage) {
 
   return [
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
-    buildUntrustedContentSafetyRules(),
     wrappedContextBlock,
     wrappedGithubPageContext,
     wrappedGithubVisibleCodeContext,

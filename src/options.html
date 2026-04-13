@@ -113,7 +113,7 @@
                 <input id="lmStudioApiKey" type="text" placeholder="lm-studio" />
               </label>
             </div>
-            <p id="lmStudioHint" class="field-hint">Use this section to keep LM Studio server information ready for future routing or OpenAI-compatible calls.</p>
+            <p id="lmStudioHint" class="field-hint">Save your LM Studio server URL, model ID, and API key to use LM Studio in browser chat.</p>
           </section>
 
           <section id="panel-gemini" class="provider-panel" role="tabpanel" hidden>
@@ -163,7 +163,7 @@
               <span id="azureApiKeyLabel">API Key</span>
               <input id="azureOpenAiApiKey" type="password" placeholder="Azure API key" />
             </label>
-            <p id="azureHint" class="field-hint">Save your Azure OpenAI resource endpoint, deployment name, API version, and key for future hosted routing.</p>
+            <p id="azureHint" class="field-hint">Save your Azure OpenAI resource endpoint, deployment name, API version, and key to use Azure OpenAI in browser chat.</p>
           </section>
 
           <div class="provider-support-grid">
@@ -206,7 +206,8 @@
                   </select>
                 </label>
               </div>
-              <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
+              <p id="defaultProviderHint" class="field-hint">Choose which AI provider browser chat should use by default.</p>
+              <p id="providerStatusMessage" class="field-hint">Connection test results will appear here.</p>
               <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
             </div>
 

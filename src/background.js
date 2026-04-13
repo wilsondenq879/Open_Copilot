@@ -3336,7 +3336,7 @@ async function fetchJson(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    throw new Error(formatHttpError(response.status, text || response.statusText));
   }
 
   return response.json();
@@ -3346,10 +3346,47 @@ async function fetchText(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    throw new Error(formatHttpError(response.status, text || response.statusText));
   }
 
   return response.text();
+}
+
+function formatHttpError(status, responseText = "") {
+  const rawText = String(responseText || "").trim();
+  if (!rawText) {
+    return `HTTP ${status}`;
+  }
+
+  try {
+    const payload = JSON.parse(rawText);
+    const error = payload?.error || payload;
+    const message = String(error?.message || "").trim();
+    const code = String(error?.code || error?.innererror?.code || "").trim();
+    const filterResult = error?.innererror?.content_filter_result || error?.content_filter_result || null;
+    const jailbreakDetected = Boolean(filterResult?.jailbreak?.detected || filterResult?.jailbreak?.filtered);
+
+    if (code === "content_filter" || code === "ResponsibleAIPolicyViolation" || filterResult) {
+      const reasons = [];
+      if (jailbreakDetected) {
+        reasons.push("possible prompt-injection or jailbreak-like text was detected in the page context or prompt");
+      }
+      const summary = reasons.length ? ` ${reasons.join("; ")}.` : "";
+      return `HTTP ${status}: The request was blocked by Azure/OpenAI content filtering.${summary} Try reducing page context, selected text, or attached content and retry.`;
+    }
+
+    if (message) {
+      return `HTTP ${status}: ${message}`;
+    }
+    if (code) {
+      return `HTTP ${status}: ${code}`;
+    }
+  } catch (_error) {
+    // Fall through to plain-text handling.
+  }
+
+  const compact = rawText.replace(/\s+/g, " ").trim();
+  return `HTTP ${status}: ${compact}`;
 }
 
 function getGithubRequestHeaders(token, accept = "application/vnd.github+json") {
@@ -4262,6 +4299,162 @@ function buildGeminiRequestUrl(model, { stream = false } = {}) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${action}`;
 }
 
+function buildOpenAiCompatibleHeaders(apiKey = "") {
+  const normalizedApiKey = String(apiKey || "").trim();
+  return {
+    "Content-Type": "application/json",
+    ...(normalizedApiKey ? { Authorization: `Bearer ${normalizedApiKey}` } : {}),
+  };
+}
+
+function buildLmStudioBaseUrl(config = {}) {
+  const baseUrl = normalizeBaseUrl(config?.lmStudioUrl);
+  if (!baseUrl) {
+    throw new Error("LM Studio URL is not configured.");
+  }
+  return baseUrl;
+}
+
+function buildLmStudioChatCompletionsUrl(config = {}) {
+  return `${buildLmStudioBaseUrl(config)}/v1/chat/completions`;
+}
+
+function buildLmStudioModelsUrl(config = {}) {
+  return `${buildLmStudioBaseUrl(config)}/v1/models`;
+}
+
+function normalizeAzureOpenAiEndpoint(endpoint) {
+  return normalizeBaseUrl(endpoint).replace(/\/openai$/i, "");
+}
+
+function buildAzureOpenAiChatCompletionsUrl(config = {}, deployment = "") {
+  const endpoint = normalizeAzureOpenAiEndpoint(config?.azureOpenAiEndpoint);
+  const selectedDeployment = String(deployment || config?.azureOpenAiDeployment || "").trim();
+  const apiVersion = String(config?.azureOpenAiApiVersion || "").trim();
+
+  if (!endpoint) {
+    throw new Error("Azure OpenAI endpoint is not configured.");
+  }
+  if (!selectedDeployment) {
+    throw new Error("Azure OpenAI deployment is not configured.");
+  }
+  if (!apiVersion) {
+    throw new Error("Azure OpenAI API version is not configured.");
+  }
+
+  return `${endpoint}/openai/deployments/${encodeURIComponent(selectedDeployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+}
+
+function extractTextFromOpenAiContentParts(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      return String(part?.text || part?.content || "");
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function extractAzureOpenAiTextFromResponse(payload = {}) {
+  return (Array.isArray(payload?.choices) ? payload.choices : [])
+    .map((choice) => extractTextFromOpenAiContentParts(choice?.message?.content))
+    .filter(Boolean)
+    .join("");
+}
+
+function extractAzureOpenAiTextDeltaFromChunk(payload = {}) {
+  return (Array.isArray(payload?.choices) ? payload.choices : [])
+    .map((choice) => extractTextFromOpenAiContentParts(choice?.delta?.content))
+    .filter(Boolean)
+    .join("");
+}
+
+function buildAzureOpenAiMessageContent(message = {}) {
+  const text = String(message?.content || "").trim();
+  const imageAttachments = Array.isArray(message?.imageAttachments) ? message.imageAttachments : [];
+  const fallbackImages = Array.isArray(message?.images) ? message.images : [];
+
+  if (!imageAttachments.length && !fallbackImages.length) {
+    return text;
+  }
+
+  const content = [];
+  if (text) {
+    content.push({
+      type: "text",
+      text,
+    });
+  }
+
+  if (imageAttachments.length) {
+    imageAttachments.forEach((item) => {
+      const data = String(item?.base64 || "").trim();
+      if (!data) {
+        return;
+      }
+      const mimeType = String(item?.mimeType || "image/png").trim() || "image/png";
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${mimeType};base64,${data}`,
+        },
+      });
+    });
+  } else {
+    fallbackImages.forEach((data) => {
+      const normalized = String(data || "").trim();
+      if (!normalized) {
+        return;
+      }
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:image/png;base64,${normalized}`,
+        },
+      });
+    });
+  }
+
+  return content;
+}
+
+function convertMessagesToAzureOpenAiPayload(messages = []) {
+  return (Array.isArray(messages) ? messages : [])
+    .map((message) => {
+      const role = String(message?.role || "user").trim().toLowerCase();
+      const content = buildAzureOpenAiMessageContent(message);
+      const normalizedRole = role === "assistant" || role === "system" ? role : "user";
+      const hasContent = typeof content === "string"
+        ? Boolean(content)
+        : Array.isArray(content) && content.length > 0;
+      if (!hasContent) {
+        return null;
+      }
+      return {
+        role: normalizedRole,
+        content,
+      };
+    })
+    .filter(Boolean);
+}
+
+function extractOpenAiCompatibleModelNames(payload = {}) {
+  return (Array.isArray(payload?.data) ? payload.data : [])
+    .map((item) => ({
+      name: String(item?.id || item?.name || "").trim(),
+      size: Number(item?.size || 0) || 0,
+    }))
+    .filter((item) => item.name);
+}
+
 async function generateWithGemini(prompt, model) {
   const config = await getConfig();
   const selectedModel = getConfiguredProviderModel(config, model);
@@ -4293,6 +4486,86 @@ async function generateWithGemini(prompt, model) {
   return {
     model: selectedModel,
     response: extractGeminiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function listLmStudioModels() {
+  const config = await getConfig();
+  const baseUrl = buildLmStudioBaseUrl(config);
+  const payload = await fetchJson(buildLmStudioModelsUrl(config), {
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+  });
+
+  return {
+    baseUrl,
+    models: extractOpenAiCompatibleModelNames(payload),
+    config,
+  };
+}
+
+async function generateWithLmStudio(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+
+  if (!selectedModel) {
+    throw new Error("No LM Studio model configured.");
+  }
+
+  const payload = await fetchJson(buildLmStudioChatCompletionsUrl(config), {
+    method: "POST",
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+    body: JSON.stringify({
+      model: selectedModel,
+      messages: [
+        {
+          role: "user",
+          content: String(prompt || ""),
+        },
+      ],
+      stream: false,
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractAzureOpenAiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function generateWithAzureOpenAi(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.azureOpenAiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Azure OpenAI deployment configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Azure OpenAI API key is not configured.");
+  }
+
+  const payload = await fetchJson(buildAzureOpenAiChatCompletionsUrl(config, selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: String(prompt || ""),
+        },
+      ],
+      stream: false,
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractAzureOpenAiTextFromResponse(payload),
     done: true,
   };
 }
@@ -4415,16 +4688,297 @@ async function streamChatWithGemini(port, messages, model) {
   });
 }
 
+async function streamChatWithLmStudio(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+
+  if (!selectedModel) {
+    throw new Error("No LM Studio model configured.");
+  }
+
+  const lmStudioMessages = convertMessagesToAzureOpenAiPayload(messages);
+  if (!lmStudioMessages.length) {
+    throw new Error("LM Studio request has no messages.");
+  }
+
+  const response = await fetch(buildLmStudioChatCompletionsUrl(config), {
+    method: "POST",
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+    body: JSON.stringify({
+      model: selectedModel,
+      messages: lmStudioMessages,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatHttpError(response.status, text || response.statusText));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  const emitLmStudioChunk = (eventText) => {
+    const dataLines = String(eventText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    for (const line of dataLines) {
+      if (line === "[DONE]") {
+        return "done";
+      }
+
+      const chunkText = extractAzureOpenAiTextDeltaFromChunk(JSON.parse(line));
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return "disconnected";
+      }
+    }
+
+    return "continue";
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const state = emitLmStudioChunk(rawEvent);
+      if (state === "done") {
+        tryPostPortMessage(port, {
+          type: "ollama:stream-complete",
+          model: selectedModel,
+        });
+        return;
+      }
+      if (state === "disconnected") {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const state = emitLmStudioChunk(trailingEvent);
+    if (state === "disconnected") {
+      return;
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function streamChatWithAzureOpenAi(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.azureOpenAiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Azure OpenAI deployment configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Azure OpenAI API key is not configured.");
+  }
+
+  const azureMessages = convertMessagesToAzureOpenAiPayload(messages);
+  if (!azureMessages.length) {
+    throw new Error("Azure OpenAI request has no messages.");
+  }
+
+  const response = await fetch(buildAzureOpenAiChatCompletionsUrl(config, selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify({
+      messages: azureMessages,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatHttpError(response.status, text || response.statusText));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  const emitAzureChunk = (eventText) => {
+    const dataLines = String(eventText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    for (const line of dataLines) {
+      if (line === "[DONE]") {
+        return "done";
+      }
+
+      const chunkText = extractAzureOpenAiTextDeltaFromChunk(JSON.parse(line));
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return "disconnected";
+      }
+    }
+
+    return "continue";
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const state = emitAzureChunk(rawEvent);
+      if (state === "done") {
+        tryPostPortMessage(port, {
+          type: "ollama:stream-complete",
+          model: selectedModel,
+        });
+        return;
+      }
+      if (state === "disconnected") {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const state = emitAzureChunk(trailingEvent);
+    if (state === "disconnected") {
+      return;
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function testProviderConnection(providerOverride = "") {
+  const config = await getConfig();
+  const provider = String(providerOverride || getDefaultProvider(config) || "ollama").trim();
+
+  if (provider === "ollama") {
+    const result = await listModels();
+    return {
+      provider,
+      baseUrl: result.baseUrl,
+      modelCount: result.models.length,
+      message: `Connected to ${result.baseUrl}. Found ${result.models.length} model(s).`,
+    };
+  }
+
+  if (provider === "lmStudio") {
+    const result = await listLmStudioModels();
+    return {
+      provider,
+      baseUrl: result.baseUrl,
+      modelCount: result.models.length,
+      message: `Connected to ${result.baseUrl}. Found ${result.models.length} model(s).`,
+    };
+  }
+
+  if (provider === "gemini") {
+    const result = await generateWithGemini("Reply with OK.", "");
+    return {
+      provider,
+      model: result.model,
+      message: `Connected to Gemini with model ${result.model}.`,
+    };
+  }
+
+  if (provider === "azureOpenAi") {
+    const result = await generateWithAzureOpenAi("Reply with OK.", "");
+    return {
+      provider,
+      model: result.model,
+      message: `Connected to Azure OpenAI with deployment ${result.model}.`,
+    };
+  }
+
+  throw new Error(`Unsupported provider: ${provider}`);
+}
+
 async function generateWithConfiguredProvider(prompt, model) {
   const config = await getConfig();
   const provider = getDefaultProvider(config);
+
+  if (provider === "lmStudio") {
+    return generateWithLmStudio(prompt, model);
+  }
 
   if (provider === "gemini") {
     return generateWithGemini(prompt, model);
   }
 
-  if (provider === "lmStudio" || provider === "azureOpenAi") {
-    throw new Error(`${provider === "lmStudio" ? "LM Studio" : "Azure OpenAI"} provider execution is not implemented yet.`);
+  if (provider === "azureOpenAi") {
+    return generateWithAzureOpenAi(prompt, model);
   }
 
   return generateWithOllama(prompt, model);
@@ -4434,12 +4988,16 @@ async function streamChatWithConfiguredProvider(port, messages, model) {
   const config = await getConfig();
   const provider = getDefaultProvider(config);
 
+  if (provider === "lmStudio") {
+    return streamChatWithLmStudio(port, messages, model);
+  }
+
   if (provider === "gemini") {
     return streamChatWithGemini(port, messages, model);
   }
 
-  if (provider === "lmStudio" || provider === "azureOpenAi") {
-    throw new Error(`${provider === "lmStudio" ? "LM Studio" : "Azure OpenAI"} provider execution is not implemented yet.`);
+  if (provider === "azureOpenAi") {
+    return streamChatWithAzureOpenAi(port, messages, model);
   }
 
   return streamChatWithOllama(port, messages, model);
@@ -4596,6 +5154,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ...result,
           config: result.config ? sanitizeConfigForSender(result.config, sender) : result.config,
         });
+        return;
+      }
+      case "provider:test-connection": {
+        sendResponse({ ok: true, ...(await testProviderConnection(message.provider || "")) });
         return;
       }
       case "ollama:select-model": {

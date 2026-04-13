@@ -20,7 +20,7 @@ const OPTION_I18N = {
     lmStudioUrlLabel: "LM Studio 網址",
     lmStudioModelLabel: "預設模型 ID",
     lmStudioApiKeyLabel: "API Key",
-    lmStudioHint: "可先儲存 LM Studio 本機伺服器資訊，之後要接 OpenAI 相容呼叫或多路由時就能直接使用。",
+    lmStudioHint: "儲存 LM Studio 本機伺服器網址、模型 ID 與 API Key，瀏覽器聊天切到 LM Studio 時就會直接使用。",
     geminiSectionTitle: "Gemini",
     geminiSectionTag: "Google AI",
     geminiModelLabel: "模型",
@@ -32,7 +32,7 @@ const OPTION_I18N = {
     azureDeploymentLabel: "Deployment",
     azureApiVersionLabel: "API Version",
     azureApiKeyLabel: "API Key",
-    azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，之後接 hosted routing 時可直接使用。",
+    azureHint: "儲存 Azure OpenAI 的資源端點、deployment 名稱、API version 與金鑰，瀏覽器聊天切到 Azure OpenAI 時就會直接使用。",
     githubApiKeyLabel: "GitHub API Key",
     githubApiKeyHint: "建議使用 fine-grained、read-only 的 GitHub personal access token。設定後 extension 就能抓 GitHub 檔案內容，也可讀取你有權限的 private repository。",
     telegramNotificationEnabledLabel: "啟用 Telegram 通知",
@@ -123,7 +123,7 @@ const OPTION_I18N = {
     googleDrivePullSuccess: "已從 Google Drive 拉回並合併。",
     googleDriveMissingClientId: "請先填入 Google OAuth Client ID 並儲存設定。",
     defaultProviderLabel: "預設提供者",
-    defaultProviderHint: "選擇未來啟用多路由時，預設要使用的 AI 提供者。",
+    defaultProviderHint: "選擇瀏覽器聊天預設要使用的 AI 提供者。",
     starterRoutingKicker: "Starter 路由",
     starterRoutingTitle: "Starter 模型路由",
     starterRoutingTag: "能力導向",
@@ -257,7 +257,7 @@ const OPTION_I18N = {
     lmStudioUrlLabel: "LM Studio URL",
     lmStudioModelLabel: "Default Model ID",
     lmStudioApiKeyLabel: "API Key",
-    lmStudioHint: "Store LM Studio server details here so future OpenAI-compatible routing can use them directly.",
+    lmStudioHint: "Save your LM Studio server URL, model ID, and API key to use LM Studio in browser chat.",
     geminiSectionTitle: "Gemini",
     geminiSectionTag: "Google AI",
     geminiModelLabel: "Model",
@@ -269,7 +269,7 @@ const OPTION_I18N = {
     azureDeploymentLabel: "Deployment",
     azureApiVersionLabel: "API Version",
     azureApiKeyLabel: "API Key",
-    azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key for future hosted routing.",
+    azureHint: "Save your Azure OpenAI resource endpoint, deployment name, API version, and API key to use Azure OpenAI in browser chat.",
     githubApiKeyLabel: "GitHub API Key",
     githubApiKeyHint: "Use a fine-grained, read-only GitHub personal access token when possible. The extension can then fetch GitHub file contents, including private repositories you can access.",
     telegramNotificationEnabledLabel: "Enable Telegram notifications",
@@ -360,7 +360,7 @@ const OPTION_I18N = {
     googleDrivePullSuccess: "Pulled from Google Drive and merged.",
     googleDriveMissingClientId: "Enter and save a Google OAuth Client ID first.",
     defaultProviderLabel: "Default Provider",
-    defaultProviderHint: "Choose which AI provider should be used by default when future routing is enabled.",
+    defaultProviderHint: "Choose which AI provider browser chat should use by default.",
     starterRoutingKicker: "Starter Routing",
     starterRoutingTitle: "Starter Model Routing",
     starterRoutingTag: "Capability Based",
@@ -600,7 +600,7 @@ const OPTION_I18N = {
     lmStudioUrlLabel: "LM Studio 地址",
     lmStudioModelLabel: "默认模型 ID",
     lmStudioApiKeyLabel: "API Key",
-    lmStudioHint: "可先保存 LM Studio 本地服务信息，之后接 OpenAI 兼容调用或多路由时可直接使用。",
+    lmStudioHint: "保存 LM Studio 本地服务地址、模型 ID 与 API Key，浏览器聊天切到 LM Studio 时就会直接使用。",
     geminiSectionTitle: "Gemini",
     geminiSectionTag: "Google AI",
     geminiModelLabel: "模型",
@@ -612,11 +612,11 @@ const OPTION_I18N = {
     azureDeploymentLabel: "Deployment",
     azureApiVersionLabel: "API Version",
     azureApiKeyLabel: "API Key",
-    azureHint: "保存 Azure OpenAI 的资源端点、deployment 名称、API version 与密钥，之后接 hosted routing 时可直接使用。",
+    azureHint: "保存 Azure OpenAI 的资源端点、deployment 名称、API version 与密钥，浏览器聊天切到 Azure OpenAI 时就会直接使用。",
     generalSectionTitle: "体验",
     generalSectionTag: "Prompt 路由",
     defaultProviderLabel: "默认 Provider",
-    defaultProviderHint: "选择未来启用多路由时默认使用的 AI provider。",
+    defaultProviderHint: "选择浏览器聊天默认要使用的 AI provider。",
     replyLanguageLabel: "回复语言",
     systemPromptLabel: "System Prompt",
     systemPromptHint: "这段内容会先于用户消息与页面 context 一起发送给模型，适合放角色设定、格式要求与回复限制。",
@@ -4091,9 +4091,17 @@ function updateStarterRoutingAvailability() {
 }
 
 function setStatus(message, isError = false) {
-  const node = document.getElementById("statusMessage");
-  node.textContent = message;
-  node.classList.toggle("is-error", isError);
+  const nodes = [
+    document.getElementById("statusMessage"),
+    document.getElementById("providerStatusMessage"),
+  ];
+  nodes.forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    node.textContent = message;
+    node.classList.toggle("is-error", isError);
+  });
 }
 
 function setTelegramStatus(message, isError = false) {
@@ -4377,6 +4385,27 @@ async function refreshModels() {
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
 
+function getCurrentProviderForConnectionTest() {
+  const configuredProvider = document.getElementById("defaultProvider")?.value || "ollama";
+  return String(activeProviderTab || configuredProvider || "ollama").trim() || "ollama";
+}
+
+async function testConnectionForCurrentProvider() {
+  const provider = getCurrentProviderForConnectionTest();
+  if (provider === "ollama") {
+    await refreshModels();
+    return;
+  }
+
+  setStatus(t("loadingModels"));
+  const result = await sendMessage({ type: "provider:test-connection", provider });
+  if (!result?.ok) {
+    throw new Error(result?.error || t("fetchModelsFailed"));
+  }
+
+  setStatus(result.message || `${getProviderDisplayName(provider)} connected.`);
+}
+
 document.getElementById("saveButton").addEventListener("click", async () => {
   try {
     await saveConfig();
@@ -4402,7 +4431,7 @@ if (typeof SYSTEM_THEME_MEDIA_QUERY?.addEventListener === "function") {
 document.getElementById("testButton").addEventListener("click", async () => {
   try {
     await saveConfig();
-    await refreshModels();
+    await testConnectionForCurrentProvider();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
