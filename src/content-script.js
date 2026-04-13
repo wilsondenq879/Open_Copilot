@@ -362,6 +362,7 @@ const GITHUB_CODE_STARTERS = ["githubCodeReviewDeep", "githubContractCheck", "gi
 const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSurfaceReview"];
 const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
 const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
+const QA_FLOW_BLOCK_STARTERS = ["qaSourceDistill", "qaQuestionDraft", "qaAnswerEvidence", "qaMarkdownPolish"];
 const BUILTIN_STARTER_DESCRIPTIONS = {
   "zh-TW": {
     pageSummary: "快速整理目前頁面的重點、脈絡與關鍵資訊。",
@@ -415,6 +416,10 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     templateIdeas: "根據內容推薦適合套用的梗圖模板方向。",
     lowIqMeme: "把內容改成更直白、誇張、低智商風格的梗圖文案。",
     multiPerspective: "從多個角色或立場切入，同時看同一件事。",
+    qaSourceDistill: "先把頁面中適合出 QA 的事實、概念與關鍵資訊整理出來。",
+    qaQuestionDraft: "根據來源內容先擬出一批可回答、可驗證的候選問題。",
+    qaAnswerEvidence: "只根據來源內容回答問題，並附上可對照的原文證據。",
+    qaMarkdownPolish: "把已整理好的 QA 結果轉成乾淨一致的 Markdown 輸出格式。",
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
     createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
@@ -472,6 +477,10 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     templateIdeas: "Suggest meme template directions that fit the current content.",
     lowIqMeme: "Rewrite the idea into an intentionally blunt, chaotic low-IQ meme style.",
     multiPerspective: "Analyze the same topic from multiple roles or perspectives.",
+    qaSourceDistill: "Extract the grounded facts, concepts, and source material that are worth turning into QA.",
+    qaQuestionDraft: "Draft candidate questions that stay answerable and verifiable from the source.",
+    qaAnswerEvidence: "Answer the drafted questions using only source-backed content and attach evidence.",
+    qaMarkdownPolish: "Turn the grounded QA output into a clean, reusable Markdown format.",
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
     createCustomStarter: "Help teach your AI a new reusable skill.",
@@ -775,6 +784,11 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
+    starter_qaSourceDistill: "QA · 整理來源",
+    starter_qaQuestionDraft: "QA · 擬出問題",
+    starter_qaAnswerEvidence: "QA · 回答並附證據",
+    starter_qaMarkdownPolish: "QA · 整理成 Markdown",
+    agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "網址清單生成 QA",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
@@ -787,6 +801,10 @@ const CONTENT_I18N = {
     articleBiasCheckPrompt: "請分析這個頁面的主要論點、隱含假設與可能忽略的反面觀點。請分成「核心主張 / 依據 / 可能盲點 / 我還應該查什麼」四段，並使用{language}回答。",
     codeRiskReviewPrompt: "請把這個頁面中的程式內容當成 code review 對象，找出高風險處、潛在 bug、可讀性問題與建議改善方向。請優先列出最重要的問題，並使用{language}回答。",
     codeTeachBackPrompt: "請把這個頁面中的程式或技術內容轉成容易吸收的教學筆記。先講它在做什麼，再講關鍵概念，最後補上初學者容易卡住的點。請使用{language}回答。",
+    qaSourceDistillPrompt: "請只根據目前頁面可見內容與前面步驟已整理出的資訊，整理出一份適合後續生成 QA 的來源摘要。請不要補外部知識，也不要先回答問題。請用 Markdown 輸出，固定分成四段：\n1. 重要事實\n2. 關鍵概念 / 功能\n3. 專有名詞 / 名稱 / 連結\n4. 哪些地方資訊不足或不確定\n若某些判斷只是推測，請明確標記。請使用{language}回答。",
+    qaQuestionDraftPrompt: "請根據目前頁面可見內容，以及前面步驟已整理出的重點，先擬出 5 到 10 個候選問題。這些問題必須可以從來源內容回答，不可依賴外部知識，也不要互相重複。請優先涵蓋：頁面目的、重要功能、限制條件、操作方式、重要名詞與使用者最可能想問的問題。請用 Markdown 編號清單輸出，只有問題，不要附答案。請使用{language}回答。",
+    qaAnswerEvidencePrompt: "請根據目前頁面可見內容，以及前面步驟列出的候選問題，產出附 evidence 的 QA。規則：1. 只能根據來源內容回答，不可使用外部知識 2. 如果某題無法被來源直接支持，就不要硬答 3. 每組都要附一段最能支持答案的 evidence 4. 若 evidence 中有連結，請保留 Markdown 連結格式。請用以下 Markdown 結構輸出，每組之間空一行：\nQ: ...\nA: ...\nEvidence: ...\n請使用{language}回答。",
+    qaMarkdownPolishPrompt: "請根據目前頁面可見內容與前面步驟已整理出的 QA，做最後整理。保留內容忠於來源，不要新增外部知識。請移除重複題目、修正語句，並把最終輸出固定整理成以下 Markdown 格式，每組之間空一行：\nQ: ...\nA: ...\n如果文字裡有網址，請保留或整理成 Markdown 連結格式。請使用{language}回答。",
     githubRepoPurposePrompt: "請根據目前這個 GitHub 頁面，說明這個 repository 主要是做什麼用的。請優先整理：\n1. 這個 repo 想解決什麼問題\n2. 它的核心功能或主要模組\n3. 可能的使用對象或使用情境\n4. 主要技術棧或實作方向\n5. 我接下來最值得先看的檔案或目錄\n如果目前頁面不是 repository 首頁，也請根據可見內容、路徑、README、檔名、PR / issue / code 線索做最合理的推斷，並明確標示哪些是推測。請使用{language}回答。",
     githubSummaryPrompt: "請整理這個 GitHub 頁面的重點。如果是 repository，請說明用途、結構與值得先看的地方；如果是 PR 或 issue，請整理背景、重點變更與目前狀態。請使用{language}回答。",
     githubReviewFocusPrompt: "請站在 reviewer 角度，根據這個 GitHub 頁面整理最值得優先檢查的項目。請分成「風險最高 / 建議先看 / 可追問問題」三段，並使用{language}回答。",
@@ -1243,6 +1261,11 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
+    starter_qaSourceDistill: "QA · Distill Source",
+    starter_qaQuestionDraft: "QA · Draft Questions",
+    starter_qaAnswerEvidence: "QA · Answer With Evidence",
+    starter_qaMarkdownPolish: "QA · Polish Markdown",
+    agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "URL List To QA",
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
@@ -1255,6 +1278,10 @@ const CONTENT_I18N = {
     articleBiasCheckPrompt: "Analyze this page's main claims, hidden assumptions, and possible blind spots. Structure the answer as Core claims, Evidence, Blind spots, and What to verify next. Respond in {language}.",
     codeRiskReviewPrompt: "Treat the code or technical content on this page like a code review. Identify the highest-risk areas, possible bugs, readability issues, and practical improvements. Prioritize the most important findings first and respond in {language}.",
     codeTeachBackPrompt: "Turn the code or technical content on this page into easy-to-follow study notes. Explain what it does, the key concepts behind it, and where a beginner is most likely to get stuck. Respond in {language}.",
+    qaSourceDistillPrompt: "Using only the visible page content and any relevant output from earlier steps, distill the source material that is worth turning into QA. Do not answer questions yet and do not add outside knowledge. Output Markdown with exactly these sections: 1. Important facts 2. Key concepts / features 3. Proper nouns / names / links 4. What is unclear, missing, or uncertain. If something is an inference, label it clearly. Respond in {language}.",
+    qaQuestionDraftPrompt: "Using only the visible page content and any distilled source notes from earlier steps, draft 5 to 10 candidate questions. Every question must be answerable from the source, must avoid outside knowledge, and should not duplicate another question. Prioritize page purpose, important features, limits, how-to information, important terms, and the questions a user is most likely to ask. Output a numbered Markdown list containing only questions. Respond in {language}.",
+    qaAnswerEvidencePrompt: "Using only the visible page content and the drafted candidate questions from earlier steps, produce grounded QA with evidence. Rules: 1. Answer only from the source material 2. If a question is not directly supported, skip it instead of guessing 3. Every QA pair must include the strongest supporting evidence snippet 4. If the evidence contains links, preserve them as Markdown links. Output each item in this exact Markdown shape, with a blank line between items:\nQ: ...\nA: ...\nEvidence: ...\nRespond in {language}.",
+    qaMarkdownPolishPrompt: "Use the visible page content and the earlier QA draft to produce the final polished QA output. Stay faithful to the source and do not add outside knowledge. Remove duplicates, tighten wording, and format the final result in this exact Markdown shape with a blank line between items:\nQ: ...\nA: ...\nIf text contains URLs, preserve or convert them into Markdown links. Respond in {language}.",
     githubRepoPurposePrompt: "Explain what this GitHub repository is mainly for based on the current GitHub page. Prioritize: 1. What problem this repo is trying to solve 2. Its main features or modules 3. Who it seems to be for or when it would be used 4. The likely tech stack or implementation direction 5. Which files or directories I should read next. If the current page is not the repository homepage, still infer from the visible page, path, README, filenames, PR / issue / code clues, and clearly mark anything that is an inference. Respond in {language}.",
     githubSummaryPrompt: "Summarize this GitHub page. If it is a repository, explain what it is for, how it seems organized, and what is worth reading first. If it is a PR or issue, summarize the background, key changes, and current status. Respond in {language}.",
     githubReviewFocusPrompt: "Act like a reviewer and identify the most important things to inspect on this GitHub page. Structure the answer as Highest risk, Review first, and Questions to ask. Respond in {language}.",
@@ -3637,6 +3664,7 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
+    ...QA_FLOW_BLOCK_STARTERS,
     "batchUrlQaWorkflow",
     "createAgentFlow",
     "createCustomStarter",
@@ -3861,6 +3889,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
 
   return allKeys.map((starterKey) => {
     const recommendationRank = recommendedKeys.includes(starterKey) ? recommendedKeys.indexOf(starterKey) : recommendedKeys.length + 20;
+    const isQaFlowBlock = QA_FLOW_BLOCK_STARTERS.includes(starterKey);
     return {
       id: `builtin:${starterKey}`,
       label: getStarterText(starterKey),
@@ -3870,9 +3899,11 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       isCustomStarter: false,
       starterKey,
       showInPopup: (!Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey))
-        && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized),
+        && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized)
+        && !isQaFlowBlock,
       isRecommended: highlightedKeys.includes(starterKey),
       isBatchUrlQaBuilder: starterKey === "batchUrlQaWorkflow",
+      isQaFlowBlock,
       isCustomStarterBuilder: starterKey === "createCustomStarter",
       isAgentFlowBuilder: starterKey === "createAgentFlow",
       recommendationRank,
@@ -5351,6 +5382,22 @@ function getStarterPrompt(starterKey) {
 
   if (starterKey === "codeTeachBack") {
     return tl("codeTeachBackPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaSourceDistill") {
+    return tl("qaSourceDistillPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaQuestionDraft") {
+    return tl("qaQuestionDraftPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaAnswerEvidence") {
+    return tl("qaAnswerEvidencePrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaMarkdownPolish") {
+    return tl("qaMarkdownPolishPrompt", { language: getTargetLanguageLabel() });
   }
 
   if (starterKey === "githubRepoPurpose") {
@@ -9183,12 +9230,14 @@ function renderAgentFlowBuilder() {
     .map((starter) => {
       const alreadySelected = draft.steps.some((step) => step.starterId === starter.id);
       const disabled = alreadySelected || draft.steps.length >= MAX_AGENT_FLOW_STEPS;
+      const qaAlias = starter.isQaFlowBlock ? `${tl("agentFlowQaBlockBadge")} · ${starter.starterKey}` : "";
+      const metaLine = [qaAlias, starter.description || starter.label].filter(Boolean).join(" • ");
       return `
         <button class="ollama-quick-picker-row ${alreadySelected ? "is-selected" : ""}" type="button" data-action="add-agent-flow-step" data-flow-starter-id="${escapeHtml(starter.id)}" ${disabled ? "disabled" : ""}>
           <span class="ollama-quick-picker-icon">${alreadySelected ? "✓" : "＋"}</span>
           <span class="ollama-quick-picker-stack">
             <span class="ollama-quick-picker-name">${escapeHtml(starter.label)}</span>
-            <span class="ollama-quick-picker-meta">${escapeHtml(starter.description || starter.label)}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(metaLine || starter.label)}</span>
           </span>
         </button>
       `;

@@ -1794,6 +1794,7 @@ let latestWorkFolderStatus = null;
 let latestGoogleDriveStatus = null;
 let currentBatchUrlQaJobs = [];
 let batchUrlQaPollTimer = null;
+let batchUrlQaLogsOpen = false;
 let skillDetailState = {
   open: false,
   starterId: "",
@@ -2215,19 +2216,17 @@ Object.assign(OPTION_I18N["zh-TW"], {
   flowDetailHint: "這裡會顯示整條 flow 的完整步驟。",
   flowDetailMetaLabel: "Metadata",
   flowDetailStepsLabel: "Flow Steps",
-  batchUrlQaTitle: "Batch URL QA",
-  batchUrlQaHint: "貼上 1 到 100 個網址，逐頁生成有 evidence 的 QA pairs，並把整批結果寫進本機 work folder 的同一個 Markdown 檔。",
-  batchUrlQaCountLabel: "每頁 QA 數量",
-  batchUrlQaFileNameLabel: "輸出檔名",
-  batchUrlQaInputLabel: "貼上網址",
-  batchUrlQaInputHint: "建議一行一個 URL。輸出內容只保留 Q: 與 A: 行。",
-  batchUrlQaStartButton: "開始 Batch Job",
-  batchUrlQaStatusIdle: "Batch job 狀態會顯示在這裡。",
+  builtinFlowTemplatesTitle: "內建 Flow 範本",
+  builtinFlowTemplatesHint: "這些預設 flow 是唯讀的。先複製成你的 flow，再自行調整步驟或 wording。",
+  builtinFlowTemplatesEmpty: "目前還沒有內建 Flow 範本。",
+  batchUrlQaTemplateTitle: "Batch URL QA",
+  batchUrlQaTemplateHint: "預設內建 workflow：貼上一批網址後，逐頁讀取內容、生成 grounded QA、寫入單一 Markdown 檔，並在完成後發送通知。這裡是只讀範本，不在設定頁直接執行。",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
   batchUrlQaJobsHint: "最近的執行會顯示進度、成功數量，以及寫入 work folder 的單一 Markdown 路徑。",
   batchUrlQaNoJobs: "目前還沒有 Batch URL QA jobs。",
-  batchUrlQaStarted: "Batch URL QA 已開始：{count} 個 URL，輸出到 {fileName}",
-  batchUrlQaModelMissing: "請先選擇模型，再開始 Batch URL QA。",
+  batchUrlQaLogsButton: "Logs",
+  batchUrlQaLogsKicker: "執行紀錄",
+  batchUrlQaLogsTitle: "Batch URL QA Logs",
   batchUrlQaStatStatus: "狀態",
   batchUrlQaStatProgress: "進度",
   batchUrlQaStatSuccess: "成功",
@@ -2245,13 +2244,15 @@ Object.assign(OPTION_I18N["zh-TW"], {
     skillDetailNameLabel: "按鈕文字",
     skillDetailSaveName: "儲存按鈕文字",
     skillDetailNameSaved: "已更新技能按鈕文字：{name}",
-    builtinSkillBadge: "內建",
+  builtinSkillBadge: "內建",
   customSkillBadge: "自訂",
   openDetailsButton: "查看完整內容",
-    duplicateBuiltinSkill: "複製成自訂 skill",
-    builtinSkillDuplicated: "已複製內建 skill：{name}",
-    popupVisibilityShown: "工具列顯示",
-    popupVisibilityHidden: "工具列隱藏",
+  duplicateBuiltinSkill: "複製成自訂 skill",
+  builtinSkillDuplicated: "已複製內建 skill：{name}",
+  duplicateBuiltinFlow: "複製成我的 Flow",
+  builtinFlowDuplicated: "已複製內建 Flow：{name}",
+  popupVisibilityShown: "工具列顯示",
+  popupVisibilityHidden: "工具列隱藏",
   });
 
 Object.assign(OPTION_I18N.en, {
@@ -2281,19 +2282,17 @@ Object.assign(OPTION_I18N.en, {
   flowDetailHint: "Review the full flow steps here.",
   flowDetailMetaLabel: "Metadata",
   flowDetailStepsLabel: "Flow Steps",
-  batchUrlQaTitle: "Batch URL QA",
-  batchUrlQaHint: "Paste 1 to 100 URLs, generate grounded QA pairs with evidence for each page, then write the whole run into one Markdown file in the local work folder.",
-  batchUrlQaCountLabel: "QA per URL",
-  batchUrlQaFileNameLabel: "Output File Name",
-  batchUrlQaInputLabel: "Paste URLs",
-  batchUrlQaInputHint: "Use one URL per line. The output keeps plain Q: and A: lines only.",
-  batchUrlQaStartButton: "Start Batch Job",
-  batchUrlQaStatusIdle: "Batch job status will appear here.",
+  builtinFlowTemplatesTitle: "Built-in Flow Templates",
+  builtinFlowTemplatesHint: "These default flows are read-only. Duplicate one into your own flow before customizing steps or wording.",
+  builtinFlowTemplatesEmpty: "No built-in flow templates yet.",
+  batchUrlQaTemplateTitle: "Batch URL QA",
+  batchUrlQaTemplateHint: "Default built-in workflow: paste a URL list, read each page, generate grounded QA, write one Markdown file, and send a completion notification. This settings-page card is a read-only template, not a job runner.",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
   batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.",
   batchUrlQaNoJobs: "No Batch URL QA jobs yet.",
-  batchUrlQaStarted: "Batch URL QA started: {count} URL(s), output file {fileName}",
-  batchUrlQaModelMissing: "Pick a model before starting Batch URL QA.",
+  batchUrlQaLogsButton: "Logs",
+  batchUrlQaLogsKicker: "Run Logs",
+  batchUrlQaLogsTitle: "Batch URL QA Logs",
   batchUrlQaStatStatus: "Status",
   batchUrlQaStatProgress: "Progress",
   batchUrlQaStatSuccess: "Success",
@@ -2316,6 +2315,8 @@ Object.assign(OPTION_I18N.en, {
   openDetailsButton: "Open Details",
   duplicateBuiltinSkill: "Duplicate as Custom",
   builtinSkillDuplicated: "Duplicated built-in skill: {name}",
+  duplicateBuiltinFlow: "Duplicate as My Flow",
+  builtinFlowDuplicated: "Duplicated built-in flow: {name}",
   popupVisibilityShown: "Shown In Toolbar",
   popupVisibilityHidden: "Hidden From Toolbar",
 });
@@ -2585,19 +2586,14 @@ function applyTranslations() {
   if (agentFlowLibrarySkillsLabel) agentFlowLibrarySkillsLabel.textContent = t("agentFlowLibrarySkillsLabel");
   document.getElementById("agentFlowLibraryGridTitle").textContent = t("agentFlowLibraryGridTitle");
   document.getElementById("agentFlowLibraryGridDescription").textContent = t("agentFlowLibraryGridDescription");
-  document.getElementById("batchUrlQaTitle").textContent = t("batchUrlQaTitle");
-  document.getElementById("batchUrlQaHint").textContent = t("batchUrlQaHint");
-  document.getElementById("batchUrlQaCountLabel").textContent = t("batchUrlQaCountLabel");
-  document.getElementById("batchUrlQaFileNameLabel").textContent = t("batchUrlQaFileNameLabel");
-  document.getElementById("batchUrlQaStartButton").textContent = t("batchUrlQaStartButton");
-  document.getElementById("batchUrlQaInputLabel").textContent = t("batchUrlQaInputLabel");
-  document.getElementById("batchUrlQaInputHint").textContent = t("batchUrlQaInputHint");
+  document.getElementById("builtinFlowTemplatesTitle").textContent = t("builtinFlowTemplatesTitle");
+  document.getElementById("builtinFlowTemplatesHint").textContent = t("builtinFlowTemplatesHint");
+  document.getElementById("batchUrlQaLogsButton").textContent = t("batchUrlQaLogsButton");
   document.getElementById("batchUrlQaJobsTitle").textContent = t("batchUrlQaJobsTitle");
   document.getElementById("batchUrlQaJobsHint").textContent = t("batchUrlQaJobsHint");
-  if (!String(document.getElementById("batchUrlQaStatus").textContent || "").trim() || document.getElementById("batchUrlQaStatus").dataset.i18nIdle === "true") {
-    document.getElementById("batchUrlQaStatus").textContent = t("batchUrlQaStatusIdle");
-    document.getElementById("batchUrlQaStatus").dataset.i18nIdle = "true";
-  }
+  document.getElementById("batchUrlQaLogsKicker").textContent = t("batchUrlQaLogsKicker");
+  document.getElementById("batchUrlQaLogsTitle").textContent = t("batchUrlQaLogsTitle");
+  document.getElementById("batchUrlQaJobsHintModal").textContent = t("batchUrlQaJobsHint");
   const starterLibraryCapacityValue = document.getElementById("starterLibraryCapacityValue");
   if (starterLibraryCapacityValue) starterLibraryCapacityValue.textContent = String(MAX_CUSTOM_STARTERS);
   document.getElementById("skillsPageTitle").textContent = t("skillsPageTitle");
@@ -2684,6 +2680,7 @@ function applyTranslations() {
   renderStarterFlowEditorModal();
   renderSkillDetailModal();
   renderFlowDetailModal();
+  renderBatchUrlQaLogsModal();
 }
 
 function slugifyStarterId(value, fallback = "starter") {
@@ -3422,6 +3419,28 @@ function getAgentFlowStarters() {
   return currentCustomStarters.filter((item) => item.mode === "flow");
 }
 
+function getBuiltinFlowEntries() {
+  return [
+    {
+      id: "builtin-flow:batch-url-qa",
+      starterKey: "batchUrlQaWorkflow",
+      label: t("batchUrlQaTemplateTitle"),
+      description: t("batchUrlQaTemplateHint"),
+      scopes: ["generic"],
+      showInPopup: false,
+      mode: "flow",
+      flowSteps: [
+        { starterId: "builtin:qaSourceDistill", label: "QA · Distill Source" },
+        { starterId: "builtin:qaQuestionDraft", label: "QA · Draft Questions" },
+        { starterId: "builtin:qaAnswerEvidence", label: "QA · Answer With Evidence" },
+        { starterId: "builtin:qaMarkdownPolish", label: "QA · Polish Markdown" },
+      ],
+      outputStepIds: ["builtin:qaMarkdownPolish"],
+      isBuiltin: true,
+    },
+  ];
+}
+
 function getSkillLibraryEntries() {
   return [...getBuiltinSkillEntries(), ...getSkillStarters().map((item) => ({
     ...item,
@@ -3438,7 +3457,7 @@ function renderCustomStarterLibraryMeta() {
 
   const flowCountNode = document.getElementById("agentFlowsCount");
   if (flowCountNode) {
-    flowCountNode.textContent = String(getAgentFlowStarters().length);
+    flowCountNode.textContent = String(getBuiltinFlowEntries().length + getAgentFlowStarters().length);
   }
 
   const linkedSkillsNode = document.getElementById("agentFlowLibrarySkillsValue");
@@ -3469,7 +3488,7 @@ function renderCustomStarterLibraryMeta() {
 
   const flowsTotalCountNode = document.getElementById("flowsTotalCount");
   if (flowsTotalCountNode) {
-    flowsTotalCountNode.textContent = String(getAgentFlowStarters().length);
+    flowsTotalCountNode.textContent = String(getBuiltinFlowEntries().length + getAgentFlowStarters().length);
   }
 
   const flowsLinkedCountNode = document.getElementById("flowsLinkedCount");
@@ -3499,7 +3518,7 @@ function mergeImportedStarters(existingStarters, importedStarters) {
 }
 
 function buildDuplicatedBuiltinStarter(starter) {
-  const baseLabel = `${starter.label} Copy`;
+  const baseLabel = starter.mode === "flow" ? `My ${starter.label}` : `${starter.label} Copy`;
   return normalizeImportedStarter({
     id: slugifyStarterId(`${starter.starterKey || starter.id}-copy`, `custom-${Date.now()}`),
     label: baseLabel,
@@ -3508,6 +3527,8 @@ function buildDuplicatedBuiltinStarter(starter) {
     scopes: starter.scopes,
     showInPopup: starter.showInPopup !== false,
     mode: starter.mode,
+    flowSteps: Array.isArray(starter.flowSteps) ? starter.flowSteps : undefined,
+    outputStepIds: Array.isArray(starter.outputStepIds) ? starter.outputStepIds : undefined,
   }, currentCustomStarters.length);
 }
 
@@ -3540,6 +3561,7 @@ function setActiveSettingsView(view) {
 function renderCustomStartersPreview() {
   const skillNode = document.getElementById("customStartersPreview");
   const flowNode = document.getElementById("agentFlowsPreview");
+  const builtinFlowNode = document.getElementById("builtinFlowTemplatesPreview");
   renderCustomStarterLibraryMeta();
 
   if (skillNode) {
@@ -3577,6 +3599,24 @@ function renderCustomStartersPreview() {
         .join("");
     }
   }
+
+  if (builtinFlowNode) {
+    const builtinFlows = getBuiltinFlowEntries();
+    if (!builtinFlows.length) {
+      builtinFlowNode.className = "starter-preview-list empty-state";
+      builtinFlowNode.textContent = t("builtinFlowTemplatesEmpty");
+    } else {
+      builtinFlowNode.className = "starter-preview-list";
+      builtinFlowNode.innerHTML = builtinFlows
+        .map((starter) => renderStarterCardMarkup(starter, {
+          includeEditButton: false,
+          includeDeleteButton: false,
+          includeOpenButton: true,
+          isBuiltin: true,
+        }))
+        .join("");
+    }
+  }
 }
 
 function setBatchUrlQaStatus(message, isError = false) {
@@ -3591,19 +3631,23 @@ function setBatchUrlQaStatus(message, isError = false) {
 }
 
 function renderBatchUrlQaJobs() {
-  const node = document.getElementById("batchUrlQaJobsPreview");
-  if (!(node instanceof HTMLElement)) {
+  const nodes = [
+    document.getElementById("batchUrlQaJobsPreview"),
+    document.getElementById("batchUrlQaJobsPreviewModal"),
+  ].filter((node) => node instanceof HTMLElement);
+  if (!nodes.length) {
     return;
   }
 
   if (!currentBatchUrlQaJobs.length) {
-    node.className = "starter-preview-list empty-state";
-    node.textContent = t("batchUrlQaNoJobs");
+    nodes.forEach((node) => {
+      node.className = "starter-preview-list empty-state";
+      node.textContent = t("batchUrlQaNoJobs");
+    });
     return;
   }
 
-  node.className = "starter-preview-list";
-  node.innerHTML = currentBatchUrlQaJobs.map((job) => {
+  const markup = currentBatchUrlQaJobs.map((job) => {
     const notes = [];
     if (Array.isArray(job.invalidUrls) && job.invalidUrls.length) {
       notes.push(`<p class="batch-url-qa-job-note">${escapeHtml(t("batchUrlQaInvalidCount", { count: job.invalidUrls.length }))}</p>`);
@@ -3646,6 +3690,10 @@ function renderBatchUrlQaJobs() {
       </article>
     `;
   }).join("");
+  nodes.forEach((node) => {
+    node.className = "starter-preview-list";
+    node.innerHTML = markup;
+  });
 }
 
 async function loadBatchUrlQaJobs({ silent = false } = {}) {
@@ -3659,15 +3707,8 @@ async function loadBatchUrlQaJobs({ silent = false } = {}) {
     if (result.status) {
       renderWorkFolderStatus(result.status);
     }
-    if (!silent && !currentBatchUrlQaJobs.length) {
-      const node = document.getElementById("batchUrlQaStatus");
-      if (node instanceof HTMLElement && !String(node.textContent || "").trim()) {
-        node.textContent = t("batchUrlQaStatusIdle");
-        node.dataset.i18nIdle = "true";
-      }
-    }
   } catch (error) {
-    if (!silent) {
+    if (!silent && document.getElementById("batchUrlQaStatus")) {
       setBatchUrlQaStatus(error instanceof Error ? error.message : String(error), true);
     }
   }
@@ -3687,7 +3728,7 @@ function getSkillEntryById(starterId) {
 }
 
 function getFlowEntryById(starterId) {
-  return getAgentFlowStarters().find((item) => item.id === starterId) || null;
+  return [...getBuiltinFlowEntries(), ...getAgentFlowStarters()].find((item) => item.id === starterId) || null;
 }
 
 function renderDetailMetaList(items) {
@@ -3791,6 +3832,14 @@ function closeFlowDetail() {
   renderFlowDetailModal();
 }
 
+function renderBatchUrlQaLogsModal() {
+  const backdrop = document.getElementById("batchUrlQaLogsModal");
+  if (!(backdrop instanceof HTMLElement)) {
+    return;
+  }
+  backdrop.hidden = !batchUrlQaLogsOpen;
+}
+
 function renderFlowDetailModal() {
   const backdrop = document.getElementById("flowDetailModal");
   const currentCard = document.getElementById("flowDetailCurrentCard");
@@ -3811,11 +3860,12 @@ function renderFlowDetailModal() {
     includeEditButton: false,
     includeDeleteButton: false,
     includeOpenButton: false,
-    isBuiltin: false,
+    isBuiltin: Boolean(starter.isBuiltin),
   });
   document.getElementById("flowDetailTitle").textContent = starter.label;
   metaNode.innerHTML = renderDetailMetaList([
     { label: t("skillMetaIdLabel"), value: starter.id },
+    { label: t("skillMetaSourceLabel"), value: starter.isBuiltin ? t("builtinSkillBadge") : t("customSkillBadge") },
     { label: t("skillMetaModeLabel"), value: getModeLabel(starter.mode) },
     { label: t("skillMetaScopesLabel"), value: starter.scopes.map((scope) => getScopeLabel(scope)).join(", ") || t("starterPreviewScopeAll") },
     { label: t("flowMetaStepCountLabel"), value: String(Array.isArray(starter.flowSteps) ? starter.flowSteps.length : 0) },
@@ -3836,10 +3886,12 @@ function renderFlowDetailModal() {
       </div>
     </article>
   `).join("");
-  actionsNode.innerHTML = `
-    <button class="secondary-button" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>
-    <button class="secondary-button danger-button" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
-  `;
+  actionsNode.innerHTML = starter.isBuiltin
+    ? `<button class="secondary-button" type="button" data-action="duplicate-builtin-flow" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("duplicateBuiltinFlow"))}</button>`
+    : `
+      <button class="secondary-button" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>
+      <button class="secondary-button danger-button" type="button" data-action="delete-custom-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("deleteStarter"))}</button>
+    `;
 }
 
 async function persistCustomStarters(starters) {
@@ -4206,10 +4258,6 @@ async function loadConfig() {
     currentHiddenBuiltinStarterIds = Array.isArray(result.config.hiddenBuiltinStarterIds)
       ? result.config.hiddenBuiltinStarterIds.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
-    const batchFileNameInput = document.getElementById("batchUrlQaFileName");
-    if (batchFileNameInput instanceof HTMLInputElement && !batchFileNameInput.value.trim()) {
-      batchFileNameInput.value = "batch-url-qa.md";
-    }
     renderCustomStartersPreview();
     renderBatchUrlQaJobs();
     applySettingsTheme(settingsTheme);
@@ -4568,6 +4616,23 @@ async function handleStarterPreviewAction(event) {
     return;
   }
 
+  if (actionNode.dataset.action === "duplicate-builtin-flow") {
+    const starter = getFlowEntryById(starterId);
+    if (!starter || !starter.isBuiltin) {
+      return;
+    }
+    try {
+      currentCustomStarters = mergeImportedStarters(currentCustomStarters, [buildDuplicatedBuiltinStarter(starter)]);
+      renderCustomStartersPreview();
+      await persistCustomStarters(currentCustomStarters);
+      closeFlowDetail();
+      setStatus(t("builtinFlowDuplicated", { name: starter.label }));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
   if (actionNode.dataset.action === "toggle-popup-visibility") {
     try {
       if (starterId.startsWith("builtin:")) {
@@ -4631,6 +4696,7 @@ async function handleStarterPreviewAction(event) {
 
 document.getElementById("customStartersPreview").addEventListener("click", handleStarterPreviewAction);
 document.getElementById("agentFlowsPreview").addEventListener("click", handleStarterPreviewAction);
+document.getElementById("builtinFlowTemplatesPreview").addEventListener("click", handleStarterPreviewAction);
 document.getElementById("skillDetailActions").addEventListener("click", handleStarterPreviewAction);
 document.getElementById("flowDetailActions").addEventListener("click", handleStarterPreviewAction);
 
@@ -4757,6 +4823,23 @@ document.getElementById("skillDetailModal").addEventListener("click", (event) =>
 document.getElementById("flowDetailModal").addEventListener("click", (event) => {
   if (event.target === event.currentTarget) {
     closeFlowDetail();
+  }
+});
+
+document.getElementById("batchUrlQaLogsButton").addEventListener("click", () => {
+  batchUrlQaLogsOpen = true;
+  renderBatchUrlQaLogsModal();
+});
+
+document.getElementById("batchUrlQaLogsClose").addEventListener("click", () => {
+  batchUrlQaLogsOpen = false;
+  renderBatchUrlQaLogsModal();
+});
+
+document.getElementById("batchUrlQaLogsModal").addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) {
+    batchUrlQaLogsOpen = false;
+    renderBatchUrlQaLogsModal();
   }
 });
 
@@ -4928,38 +5011,46 @@ document.getElementById("workFolderPullButton").addEventListener("click", async 
   }
 });
 
-document.getElementById("batchUrlQaStartButton").addEventListener("click", async () => {
-  try {
-    await saveConfig();
-    const urls = document.getElementById("batchUrlQaInput").value.trim();
-    const qaPerUrl = document.getElementById("batchUrlQaCount").value.trim();
-    const fileName = document.getElementById("batchUrlQaFileName").value.trim() || "batch-url-qa.md";
-    if (!currentSelectedModel) {
-      throw new Error(t("batchUrlQaModelMissing"));
+const batchUrlQaStartButton = document.getElementById("batchUrlQaStartButton");
+if (batchUrlQaStartButton instanceof HTMLButtonElement) {
+  batchUrlQaStartButton.addEventListener("click", async () => {
+    try {
+      await saveConfig();
+      const urlsNode = document.getElementById("batchUrlQaInput");
+      const qaCountNode = document.getElementById("batchUrlQaCount");
+      const fileNameNode = document.getElementById("batchUrlQaFileName");
+      const urls = urlsNode instanceof HTMLTextAreaElement ? urlsNode.value.trim() : "";
+      const qaPerUrl = qaCountNode instanceof HTMLInputElement ? qaCountNode.value.trim() : "";
+      const fileName = fileNameNode instanceof HTMLInputElement ? (fileNameNode.value.trim() || "batch-url-qa.md") : "batch-url-qa.md";
+      if (!currentSelectedModel) {
+        throw new Error(t("batchUrlQaModelMissing"));
+      }
+      const result = await sendMessage({
+        type: "batch-url-qa:start-job",
+        urls,
+        qaPerUrl,
+        fileName,
+        model: currentSelectedModel,
+      });
+      if (!result?.ok) {
+        throw new Error(result?.error || t("saveFailed"));
+      }
+      setBatchUrlQaStatus(t("batchUrlQaStarted", {
+        count: Array.isArray(result?.job?.urls) ? result.job.urls.length : 0,
+        fileName: result?.job?.fileName || fileName,
+      }));
+      if (urlsNode instanceof HTMLTextAreaElement) {
+        urlsNode.value = "";
+      }
+      if (result.status) {
+        renderWorkFolderStatus(result.status);
+      }
+      await loadBatchUrlQaJobs({ silent: true });
+    } catch (error) {
+      setBatchUrlQaStatus(error instanceof Error ? error.message : String(error), true);
     }
-    const result = await sendMessage({
-      type: "batch-url-qa:start-job",
-      urls,
-      qaPerUrl,
-      fileName,
-      model: currentSelectedModel,
-    });
-    if (!result?.ok) {
-      throw new Error(result?.error || t("saveFailed"));
-    }
-    setBatchUrlQaStatus(t("batchUrlQaStarted", {
-      count: Array.isArray(result?.job?.urls) ? result.job.urls.length : 0,
-      fileName: result?.job?.fileName || fileName,
-    }));
-    document.getElementById("batchUrlQaInput").value = "";
-    if (result.status) {
-      renderWorkFolderStatus(result.status);
-    }
-    await loadBatchUrlQaJobs({ silent: true });
-  } catch (error) {
-    setBatchUrlQaStatus(error instanceof Error ? error.message : String(error), true);
-  }
-});
+  });
+}
 
 document.getElementById("googleDriveConnectButton").addEventListener("click", async () => {
   try {

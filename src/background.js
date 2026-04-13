@@ -2493,7 +2493,138 @@ function normalizeBatchUrlQaPair(item = {}) {
   if (!question || !answer || !evidence) {
     return null;
   }
+  if (isLowSignalBatchUrlQaPair(question, answer, evidence)) {
+    return null;
+  }
   return { question, answer, evidence };
+}
+
+function normalizeQaTextForSimilarity(value, { stripQuestionWords = false } = {}) {
+  let normalized = String(value || "")
+    .toLowerCase()
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 $2")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[「」『』（）()\[\]{}<>《》"'",.，。！？!?:：;；、\-/\\|_*`~+=]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (stripQuestionWords) {
+    normalized = normalized
+      .replace(/^(請問|請教|想問|我想知道|請說明|說明一下|可否|可以|能否|能不能|是否|有沒有|怎麼|如何|怎样|怎樣|what is|what are|what does|how to|how do i|how can i|can i|can we|is it possible to)\s+/i, "")
+      .replace(/\s+(嗎|呢|呀|嗎？|\?)$/i, "")
+      .replace(/\b(如何|怎麼|怎样|怎樣|why|what|when|where|which|who|how)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  return normalized;
+}
+
+function buildQaCharBigrams(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return [];
+  }
+  if (text.length < 2) {
+    return [text];
+  }
+  const grams = [];
+  for (let index = 0; index < text.length - 1; index += 1) {
+    grams.push(text.slice(index, index + 2));
+  }
+  return grams;
+}
+
+function computeQaDiceSimilarity(left, right) {
+  const leftGrams = buildQaCharBigrams(left);
+  const rightGrams = buildQaCharBigrams(right);
+  if (!leftGrams.length || !rightGrams.length) {
+    return 0;
+  }
+  const counts = new Map();
+  for (const gram of leftGrams) {
+    counts.set(gram, (counts.get(gram) || 0) + 1);
+  }
+  let overlap = 0;
+  for (const gram of rightGrams) {
+    const count = counts.get(gram) || 0;
+    if (count > 0) {
+      overlap += 1;
+      counts.set(gram, count - 1);
+    }
+  }
+  return (2 * overlap) / (leftGrams.length + rightGrams.length);
+}
+
+function isLowSignalBatchUrlQaPair(question, answer, evidence) {
+  const normalizedQuestion = normalizeQaTextForSimilarity(question, { stripQuestionWords: true });
+  const normalizedAnswer = normalizeQaTextForSimilarity(answer);
+  const normalizedEvidence = normalizeQaTextForSimilarity(evidence);
+
+  if (!normalizedQuestion || !normalizedAnswer || !normalizedEvidence) {
+    return true;
+  }
+
+  if (isWeakTrainingQuestion(question)) {
+    return true;
+  }
+
+  if (normalizedQuestion === normalizedAnswer) {
+    return true;
+  }
+
+  const similarity = computeQaDiceSimilarity(normalizedQuestion, normalizedAnswer);
+  if (similarity >= 0.88) {
+    return true;
+  }
+
+  const answerWordCount = normalizedAnswer.split(" ").filter(Boolean).length;
+  if (answerWordCount <= 2 && normalizedAnswer.length < 12) {
+    return true;
+  }
+
+  if (!normalizedEvidence.includes(normalizedAnswer) && similarity >= 0.78) {
+    return true;
+  }
+
+  return false;
+}
+
+function isWeakTrainingQuestion(question) {
+  const rawQuestion = String(question || "").trim();
+  const normalized = normalizeQaTextForSimilarity(rawQuestion, { stripQuestionWords: false });
+  if (!normalized) {
+    return true;
+  }
+
+  const stepDependentPatterns = [
+    /第\s*[一二三四五六七八九十0-9]+\s*步/,
+    /\b(first|second|third|next|final)\s+step\b/i,
+    /(下一步|上一步|前一步|最後一步|步驟\d+|步骤\d+)/,
+    /(第一個步驟|第一步驟|第一步需要做什麼|下一步需要做什麼)/,
+  ];
+  if (stepDependentPatterns.some((pattern) => pattern.test(rawQuestion))) {
+    return true;
+  }
+
+  const contextDependentPatterns = [
+    /^(這裡|這個|這頁|此頁|上述|以上|這篇|本文|本頁)/,
+    /\b(this page|this article|this step|above|here)\b/i,
+  ];
+  if (contextDependentPatterns.some((pattern) => pattern.test(rawQuestion))) {
+    return true;
+  }
+
+  const genericActionPatterns = [
+    /(需要做什麼|該做什麼|怎麼做|如何做|如何設定|如何操作)/,
+    /\b(what should i do|what do i need to do|how do i do this|how do i set this up)\b/i,
+  ];
+  const hasSpecificNamedEntity = /([A-Z][A-Za-z0-9_-]{2,}|AiMesh|ASUS|Go\s*系列|Travel\s*Mode|web\s*gui|router|路由器|多功能按鈕|按鈕功能)/i.test(rawQuestion);
+  if (genericActionPatterns.some((pattern) => pattern.test(rawQuestion)) && !hasSpecificNamedEntity) {
+    return true;
+  }
+
+  return false;
 }
 
 function normalizeBatchUrlQaResult(item = {}) {
@@ -2619,9 +2750,14 @@ function buildBatchUrlQaPrompt({
     "4. Evidence must be a short supporting passage copied from the provided page text.",
     "5. Questions should be specific, non-duplicate, and answerable from the page.",
     "6. Answers should be concise and faithful to the page.",
-    '7. JSON schema: {"qa_pairs":[{"question":"...","answer":"...","evidence":"..."}]}',
-    existingSummary ? "8. Do not repeat or paraphrase the existing QA pairs listed below. Only create new ones." : "",
-    extraPrompt ? `9. Additional task instructions: ${extraPrompt}` : "",
+    "7. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of the question.",
+    "8. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "9. If the page only hints at a topic but does not provide a concrete answer, skip that QA pair instead of guessing.",
+    "10. Prefer standalone questions that still make sense outside the original page. Avoid weak forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "11. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    '12. JSON schema: {"qa_pairs":[{"question":"...","answer":"...","evidence":"..."}]}',
+    existingSummary ? "13. Do not repeat or paraphrase the existing QA pairs listed below. Only create new ones." : "",
+    extraPrompt ? `14. Additional task instructions: ${extraPrompt}` : "",
     "",
     `URL: ${url}`,
     title ? `Title: ${title}` : "",

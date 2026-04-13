@@ -526,41 +526,24 @@ Time: triggerBody()['sentAt']</pre>
         </div>
 
         <div class="starter-studio-shell library-page-shell">
-          <section class="starter-studio-intake starter-studio-intake-horizontal batch-url-qa-shell" hidden>
-            <div class="starter-studio-intake-copy">
-              <div class="starter-studio-head starter-studio-head-compact">
-                <div>
-                  <div id="batchUrlQaTitle" class="starter-studio-title">Batch URL QA</div>
-                  <p id="batchUrlQaHint" class="field-hint">Paste 1 to 100 URLs, generate grounded QA pairs for each page, then write every result into one Markdown file in the local work folder.</p>
-                </div>
+          <section class="starter-studio-library starter-studio-library-full">
+            <div class="starter-studio-library-head">
+              <div>
+                <div id="builtinFlowTemplatesTitle" class="starter-studio-title">Built-in Flow Templates</div>
+                <p id="builtinFlowTemplatesHint" class="field-hint">These default flows are read-only. Duplicate one into your own flow before customizing steps or wording.</p>
               </div>
-              <div class="split-fields settings-compact-fields">
-                <label class="field">
-                  <span id="batchUrlQaCountLabel">QA per URL</span>
-                  <input id="batchUrlQaCount" type="number" min="1" max="10" value="5" />
-                </label>
-                <label class="field">
-                  <span id="batchUrlQaFileNameLabel">Output File Name</span>
-                  <input id="batchUrlQaFileName" type="text" placeholder="batch-url-qa.md" />
-                </label>
-              </div>
-              <div class="actions settings-inline-actions starter-studio-actions">
-                <button id="batchUrlQaStartButton" class="primary-button" type="button">Start Batch Job</button>
-              </div>
-              <p id="batchUrlQaStatus" class="field-hint">Batch job status will appear here.</p>
             </div>
-            <label class="field starter-json-field starter-json-field-side">
-              <span id="batchUrlQaInputLabel">Paste URLs</span>
-              <textarea id="batchUrlQaInput" rows="10" placeholder="https://example.com/page-a&#10;https://example.com/page-b"></textarea>
-              <p id="batchUrlQaInputHint" class="field-hint">Use one URL per line. The output file will contain plain Q and A lines only.</p>
-            </label>
+            <div id="builtinFlowTemplatesPreview" class="starter-preview-list empty-state">No built-in flow templates yet.</div>
           </section>
 
-          <section class="starter-studio-library starter-studio-library-full" hidden>
+          <section class="starter-studio-library starter-studio-library-full">
             <div class="starter-studio-library-head">
               <div>
                 <div id="agentFlowLibraryGridTitle" class="starter-studio-title">Agent Flow Collection</div>
                 <p id="flowsPageGridHint" class="field-hint">Click a flow card to inspect every step before editing.</p>
+              </div>
+              <div class="actions settings-inline-actions">
+                <button id="batchUrlQaLogsButton" class="secondary-button" type="button">Logs</button>
               </div>
             </div>
             <div id="agentFlowsPreview" class="starter-preview-list empty-state">No Agent Flows yet.</div>
@@ -637,6 +620,20 @@ Time: triggerBody()['sentAt']</pre>
           </div>
         </div>
         <div id="flowDetailActions" class="actions settings-inline-actions starter-ai-editor-actions"></div>
+      </section>
+    </div>
+
+    <div id="batchUrlQaLogsModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal starter-detail-modal" role="dialog" aria-modal="true" aria-labelledby="batchUrlQaLogsTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="batchUrlQaLogsKicker" class="section-kicker">Flow Logs</div>
+            <h3 id="batchUrlQaLogsTitle" class="starter-studio-title">Batch URL QA Logs</h3>
+            <p id="batchUrlQaJobsHintModal" class="field-hint">Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.</p>
+          </div>
+          <button id="batchUrlQaLogsClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="batchUrlQaJobsPreviewModal" class="starter-preview-list empty-state">No Batch URL QA jobs yet.</div>
       </section>
     </div>
 
