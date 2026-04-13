@@ -223,7 +223,8 @@ function setMessage(message, isError = false) {
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
-    popupLocale = POPUP_I18N[result.config.replyLanguage || "zh-TW"] || POPUP_I18N.en;
+    const uiLanguage = result.config.uiLanguage || result.config.replyLanguage || "zh-TW";
+    popupLocale = POPUP_I18N[uiLanguage] || POPUP_I18N.en;
     applyPopupTranslations();
     applyPopupTheme(result.config.settingsTheme);
     document.getElementById("endpointValue").textContent = result.config.ollamaUrl || tp("notConfigured");

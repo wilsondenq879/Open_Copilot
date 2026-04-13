@@ -1529,6 +1529,52 @@
     0 10px 22px rgba(53, 88, 119, 0.12);
 }
 
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-custom-builder {
+  border-color: rgba(227, 120, 171, 0.36);
+  background:
+    linear-gradient(135deg, rgba(255, 222, 238, 0.98), rgba(255, 239, 228, 0.94)),
+    rgba(250, 253, 255, 0.9);
+  color: #7d2552;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    0 8px 18px rgba(192, 77, 143, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-custom-builder:hover,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-custom-builder:focus-visible {
+  border-color: rgba(214, 95, 154, 0.5);
+  background:
+    linear-gradient(135deg, rgba(255, 210, 233, 0.99), rgba(255, 228, 213, 0.96)),
+    rgba(252, 250, 255, 0.94);
+  color: #6f1f48;
+  box-shadow:
+    0 0 0 3px rgba(227, 120, 171, 0.12),
+    0 10px 22px rgba(192, 77, 143, 0.14);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow-builder {
+  border-color: rgba(78, 181, 106, 0.34);
+  background:
+    linear-gradient(135deg, rgba(222, 248, 230, 0.98), rgba(233, 251, 239, 0.94)),
+    rgba(250, 253, 255, 0.9);
+  color: #1f6b3d;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    0 8px 18px rgba(44, 143, 90, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow-builder:hover,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow-builder:focus-visible {
+  border-color: rgba(58, 164, 88, 0.5);
+  background:
+    linear-gradient(135deg, rgba(210, 244, 221, 0.99), rgba(224, 249, 232, 0.96)),
+    rgba(248, 253, 249, 0.94);
+  color: #195933;
+  box-shadow:
+    0 0 0 3px rgba(78, 181, 106, 0.12),
+    0 10px 22px rgba(44, 143, 90, 0.14);
+}
+
 #ollama-quick-chat-host[data-theme="light"] .ollama-quick-select {
   color: #17324a;
 }
@@ -1543,6 +1589,14 @@
 
 #ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-custom-mark {
   color: rgba(70, 104, 133, 0.72);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-custom-builder .ollama-quick-starter-custom-mark {
+  color: #c04d8f;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-agent-flow-builder .ollama-quick-starter-custom-mark {
+  color: #2c8f5a;
 }
 
 #ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter-custom-tag {

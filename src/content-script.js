@@ -2060,7 +2060,11 @@ function normalizeRuntimeError(error) {
 }
 
 function getUiLanguage() {
-  return currentConfig?.replyLanguage || "zh-TW";
+  return currentConfig?.uiLanguage || currentConfig?.replyLanguage || "zh-TW";
+}
+
+function getReplyLanguage() {
+  return currentConfig?.replyLanguage || currentConfig?.uiLanguage || "zh-TW";
 }
 
 function tl(key, vars = {}) {
@@ -2070,7 +2074,7 @@ function tl(key, vars = {}) {
 }
 
 function getTargetLanguageLabel() {
-  return LANGUAGE_LABELS[getUiLanguage()] || getUiLanguage();
+  return LANGUAGE_LABELS[getReplyLanguage()] || getReplyLanguage();
 }
 
 function getPageTypeLabel(pageType) {
@@ -4571,7 +4575,7 @@ function normalizeHtmlDocument(value) {
 
   return [
     "<!doctype html>",
-    `<html lang="${escapeHtml(String(getUiLanguage() || "en"))}">`,
+    `<html lang="${escapeHtml(String(getReplyLanguage() || "en"))}">`,
     "<head>",
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
@@ -5646,7 +5650,7 @@ function createDefaultBatchUrlQaBuilderDraft() {
   return {
     urls: "",
     qaPerUrl: "8",
-    outputLanguage: getUiLanguage(),
+    outputLanguage: getReplyLanguage(),
     fileName: `batch-url-qa-${Date.now()}.md`,
     extraPrompt: "",
   };
@@ -8420,7 +8424,7 @@ async function buildTaskExtractionPrompt() {
     `Current local datetime: ${currentTime.toISOString()}`,
     `Current timezone: ${timezone}`,
     `Configured extraction window: last ${extractionWindowDays} day(s), maximum 7 day(s).`,
-    `Response language target: ${getUiLanguage()}`,
+    `Response language target: ${getReplyLanguage()}`,
     "Focus on tasks that are assigned to me, delegated to me, or clearly need my follow-up.",
     `Prioritize visible content from the last ${extractionWindowDays} day(s). If older content is visible, exclude it unless it is clearly still active and directly tied to a recent follow-up.`,
     "Merge duplicate mentions from the same topic into one task.",
@@ -11704,7 +11708,7 @@ async function handleChange(event) {
   }
 
   if (target instanceof HTMLSelectElement && target.dataset.role === "batch-url-qa-language") {
-    ensureBatchUrlQaBuilderDraft().outputLanguage = target.value || getUiLanguage();
+    ensureBatchUrlQaBuilderDraft().outputLanguage = target.value || getReplyLanguage();
     renderShell();
   }
 }
@@ -12285,6 +12289,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     changes.geminiModel ||
     changes.azureOpenAiDeployment ||
     changes.selectedModel ||
+    changes.uiLanguage ||
     changes.replyLanguage ||
     changes.settingsTheme ||
     changes.systemPrompt ||

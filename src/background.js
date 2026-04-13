@@ -63,6 +63,7 @@ const DEFAULT_CONFIG = {
   starterModelRoutingEnabled: true,
   starterReasoningModel: "",
   starterVisionModel: "",
+  uiLanguage: "zh-TW",
   replyLanguage: "zh-TW",
   settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
