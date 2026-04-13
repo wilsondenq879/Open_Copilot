@@ -36,12 +36,13 @@
             <option id="settingsThemeToolbarLightOption" value="light">Light</option>
           </select>
         </label>
-        <button id="testButton" class="secondary-button" type="button">Test Connection</button>
         <button id="saveButton" class="primary-button" type="button">Save Settings</button>
       </div>
 
       <div class="utility-tabs settings-page-tabs" role="tablist" aria-label="Settings sections">
-        <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="settings">General</button>
+        <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="general">General</button>
+        <button id="tabAiProvider" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="aiProviderTabPanel" data-settings-view="provider">AI Provider</button>
+        <button id="tabNotifications" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="notificationTabPanel" data-settings-view="notifications">Notifications</button>
         <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
         <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
       </div>
@@ -49,6 +50,163 @@
       <section class="settings-tab-panels">
       <section id="generalTabPanel" class="settings-tab-panel is-active" role="tabpanel">
         <section class="settings-layout">
+        <section class="setting-card utility-card behavior-card side-card">
+          <div class="setting-card-head">
+            <div>
+              <span id="behaviorKicker" class="section-kicker">Behavior</span>
+              <h2 id="generalSectionTitle">Experience</h2>
+            </div>
+            <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
+          </div>
+          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
+            <div class="side-stack">
+              <div class="provider-support-card">
+                <label class="field">
+                  <span id="uiLanguageLabel">UI Language</span>
+                  <select id="uiLanguage">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="es">Español</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="pt-BR">Português (Brasil)</option>
+                    <option value="hi">हिन्दी</option>
+                  </select>
+                </label>
+                <p id="uiLanguageHint" class="field-hint">Changes the extension interface language only.</p>
+                <label class="checkbox-field">
+                  <input id="starterHoverTipsEnabled" type="checkbox" />
+                  <span id="starterHoverTipsEnabledLabel">Enable starter hover tips</span>
+                </label>
+                <p id="starterHoverTipsEnabledHint" class="field-hint">Show a short description when you hover over a starter in the chat panel.</p>
+              </div>
+              <label class="field">
+                <span id="systemPromptLabel">System Prompt</span>
+                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
+              </label>
+              <label class="field">
+                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
+                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
+Skeptic|Challenge assumptions, missing evidence, and weak points.
+Action Advisor|Recommend practical next steps and decisions."></textarea>
+              </label>
+            </div>
+            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
+            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
+          </section>
+        </section>
+
+        <div class="provider-support-grid">
+          <div class="provider-support-card general-github-card">
+            <label class="field">
+              <span id="githubApiKeyLabel">GitHub API Key</span>
+              <input id="githubApiKey" type="password" placeholder="ghp_..." />
+            </label>
+            <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
+          </div>
+
+          <div class="provider-support-card general-work-folder-card">
+            <div class="field">
+              <span id="localWorkFolderLabel">Local Work Folder</span>
+              <div class="actions">
+                <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
+                <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
+                <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
+                <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
+              </div>
+              <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
+              <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
+              <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
+              <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
+            </div>
+          </div>
+
+          <div class="provider-support-card provider-support-wide">
+            <div class="field">
+              <span id="googleDriveSyncLabel">Google Drive Sync</span>
+              <label class="field">
+                <span id="googleDriveClientIdLabel">OAuth Client ID</span>
+                <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
+              </label>
+              <label class="checkbox-field">
+                <input id="googleDriveSyncEnabled" type="checkbox" />
+                <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
+              </label>
+              <label class="checkbox-field">
+                <input id="googleDriveAutoSync" type="checkbox" />
+                <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
+                <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
+                <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
+                <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
+              </div>
+              <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
+              <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
+              <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
+              <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
+            </div>
+          </div>
+        </div>
+        </section>
+      </section>
+
+      <section id="aiProviderTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+        <article class="setting-card provider-priority-card">
+          <div class="setting-card-head">
+            <div>
+              <span class="section-kicker">Default Route</span>
+              <h2 id="defaultProviderLabel">Default Provider</h2>
+            </div>
+            <span class="section-tag">Quick Start</span>
+          </div>
+          <div class="split-fields settings-compact-fields">
+            <label class="field">
+              <span id="defaultProviderSelectLabel">Default Provider</span>
+              <select id="defaultProvider">
+                <option value="ollama">Ollama</option>
+                <option value="lmStudio">LM Studio</option>
+                <option value="gemini">Gemini</option>
+                <option value="azureOpenAi">Azure OpenAI</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="replyLanguageLabel">Reply Language</span>
+              <select id="replyLanguage">
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="zh-CN">简体中文</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="hi">हिन्दी</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
+              <select id="taskExtractionWindowDays">
+                <option value="1">1 day</option>
+                <option value="2">2 days</option>
+                <option value="3">3 days</option>
+                <option value="4">4 days</option>
+                <option value="5">5 days</option>
+                <option value="6">6 days</option>
+                <option value="7">7 days</option>
+              </select>
+            </label>
+          </div>
+          <p id="defaultProviderHint" class="field-hint">Choose which AI provider browser chat should use by default.</p>
+          <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
+        </article>
+
         <article class="setting-card provider-card">
           <div class="setting-card-head">
             <div>
@@ -63,6 +221,12 @@
             <button id="tabLmStudio" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-lmStudio" data-provider-tab="lmStudio">LM Studio</button>
             <button id="tabGemini" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-gemini" data-provider-tab="gemini">Gemini</button>
             <button id="tabAzure" class="provider-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-azureOpenAi" data-provider-tab="azureOpenAi">Azure OpenAI</button>
+          </div>
+
+          <p id="providerStatusMessage" class="field-hint">Connection test results will appear here.</p>
+
+          <div class="actions settings-inline-actions">
+            <button id="testButton" class="secondary-button" type="button">Test Connection</button>
           </div>
 
           <section id="panel-ollama" class="provider-panel is-active" role="tabpanel">
@@ -112,7 +276,7 @@
                 <input id="lmStudioApiKey" type="text" placeholder="lm-studio" />
               </label>
             </div>
-            <p id="lmStudioHint" class="field-hint">Use this section to keep LM Studio server information ready for future routing or OpenAI-compatible calls.</p>
+            <p id="lmStudioHint" class="field-hint">Save your LM Studio server URL, model ID, and API key to use LM Studio in browser chat.</p>
           </section>
 
           <section id="panel-gemini" class="provider-panel" role="tabpanel" hidden>
@@ -162,53 +326,10 @@
               <span id="azureApiKeyLabel">API Key</span>
               <input id="azureOpenAiApiKey" type="password" placeholder="Azure API key" />
             </label>
-            <p id="azureHint" class="field-hint">Save your Azure OpenAI resource endpoint, deployment name, API version, and key for future hosted routing.</p>
+            <p id="azureHint" class="field-hint">Save your Azure OpenAI resource endpoint, deployment name, API version, and key to use Azure OpenAI in browser chat.</p>
           </section>
 
           <div class="provider-support-grid">
-            <div class="provider-support-card provider-support-wide">
-              <div class="split-fields settings-compact-fields">
-                <label class="field">
-                  <span id="defaultProviderLabel">Default Provider</span>
-                  <select id="defaultProvider">
-                    <option value="ollama">Ollama</option>
-                    <option value="lmStudio">LM Studio</option>
-                    <option value="gemini">Gemini</option>
-                    <option value="azureOpenAi">Azure OpenAI</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span id="replyLanguageLabel">Reply Language</span>
-                  <select id="replyLanguage">
-                    <option value="zh-TW">繁體中文</option>
-                    <option value="en">English</option>
-                    <option value="ja">日本語</option>
-                    <option value="ko">한국어</option>
-                    <option value="zh-CN">简体中文</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                    <option value="pt-BR">Português (Brasil)</option>
-                    <option value="hi">हिन्दी</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span id="taskExtractionWindowDaysLabel">Task 自動抓取區間</span>
-                  <select id="taskExtractionWindowDays">
-                    <option value="1">1 day</option>
-                    <option value="2">2 days</option>
-                    <option value="3">3 days</option>
-                    <option value="4">4 days</option>
-                    <option value="5">5 days</option>
-                    <option value="6">6 days</option>
-                    <option value="7">7 days</option>
-                  </select>
-                </label>
-              </div>
-              <p id="defaultProviderHint" class="field-hint">Choose which AI provider should be used by default when future routing is enabled.</p>
-              <p id="taskExtractionWindowDaysHint" class="field-hint">Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.</p>
-            </div>
-
             <div class="provider-support-card provider-support-wide">
               <div class="setting-card-head provider-panel-head">
                 <div>
@@ -237,94 +358,113 @@
               </div>
               <p id="starterRoutingHint" class="field-hint">Use the currently selected model as the default quick-reply model, and automatically switch code-analysis or GitHub review starters to a heavier model for that run only.</p>
             </div>
-
-            <div class="provider-support-card">
-              <label class="field">
-                <span id="githubApiKeyLabel">GitHub API Key</span>
-                <input id="githubApiKey" type="password" placeholder="ghp_..." />
-              </label>
-              <p id="githubApiKeyHint" class="field-hint">Save a GitHub personal access token so the extension can fetch GitHub file contents, including private repositories you can access.</p>
-            </div>
-
-            <div class="provider-support-card">
-              <div class="field">
-                <span id="localWorkFolderLabel">Local Work Folder</span>
-                <div class="actions">
-                  <button id="pickFolderButton" class="secondary-button" type="button">Choose Folder</button>
-                  <button id="clearFolderButton" class="secondary-button danger-button" type="button">Clear Folder</button>
-                  <button id="workFolderPullButton" class="secondary-button" type="button">Pull From Folder</button>
-                  <button id="workFolderPushButton" class="secondary-button" type="button">Push To Folder</button>
-                </div>
-                <p id="localWorkFolderHint" class="field-hint">Pick a local folder to auto-save chat sessions as JSON files. You can later load the latest saved conversation back into the panel.</p>
-                <p id="localWorkFolderStatus" class="field-hint">No folder selected.</p>
-                <p id="localWorkFolderPathLabel" class="field-hint">Configured Folder</p>
-                <p id="localWorkFolderPath" class="field-hint local-work-folder-path">Not available.</p>
-              </div>
-            </div>
-
-            <div class="provider-support-card provider-support-wide">
-              <div class="field">
-                <span id="googleDriveSyncLabel">Google Drive Sync</span>
-                <label class="field">
-                  <span id="googleDriveClientIdLabel">OAuth Client ID</span>
-                  <input id="googleDriveClientId" type="text" placeholder="1234567890-xxxx.apps.googleusercontent.com" />
-                </label>
-                <label class="checkbox-field">
-                  <input id="googleDriveSyncEnabled" type="checkbox" />
-                  <span id="googleDriveSyncEnabledLabel">Enable Drive sync</span>
-                </label>
-                <label class="checkbox-field">
-                  <input id="googleDriveAutoSync" type="checkbox" />
-                  <span id="googleDriveAutoSyncLabel">Auto-sync after saves</span>
-                </label>
-                <div class="actions settings-inline-actions">
-                  <button id="googleDriveConnectButton" class="primary-button" type="button">Connect Google Drive</button>
-                  <button id="googleDrivePullButton" class="secondary-button" type="button">Pull From Drive</button>
-                  <button id="googleDrivePushButton" class="secondary-button" type="button">Push To Drive</button>
-                  <button id="googleDriveDisconnectButton" class="secondary-button danger-button" type="button">Disconnect</button>
-                </div>
-                <p id="googleDriveSyncHint" class="field-hint">Sync generated chat documents, Starter Skill Collection, and task reminders through Google Drive app data.</p>
-                <p id="googleDriveRedirectLabel" class="field-hint">Redirect URL</p>
-                <p id="googleDriveRedirectUrl" class="field-hint local-work-folder-path">Not available.</p>
-                <p id="googleDriveSyncStatus" class="field-hint">Not connected.</p>
-              </div>
-            </div>
           </div>
         </article>
-
-        <section class="setting-card utility-card behavior-card side-card">
-          <div class="setting-card-head">
-            <div>
-              <span id="behaviorKicker" class="section-kicker">Behavior</span>
-              <h2 id="generalSectionTitle">Experience</h2>
-            </div>
-            <span id="generalSectionTag" class="section-tag">Prompt Routing</span>
-          </div>
-          <section id="panel-experience" class="utility-panel is-active" role="tabpanel">
-            <div class="side-stack">
-              <div class="provider-support-card">
-                <label class="checkbox-field">
-                  <input id="starterHoverTipsEnabled" type="checkbox" />
-                  <span id="starterHoverTipsEnabledLabel">Enable starter hover tips</span>
-                </label>
-                <p id="starterHoverTipsEnabledHint" class="field-hint">Show a short description when you hover over a starter in the chat panel.</p>
-              </div>
-              <label class="field">
-                <span id="systemPromptLabel">System Prompt</span>
-                <textarea id="systemPrompt" rows="10" placeholder="You are an Ollama quick assistant inside the user's browser."></textarea>
-              </label>
-              <label class="field">
-                <span id="multiPerspectiveProfilesLabel">Multi-View Profiles</span>
-                <textarea id="multiPerspectiveProfiles" rows="8" placeholder="Summarizer|Extract the key facts, context, and conclusion.
-Skeptic|Challenge assumptions, missing evidence, and weak points.
-Action Advisor|Recommend practical next steps and decisions."></textarea>
-              </label>
-            </div>
-            <p id="systemPromptHint" class="field-hint">This prompt is sent before the user message and page context. Use it to define tone, constraints, and output rules.</p>
-            <p id="multiPerspectiveProfilesHint" class="field-hint">One perspective per line using `Title|Instruction`. Leave empty to use the built-in defaults for each page type.</p>
-          </section>
         </section>
       </section>
+
+      <section id="notificationTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+          <div class="provider-support-grid">
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="telegramNotificationEnabled" type="checkbox" />
+                <span id="telegramNotificationEnabledLabel">Enable Telegram notifications</span>
+                <span id="telegramHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Telegram setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="telegramBotTokenLabel">Telegram Bot Token</span>
+                <input id="telegramBotToken" type="password" placeholder="123456789:AA..." />
+              </label>
+              <label class="field">
+                <span id="telegramChatIdLabel">Telegram Chat ID</span>
+                <input id="telegramChatId" type="text" placeholder="123456789 or -100..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="telegramTestButton" class="secondary-button" type="button">Send Test Telegram</button>
+              </div>
+              <p id="telegramNotificationHint" class="field-hint">When enabled, Open Copilot sends Telegram messages for Agent Flow completions and task reminders.</p>
+              <p id="telegramStatusMessage" class="field-hint">Telegram test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="lineNotificationEnabled" type="checkbox" />
+                <span id="lineNotificationEnabledLabel">Enable LINE notifications</span>
+                <span id="lineHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="LINE setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="lineChannelAccessTokenLabel">LINE Channel Access Token</span>
+                <input id="lineChannelAccessToken" type="password" placeholder="LINE channel access token" />
+              </label>
+              <label class="field">
+                <span id="lineToLabel">LINE To ID</span>
+                <input id="lineTo" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="lineTestButton" class="secondary-button" type="button">Send Test LINE</button>
+              </div>
+              <p id="lineNotificationHint" class="field-hint">When enabled, Open Copilot sends LINE messages for Agent Flow completions and task reminders.</p>
+              <p id="lineStatusMessage" class="field-hint">LINE test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="teamsNotificationEnabled" type="checkbox" />
+                <span id="teamsNotificationEnabledLabel">Enable Teams notifications</span>
+                <span id="teamsHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Teams setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="teamsWebhookUrlLabel">Teams Webhook URL</span>
+                <input id="teamsWebhookUrl" type="password" placeholder="https://.../webhookb2/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="teamsTestButton" class="secondary-button" type="button">Send Test Teams</button>
+              </div>
+              <p id="teamsNotificationHint" class="field-hint">When enabled, Open Copilot sends Teams messages for Agent Flow completions and task reminders.</p>
+              <p id="teamsPowerAutomateHint" class="field-hint">In Power Automate, put these fields into the message action so Teams can show Open Copilot source details.</p>
+              <pre id="teamsPowerAutomateExample" class="notification-code-hint">Source: triggerBody()['source']
+Event: triggerBody()['eventType']
+Label: triggerBody()['eventLabel']
+Time: triggerBody()['sentAt']</pre>
+              <p id="teamsStatusMessage" class="field-hint">Teams test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="slackNotificationEnabled" type="checkbox" />
+                <span id="slackNotificationEnabledLabel">Enable Slack notifications</span>
+                <span id="slackHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Slack setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="slackWebhookUrlLabel">Slack Webhook URL</span>
+                <input id="slackWebhookUrl" type="password" placeholder="https://hooks.slack.com/services/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="slackTestButton" class="secondary-button" type="button">Send Test Slack</button>
+              </div>
+              <p id="slackNotificationHint" class="field-hint">When enabled, Open Copilot sends Slack messages for Agent Flow completions and task reminders.</p>
+              <p id="slackStatusMessage" class="field-hint">Slack test results will appear here.</p>
+            </div>
+
+            <div class="provider-support-card">
+              <label class="checkbox-field">
+                <input id="discordNotificationEnabled" type="checkbox" />
+                <span id="discordNotificationEnabledLabel">Enable Discord notifications</span>
+                <span id="discordHelpButton" class="inline-help-button" role="button" tabindex="0" aria-label="Discord setup help" title="?">?</span>
+              </label>
+              <label class="field">
+                <span id="discordWebhookUrlLabel">Discord Webhook URL</span>
+                <input id="discordWebhookUrl" type="password" placeholder="https://discord.com/api/webhooks/..." />
+              </label>
+              <div class="actions settings-inline-actions">
+                <button id="discordTestButton" class="secondary-button" type="button">Send Test Discord</button>
+              </div>
+              <p id="discordNotificationHint" class="field-hint">When enabled, Open Copilot sends Discord messages for Agent Flow completions and task reminders.</p>
+              <p id="discordStatusMessage" class="field-hint">Discord test results will appear here.</p>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section id="starterTabPanel" class="settings-tab-panel library-page" role="tabpanel" hidden>
@@ -358,7 +498,7 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </div>
 
         <div class="starter-studio-shell library-page-shell">
-          <section class="starter-studio-intake starter-studio-intake-horizontal">
+          <section class="starter-studio-intake starter-studio-intake-horizontal skill-intake-card">
             <div class="starter-studio-intake-copy">
               <div class="starter-studio-head starter-studio-head-compact">
                 <div>
@@ -375,6 +515,11 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             <label class="field starter-json-field starter-json-field-side">
               <span id="customStartersInputLabel">Paste Starter JSON</span>
               <textarea id="customStartersInput" rows="8" placeholder='[{"label":"Email 摘要","prompt":"請整理這封 email 的重點"}]'></textarea>
+              <div class="actions settings-inline-actions starter-json-actions">
+                <button id="validateStartersJsonButton" class="secondary-button" type="button">Check JSON</button>
+                <button id="fixStartersJsonButton" class="secondary-button" type="button">Fix With AI</button>
+              </div>
+              <p id="customStartersValidationMessage" class="field-hint starter-json-validation-message">Paste skill JSON to validate its format.</p>
             </label>
           </section>
 
@@ -420,11 +565,34 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
           <section class="starter-studio-library starter-studio-library-full">
             <div class="starter-studio-library-head">
               <div>
+                <div id="builtinFlowTemplatesTitle" class="starter-studio-title">Built-in Flow Templates</div>
+                <p id="builtinFlowTemplatesHint" class="field-hint">These default flows are read-only. Duplicate one into your own flow before customizing steps or wording.</p>
+              </div>
+            </div>
+            <div id="builtinFlowTemplatesPreview" class="starter-preview-list empty-state">No built-in flow templates yet.</div>
+          </section>
+
+          <section class="starter-studio-library starter-studio-library-full">
+            <div class="starter-studio-library-head">
+              <div>
                 <div id="agentFlowLibraryGridTitle" class="starter-studio-title">Agent Flow Collection</div>
                 <p id="flowsPageGridHint" class="field-hint">Click a flow card to inspect every step before editing.</p>
               </div>
+              <div class="actions settings-inline-actions">
+                <button id="batchUrlQaLogsButton" class="secondary-button" type="button">Logs</button>
+              </div>
             </div>
             <div id="agentFlowsPreview" class="starter-preview-list empty-state">No Agent Flows yet.</div>
+          </section>
+
+          <section class="starter-studio-library starter-studio-library-full" hidden>
+            <div class="starter-studio-library-head">
+              <div>
+                <div id="batchUrlQaJobsTitle" class="starter-studio-title">Batch URL QA Jobs</div>
+                <p id="batchUrlQaJobsHint" class="field-hint">Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.</p>
+              </div>
+            </div>
+            <div id="batchUrlQaJobsPreview" class="starter-preview-list empty-state">No Batch URL QA jobs yet.</div>
           </section>
         </div>
       </section>
@@ -488,6 +656,20 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
           </div>
         </div>
         <div id="flowDetailActions" class="actions settings-inline-actions starter-ai-editor-actions"></div>
+      </section>
+    </div>
+
+    <div id="batchUrlQaLogsModal" class="starter-ai-editor-backdrop" hidden>
+      <section class="starter-ai-editor-modal starter-detail-modal" role="dialog" aria-modal="true" aria-labelledby="batchUrlQaLogsTitle">
+        <div class="starter-ai-editor-head">
+          <div>
+            <div id="batchUrlQaLogsKicker" class="section-kicker">Flow Logs</div>
+            <h3 id="batchUrlQaLogsTitle" class="starter-studio-title">Batch URL QA Logs</h3>
+            <p id="batchUrlQaJobsHintModal" class="field-hint">Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.</p>
+          </div>
+          <button id="batchUrlQaLogsClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="batchUrlQaJobsPreviewModal" class="starter-preview-list empty-state">No Batch URL QA jobs yet.</div>
       </section>
     </div>
 

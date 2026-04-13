@@ -11,6 +11,7 @@ const LOCAL_META_KEY = "localWorkFolderMeta";
 const LATEST_CHAT_SESSION_KEY = "latestChatSession";
 const EXPORT_SEQUENCE_KEY = "chatExportSequence";
 const TASKS_STORAGE_KEY = "taskReminderItems";
+const BATCH_URL_QA_JOBS_KEY = "batchUrlQaJobs";
 const GOOGLE_DRIVE_SYNC_META_KEY = "googleDriveSyncMeta";
 const GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY = "googleDriveSyncDocuments";
 const GOOGLE_DRIVE_SYNC_FILE_NAME = "edge-ai-chat-sync.json";
@@ -20,21 +21,31 @@ const MAX_GOOGLE_DRIVE_SYNC_DOCUMENTS = 50;
 const WORK_FOLDER_SKILL_DIR = "skill";
 const WORK_FOLDER_TASK_DIR = "task";
 const WORK_FOLDER_SYNC_DIR = "sync";
+const WORK_FOLDER_DATASET_DIR = "dataset";
 const WORK_FOLDER_STARTERS_FILE = "starter-skills.json";
 const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
 const TASK_NOTIFICATION_PREFIX = "task-notification:";
+const CONTEXT_MENU_ANALYZE_IMAGE_ID = "open-copilot-analyze-image";
+const CONTEXT_MENU_PASTE_SELECTION_ID = "open-copilot-paste-selection";
 const SUPPORTED_LOCAL_DOCUMENT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv"]);
 const DEFAULT_TASK_EXTRACTION_WINDOW_DAYS = 3;
 const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
+const MAX_BATCH_URL_QA_ITEMS = 100;
+const DEFAULT_BATCH_URL_QA_COUNT = 5;
 const LOCAL_SECRET_CONFIG_KEY = "providerSecretConfig";
-const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey"];
+const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
 const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey"];
 
 const DEFAULT_SECRET_CONFIG = {
   githubApiKey: "",
   geminiApiKey: "",
   azureOpenAiApiKey: "",
+  telegramBotToken: "",
+  lineChannelAccessToken: "",
+  teamsWebhookUrl: "",
+  slackWebhookUrl: "",
+  discordWebhookUrl: "",
 };
 
 const DEFAULT_CONFIG = {
@@ -52,16 +63,29 @@ const DEFAULT_CONFIG = {
   starterModelRoutingEnabled: true,
   starterReasoningModel: "",
   starterVisionModel: "",
+  uiLanguage: "zh-TW",
   replyLanguage: "zh-TW",
   settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
   starterHoverTipsEnabled: true,
+  telegramNotificationEnabled: false,
+  telegramChatId: "",
+  lineNotificationEnabled: false,
+  lineTo: "",
+  teamsNotificationEnabled: false,
+  slackNotificationEnabled: false,
+  discordNotificationEnabled: false,
   googleDriveClientId: "",
   googleDriveSyncEnabled: false,
   googleDriveAutoSync: true,
   githubApiKeyConfigured: false,
   geminiApiKeyConfigured: false,
   azureOpenAiApiKeyConfigured: false,
+  telegramBotTokenConfigured: false,
+  lineChannelAccessTokenConfigured: false,
+  teamsWebhookUrlConfigured: false,
+  slackWebhookUrlConfigured: false,
+  discordWebhookUrlConfigured: false,
   multiPerspectiveProfiles: DEFAULT_MULTI_PERSPECTIVE_PROFILES,
   customStarters: [],
   hiddenBuiltinStarterIds: [],
@@ -339,6 +363,7 @@ async function ensureWorkFolderSyncDirectories(rootHandle) {
   await ensureDirectoryHandle(rootHandle, WORK_FOLDER_SKILL_DIR);
   await ensureDirectoryHandle(rootHandle, WORK_FOLDER_TASK_DIR);
   await ensureDirectoryHandle(rootHandle, WORK_FOLDER_SYNC_DIR);
+  await ensureDirectoryHandle(rootHandle, WORK_FOLDER_DATASET_DIR);
 }
 
 function getPathExtension(path) {
@@ -823,6 +848,1018 @@ function buildSecretAccessFlags(secretConfig = {}) {
     githubApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.githubApiKey)),
     geminiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.geminiApiKey)),
     azureOpenAiApiKeyConfigured: Boolean(normalizeSecretValue(secretConfig.azureOpenAiApiKey)),
+    telegramBotTokenConfigured: Boolean(normalizeSecretValue(secretConfig.telegramBotToken)),
+    lineChannelAccessTokenConfigured: Boolean(normalizeSecretValue(secretConfig.lineChannelAccessToken)),
+    teamsWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.teamsWebhookUrl)),
+    slackWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.slackWebhookUrl)),
+    discordWebhookUrlConfigured: Boolean(normalizeSecretValue(secretConfig.discordWebhookUrl)),
+  };
+}
+
+function buildTelegramFlowNotificationMessage(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [
+    "Open Copilot flow complete",
+    "",
+    `Flow: ${flowName}`,
+  ];
+
+  if (model) {
+    lines.push(`Model: ${model}`);
+  }
+  if (pageTitle) {
+    lines.push(`Page: ${pageTitle}`);
+  }
+  if (pageUrl) {
+    lines.push(`URL: ${pageUrl}`);
+  }
+  lines.push(`Finished: ${finishedAt}`);
+
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("", "Final output preview:", preview);
+  }
+
+  return lines.join("\n");
+}
+
+function buildTelegramTaskReminderMessage(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [
+    "Open Copilot task reminder",
+    "",
+    `Task: ${title}`,
+  ];
+
+  if (owner) {
+    lines.push(`Owner: ${owner}`);
+  }
+  if (reminderAt) {
+    lines.push(`Reminder: ${reminderAt}`);
+  }
+  if (dueAt) {
+    lines.push(`Due: ${dueAt}`);
+  } else if (dueText) {
+    lines.push(`Due: ${dueText}`);
+  }
+  if (sourceTitle) {
+    lines.push(`Source: ${sourceTitle}`);
+  }
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+  if (summary) {
+    lines.push("", "Summary:", summary);
+  }
+
+  return lines.join("\n");
+}
+
+async function sendTelegramMessage({ botToken, chatId, text }) {
+  const normalizedBotToken = normalizeSecretValue(botToken);
+  const normalizedChatId = normalizeSecretValue(chatId);
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedBotToken) {
+    throw new Error("Telegram bot token is not configured.");
+  }
+  if (!normalizedChatId) {
+    throw new Error("Telegram chat ID is not configured.");
+  }
+  if (!normalizedText) {
+    throw new Error("Telegram notification text is empty.");
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${normalizedBotToken}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: normalizedChatId,
+      text: normalizedText,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (!response.ok || payload?.ok === false) {
+    throw new Error(payload?.description || `Telegram request failed with status ${response.status}.`);
+  }
+
+  return payload;
+}
+
+function buildLineFlowNotificationText(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [
+    "Open Copilot flow complete",
+    `Flow: ${flowName}`,
+  ];
+  if (model) {
+    lines.push(`Model: ${model}`);
+  }
+  if (pageTitle) {
+    lines.push(`Page: ${pageTitle}`);
+  }
+  if (pageUrl) {
+    lines.push(`URL: ${pageUrl}`);
+  }
+  lines.push(`Finished: ${finishedAt}`);
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("", "Final output preview:", preview);
+  }
+  return lines.join("\n");
+}
+
+function buildLineTaskReminderText(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [
+    "Open Copilot task reminder",
+    `Task: ${title}`,
+  ];
+  if (owner) {
+    lines.push(`Owner: ${owner}`);
+  }
+  if (reminderAt) {
+    lines.push(`Reminder: ${reminderAt}`);
+  }
+  if (dueAt) {
+    lines.push(`Due: ${dueAt}`);
+  } else if (dueText) {
+    lines.push(`Due: ${dueText}`);
+  }
+  if (sourceTitle) {
+    lines.push(`Source: ${sourceTitle}`);
+  }
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+  if (summary) {
+    lines.push("", "Summary:", summary);
+  }
+  return lines.join("\n");
+}
+
+async function sendLineMessage({ channelAccessToken, to, text }) {
+  const normalizedToken = normalizeSecretValue(channelAccessToken);
+  const normalizedTo = normalizeSecretValue(to);
+  const normalizedText = String(text || "").trim();
+
+  if (!normalizedToken) {
+    throw new Error("LINE channel access token is not configured.");
+  }
+  if (!normalizedTo) {
+    throw new Error("LINE target ID is not configured.");
+  }
+  if (!normalizedText) {
+    throw new Error("LINE notification text is empty.");
+  }
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${normalizedToken}`,
+    },
+    body: JSON.stringify({
+      to: normalizedTo,
+      messages: [
+        {
+          type: "text",
+          text: normalizedText.slice(0, 5000),
+        },
+      ],
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const details = payload?.message || payload?.details?.[0]?.message || `LINE request failed with status ${response.status}.`;
+    throw new Error(details);
+  }
+
+  return payload;
+}
+
+function buildTeamsAdaptiveMessage({ title, textLines = [], summary, facts = [], accentColor = "2EB886", metadata = {} }) {
+  const body = [];
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  if (normalizedTitle) {
+    body.push({
+      type: "TextBlock",
+      size: "Large",
+      weight: "Bolder",
+      text: normalizedTitle,
+      wrap: true,
+      color: "Accent",
+    });
+  }
+  if (Array.isArray(facts) && facts.length) {
+    body.push({
+      type: "FactSet",
+      facts: facts
+        .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+        .map((item) => ({
+          title: String(item.title).trim(),
+          value: String(item.value).trim(),
+        })),
+    });
+  }
+  (Array.isArray(textLines) ? textLines : []).forEach((line) => {
+    const normalized = String(line || "").trim();
+    if (!normalized) {
+      return;
+    }
+    body.push({
+      type: "TextBlock",
+      text: normalized,
+      wrap: true,
+    });
+  });
+
+  return {
+    type: "message",
+    source: "Open Copilot",
+    app: "Open Copilot",
+    eventType: String(metadata.eventType || "").trim(),
+    eventLabel: String(metadata.eventLabel || "").trim(),
+    sentAt: String(metadata.sentAt || new Date().toISOString()).trim(),
+    attachments: [
+      {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        contentUrl: null,
+        content: {
+          $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+          type: "AdaptiveCard",
+          version: "1.4",
+          msTeams: {
+            width: "Full",
+          },
+          body,
+        },
+      },
+    ],
+    summary: String(summary || normalizedTitle || "Open Copilot notification").trim(),
+    themeColor: accentColor,
+  };
+}
+
+async function sendTeamsWebhookMessage({ webhookUrl, card }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Teams webhook URL is not configured.");
+  }
+  if (!/^https:\/\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Teams webhook URL must start with https://");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(card || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Teams webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildSlackWebhookPayload({ title, textLines = [], fields = [], accentColor = "#4A8CFF" }) {
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  const normalizedFields = (Array.isArray(fields) ? fields : [])
+    .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+    .map((item) => ({
+      type: "mrkdwn",
+      text: `*${String(item.title).trim()}*\n${String(item.value).trim()}`,
+    }));
+  const normalizedLines = (Array.isArray(textLines) ? textLines : [])
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: normalizedTitle,
+      },
+    },
+  ];
+
+  if (normalizedFields.length) {
+    blocks.push({
+      type: "section",
+      fields: normalizedFields,
+    });
+  }
+  if (normalizedLines.length) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: normalizedLines.join("\n"),
+      },
+    });
+  }
+
+  return {
+    text: [normalizedTitle, ...normalizedLines].join("\n").trim(),
+    attachments: [
+      {
+        color: accentColor,
+        blocks,
+      },
+    ],
+  };
+}
+
+async function sendSlackWebhookMessage({ webhookUrl, payload }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Slack webhook URL is not configured.");
+  }
+  if (!/^https:\/\/hooks\.slack\.com\/services\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Slack webhook URL must start with https://hooks.slack.com/services/");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Slack webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildDiscordWebhookPayload({ title, descriptionLines = [], fields = [], color = 0x4a8cff }) {
+  const normalizedTitle = String(title || "Open Copilot notification").trim();
+  const normalizedDescription = (Array.isArray(descriptionLines) ? descriptionLines : [])
+    .map((line) => String(line || "").trim())
+    .filter(Boolean)
+    .join("\n");
+  const normalizedFields = (Array.isArray(fields) ? fields : [])
+    .filter((item) => String(item?.title || "").trim() && String(item?.value || "").trim())
+    .map((item) => ({
+      name: String(item.title).trim(),
+      value: String(item.value).trim().slice(0, 1024),
+      inline: true,
+    }));
+
+  return {
+    content: normalizedTitle,
+    embeds: [
+      {
+        title: normalizedTitle,
+        description: normalizedDescription.slice(0, 4096),
+        color,
+        fields: normalizedFields.slice(0, 25),
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
+async function sendDiscordWebhookMessage({ webhookUrl, payload }) {
+  const normalizedWebhookUrl = normalizeSecretValue(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Discord webhook URL is not configured.");
+  }
+  if (!/^https:\/\/(?:canary\.|ptb\.)?discord\.com\/api\/webhooks\/.+/i.test(normalizedWebhookUrl)) {
+    throw new Error("Discord webhook URL must start with https://discord.com/api/webhooks/");
+  }
+
+  const response = await fetch(normalizedWebhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text || `Discord webhook request failed with status ${response.status}.`);
+  }
+
+  return text;
+}
+
+function buildTeamsFlowNotificationCard(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const lines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    lines.push("Final output preview", preview);
+  }
+  return buildTeamsAdaptiveMessage({
+    title: "Open Copilot flow complete",
+    summary: `Flow complete: ${flowName}`,
+    facts: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    textLines: lines,
+    accentColor: "2EB886",
+    metadata: {
+      eventType: "agent_flow_complete",
+      eventLabel: flowName,
+      sentAt: finishedAt,
+    },
+  });
+}
+
+function buildTeamsTaskReminderCard(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const lines = [];
+  if (summary) {
+    lines.push("Summary", summary);
+  }
+  return buildTeamsAdaptiveMessage({
+    title: "Open Copilot task reminder",
+    summary: `Task reminder: ${title}`,
+    facts: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    textLines: lines,
+    accentColor: "E8A23A",
+    metadata: {
+      eventType: "task_reminder",
+      eventLabel: title,
+      sentAt: reminderAt || dueAt || new Date().toISOString(),
+    },
+  });
+}
+
+function buildSlackFlowNotificationPayload(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const textLines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    textLines.push(`*Final output preview*\n${preview}`);
+  }
+  return buildSlackWebhookPayload({
+    title: "Open Copilot flow complete",
+    fields: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    textLines,
+    accentColor: "#4A8CFF",
+  });
+}
+
+function buildSlackTaskReminderPayload(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const textLines = summary ? [`*Summary*\n${summary}`] : [];
+  return buildSlackWebhookPayload({
+    title: "Open Copilot task reminder",
+    fields: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    textLines,
+    accentColor: "#E8A23A",
+  });
+}
+
+function buildDiscordFlowNotificationPayload(payload = {}) {
+  const flowName = String(payload.flowName || "Unnamed Agent Flow").trim() || "Unnamed Agent Flow";
+  const model = String(payload.model || "").trim();
+  const pageTitle = String(payload.pageTitle || "").trim();
+  const pageUrl = String(payload.pageUrl || "").trim();
+  const finalOutput = normalizeMarkdownText(payload.finalOutput || "");
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  const descriptionLines = [];
+  if (finalOutput) {
+    const preview = finalOutput.length > 1200 ? `${finalOutput.slice(0, 1200).trim()}...` : finalOutput;
+    descriptionLines.push(`**Final output preview**\n${preview}`);
+  }
+  return buildDiscordWebhookPayload({
+    title: "Open Copilot flow complete",
+    fields: [
+      { title: "Flow", value: flowName },
+      { title: "Model", value: model },
+      { title: "Page", value: pageTitle },
+      { title: "URL", value: pageUrl },
+      { title: "Finished", value: finishedAt },
+    ],
+    descriptionLines,
+    color: 0x4a8cff,
+  });
+}
+
+function buildDiscordTaskReminderPayload(task = {}) {
+  const title = String(task.title || "Untitled task").trim() || "Untitled task";
+  const summary = normalizeTaskText(task.summary || "", 1000);
+  const owner = String(task.owner || "").trim();
+  const reminderAt = normalizeTaskIsoDate(task.reminderAt || "");
+  const dueAt = normalizeTaskIsoDate(task.dueAt || "");
+  const dueText = String(task.dueText || "").trim();
+  const sourceTitle = String(task.sourceTitle || "").trim();
+  const sourceUrl = String(task.sourceUrl || "").trim();
+  const descriptionLines = summary ? [`**Summary**\n${summary}`] : [];
+  return buildDiscordWebhookPayload({
+    title: "Open Copilot task reminder",
+    fields: [
+      { title: "Task", value: title },
+      { title: "Owner", value: owner },
+      { title: "Reminder", value: reminderAt },
+      { title: "Due", value: dueAt || dueText },
+      { title: "Source", value: sourceTitle },
+      { title: "URL", value: sourceUrl },
+    ],
+    descriptionLines,
+    color: 0xE8A23A,
+  });
+}
+
+function buildBatchUrlQaNotificationTextLines(payload = {}) {
+  const fileName = String(payload.fileName || "batch-url-qa.md").trim() || "batch-url-qa.md";
+  const outputPath = String(payload.outputPath || "").trim();
+  const model = String(payload.model || "").trim();
+  const outputLanguage = String(payload.outputLanguage || "").trim();
+  const total = Number.isFinite(Number(payload.total)) ? Number(payload.total) : 0;
+  const successCount = Number.isFinite(Number(payload.successCount)) ? Number(payload.successCount) : 0;
+  const failureCount = Number.isFinite(Number(payload.failureCount)) ? Number(payload.failureCount) : 0;
+  const finishedAt = String(payload.finishedAt || new Date().toISOString()).trim();
+  return [
+    `File: ${fileName}`,
+    outputPath ? `Output: ${outputPath}` : "",
+    model ? `Model: ${model}` : "",
+    outputLanguage ? `Language: ${outputLanguage}` : "",
+    `URLs: ${total}`,
+    `Success: ${successCount}`,
+    `Failed: ${failureCount}`,
+    `Finished: ${finishedAt}`,
+  ].filter(Boolean);
+}
+
+function buildTelegramBatchUrlQaNotificationMessage(payload = {}) {
+  return [
+    "Open Copilot Batch URL QA complete",
+    "",
+    ...buildBatchUrlQaNotificationTextLines(payload),
+  ].join("\n");
+}
+
+function buildLineBatchUrlQaNotificationText(payload = {}) {
+  return [
+    "Open Copilot Batch URL QA complete",
+    "",
+    ...buildBatchUrlQaNotificationTextLines(payload),
+  ].join("\n");
+}
+
+function buildTeamsBatchUrlQaNotificationCard(payload = {}) {
+  return buildTeamsAdaptiveMessage({
+    title: "Open Copilot Batch URL QA complete",
+    summary: "Batch URL QA complete",
+    textLines: buildBatchUrlQaNotificationTextLines(payload),
+    accentColor: "4DA3FF",
+    metadata: {
+      eventType: "batch_url_qa_complete",
+      eventLabel: String(payload.fileName || "batch-url-qa.md"),
+      sentAt: String(payload.finishedAt || new Date().toISOString()),
+      source: "Open Copilot",
+    },
+  });
+}
+
+function buildSlackBatchUrlQaNotificationPayload(payload = {}) {
+  return buildSlackWebhookPayload({
+    title: "Open Copilot Batch URL QA complete",
+    textLines: buildBatchUrlQaNotificationTextLines(payload),
+    accentColor: "#4A8CFF",
+  });
+}
+
+function buildDiscordBatchUrlQaNotificationPayload(payload = {}) {
+  return buildDiscordWebhookPayload({
+    title: "Open Copilot Batch URL QA complete",
+    fields: buildBatchUrlQaNotificationTextLines(payload).map((line) => {
+      const separatorIndex = line.indexOf(":");
+      return separatorIndex > 0
+        ? { title: line.slice(0, separatorIndex), value: line.slice(separatorIndex + 1).trim() }
+        : { title: "Detail", value: line };
+    }),
+    color: 0x4a8cff,
+  });
+}
+
+async function notifyBatchUrlQaCompletion(payload = {}) {
+  const config = await getConfig();
+  const tasks = [];
+
+  if (config.telegramNotificationEnabled && normalizeSecretValue(config.telegramBotToken) && normalizeSecretValue(config.telegramChatId)) {
+    tasks.push(sendTelegramMessage({
+      botToken: config.telegramBotToken,
+      chatId: config.telegramChatId,
+      text: buildTelegramBatchUrlQaNotificationMessage(payload),
+    }).catch(() => null));
+  }
+  if (config.lineNotificationEnabled && normalizeSecretValue(config.lineChannelAccessToken) && normalizeSecretValue(config.lineTo)) {
+    tasks.push(sendLineMessage({
+      channelAccessToken: config.lineChannelAccessToken,
+      to: config.lineTo,
+      text: buildLineBatchUrlQaNotificationText(payload),
+    }).catch(() => null));
+  }
+  if (config.teamsNotificationEnabled && normalizeSecretValue(config.teamsWebhookUrl)) {
+    tasks.push(sendTeamsWebhookMessage({
+      webhookUrl: config.teamsWebhookUrl,
+      card: buildTeamsBatchUrlQaNotificationCard(payload),
+    }).catch(() => null));
+  }
+  if (config.slackNotificationEnabled && normalizeSecretValue(config.slackWebhookUrl)) {
+    tasks.push(sendSlackWebhookMessage({
+      webhookUrl: config.slackWebhookUrl,
+      payload: buildSlackBatchUrlQaNotificationPayload(payload),
+    }).catch(() => null));
+  }
+  if (config.discordNotificationEnabled && normalizeSecretValue(config.discordWebhookUrl)) {
+    tasks.push(sendDiscordWebhookMessage({
+      webhookUrl: config.discordWebhookUrl,
+      payload: buildDiscordBatchUrlQaNotificationPayload(payload),
+    }).catch(() => null));
+  }
+
+  if (!tasks.length) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  await Promise.all(tasks);
+  return { skipped: false };
+}
+
+async function notifyTelegramAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.telegramNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  if (!normalizeSecretValue(config.telegramBotToken)) {
+    return { skipped: true, reason: "missing-bot-token" };
+  }
+
+  if (!normalizeSecretValue(config.telegramChatId)) {
+    return { skipped: true, reason: "missing-chat-id" };
+  }
+
+  const text = buildTelegramFlowNotificationMessage(payload);
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    skipped: false,
+    result,
+  };
+}
+
+async function notifyTelegramTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.telegramNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+
+  if (!normalizeSecretValue(config.telegramBotToken)) {
+    return { skipped: true, reason: "missing-bot-token" };
+  }
+
+  if (!normalizeSecretValue(config.telegramChatId)) {
+    return { skipped: true, reason: "missing-chat-id" };
+  }
+
+  const text = buildTelegramTaskReminderMessage(task);
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    skipped: false,
+    result,
+  };
+}
+
+async function testTelegramNotification() {
+  const config = await getConfig();
+  const text = [
+    "Open Copilot Telegram test",
+    "",
+    "This is a test message from Settings.",
+    `Sent: ${new Date().toISOString()}`,
+  ].join("\n");
+
+  const result = await sendTelegramMessage({
+    botToken: config.telegramBotToken,
+    chatId: config.telegramChatId,
+    text,
+  });
+
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyLineAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.lineNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.lineChannelAccessToken)) {
+    return { skipped: true, reason: "missing-channel-access-token" };
+  }
+  if (!normalizeSecretValue(config.lineTo)) {
+    return { skipped: true, reason: "missing-to" };
+  }
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: buildLineFlowNotificationText(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyLineTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.lineNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.lineChannelAccessToken)) {
+    return { skipped: true, reason: "missing-channel-access-token" };
+  }
+  if (!normalizeSecretValue(config.lineTo)) {
+    return { skipped: true, reason: "missing-to" };
+  }
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: buildLineTaskReminderText(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testLineNotification() {
+  const config = await getConfig();
+  const result = await sendLineMessage({
+    channelAccessToken: config.lineChannelAccessToken,
+    to: config.lineTo,
+    text: [
+      "Open Copilot LINE test",
+      "",
+      "This is a test message from Settings.",
+      `Sent: ${new Date().toISOString()}`,
+    ].join("\n"),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyTeamsAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.teamsNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.teamsWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsFlowNotificationCard(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyTeamsTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.teamsNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.teamsWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsTaskReminderCard(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testTeamsNotification() {
+  const config = await getConfig();
+  const result = await sendTeamsWebhookMessage({
+    webhookUrl: config.teamsWebhookUrl,
+    card: buildTeamsAdaptiveMessage({
+      title: "Open Copilot Teams test",
+      summary: "Teams test message",
+      textLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      accentColor: "4DA3FF",
+      metadata: {
+        eventType: "test",
+        eventLabel: "Teams test",
+        sentAt: new Date().toISOString(),
+      },
+    }),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifySlackAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.slackNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.slackWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackFlowNotificationPayload(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifySlackTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.slackNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.slackWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackTaskReminderPayload(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testSlackNotification() {
+  const config = await getConfig();
+  const result = await sendSlackWebhookMessage({
+    webhookUrl: config.slackWebhookUrl,
+    payload: buildSlackWebhookPayload({
+      title: "Open Copilot Slack test",
+      textLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      accentColor: "#4A8CFF",
+    }),
+  });
+  return {
+    ok: true,
+    result,
+  };
+}
+
+async function notifyDiscordAgentFlowComplete(payload = {}) {
+  const config = await getConfig();
+  if (!config.discordNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.discordWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordFlowNotificationPayload(payload),
+  });
+  return { skipped: false, result };
+}
+
+async function notifyDiscordTaskReminder(task = {}) {
+  const config = await getConfig();
+  if (!config.discordNotificationEnabled) {
+    return { skipped: true, reason: "disabled" };
+  }
+  if (!normalizeSecretValue(config.discordWebhookUrl)) {
+    return { skipped: true, reason: "missing-webhook-url" };
+  }
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordTaskReminderPayload(task),
+  });
+  return { skipped: false, result };
+}
+
+async function testDiscordNotification() {
+  const config = await getConfig();
+  const result = await sendDiscordWebhookMessage({
+    webhookUrl: config.discordWebhookUrl,
+    payload: buildDiscordWebhookPayload({
+      title: "Open Copilot Discord test",
+      descriptionLines: [
+        "This is a test message from Settings.",
+        `Sent: ${new Date().toISOString()}`,
+      ],
+      color: 0x4a8cff,
+    }),
+  });
+  return {
+    ok: true,
+    result,
   };
 }
 
@@ -1309,6 +2346,12 @@ async function writeWorkFolderJson(path, fileName, data) {
   await writeTextFile(directoryHandle, fileName, JSON.stringify(data, null, 2));
 }
 
+async function writeWorkFolderText(path, fileName, contents) {
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  await writeTextFile(directoryHandle, fileName, String(contents || ""));
+}
+
 async function readWorkFolderJson(path, fileName) {
   const rootHandle = await getWritableWorkFolderHandle();
   const directoryHandle = await resolveDirectoryHandle(rootHandle, path);
@@ -1386,6 +2429,875 @@ async function maybePushWorkFolderSync() {
   } catch (error) {
     console.warn("[Edge AI Chat] Failed to sync local work folder", error);
   }
+}
+
+function normalizeBatchUrlQaCount(value) {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_BATCH_URL_QA_COUNT;
+  }
+  return Math.min(8, Math.max(2, parsed));
+}
+
+function normalizeBatchUrlQaFilename(value) {
+  const fallback = `batch-url-qa-${timestampForFile()}.md`;
+  const normalized = sanitizeFileSegment(String(value || "").replace(/\.md$/i, ""), "batch-url-qa");
+  return `${normalized || fallback.replace(/\.md$/i, "")}.md`;
+}
+
+function normalizeBatchUrl(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  try {
+    const url = new URL(normalized);
+    if (!/^https?:$/i.test(url.protocol)) {
+      return "";
+    }
+    return url.href;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function parseBatchUrlInput(value) {
+  const rawItems = String(value || "")
+    .split(/\r?\n|[\s,]+/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const urls = [];
+  const invalid = [];
+
+  rawItems.forEach((item) => {
+    const normalized = normalizeBatchUrl(item);
+    if (!normalized) {
+      invalid.push(item);
+      return;
+    }
+    if (!urls.includes(normalized)) {
+      urls.push(normalized);
+    }
+  });
+
+  return {
+    urls: urls.slice(0, MAX_BATCH_URL_QA_ITEMS),
+    invalid,
+    truncated: urls.length > MAX_BATCH_URL_QA_ITEMS,
+  };
+}
+
+function normalizeBatchUrlQaQuestions(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : [value];
+  return rawItems
+    .flatMap((item) => String(item || "")
+      .split(/\r?\n|[|；;]+/g)
+      .map((part) => normalizeTaskText(part || "", 500)))
+    .filter(Boolean)
+    .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+    .filter((item) => !isWeakTrainingQuestion(item))
+    .slice(0, 4);
+}
+
+function hasEmbeddedQaMarker(value, selfLabel) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return false;
+  }
+  const otherLabel = selfLabel === "Q" ? "A" : "Q";
+  const selfPattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${selfLabel}\\s*:`, "i");
+  const otherPattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${otherLabel}\\s*:`, "i");
+  return selfPattern.test(text) || otherPattern.test(text);
+}
+
+function normalizeBatchUrlQaPair(item = {}) {
+  const rawQuestions = Array.isArray(item.question_variants || item.questionVariants || item.questions)
+    ? (item.question_variants || item.questionVariants || item.questions)
+    : [item.question_variants || item.questionVariants || item.questions || item.question || ""];
+  if (rawQuestions.some((question) => hasEmbeddedQaMarker(question, "Q"))) {
+    return null;
+  }
+  if (hasEmbeddedQaMarker(item.answer || "", "A") || hasEmbeddedQaMarker(item.evidence || "", "A")) {
+    return null;
+  }
+  const questionVariants = normalizeBatchUrlQaQuestions(
+    item.question_variants || item.questionVariants || item.questions || item.question || "",
+  );
+  const answer = normalizeTaskText(item.answer || "", 1500);
+  const evidence = normalizeTaskText(item.evidence || "", 1200);
+  const topic = normalizeTaskText(item.topic || item.subject || "", 300);
+  if (!questionVariants.length || !answer || !evidence) {
+    return null;
+  }
+  if (isLowSignalBatchUrlQaPair(questionVariants, answer, evidence)) {
+    return null;
+  }
+  return { topic, questions: questionVariants, answer, evidence };
+}
+
+function normalizeQaTextForSimilarity(value, { stripQuestionWords = false } = {}) {
+  let normalized = String(value || "")
+    .toLowerCase()
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 $2")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[「」『』（）()\[\]{}<>《》"'",.，。！？!?:：;；、\-/\\|_*`~+=]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (stripQuestionWords) {
+    normalized = normalized
+      .replace(/^(請問|請教|想問|我想知道|請說明|說明一下|可否|可以|能否|能不能|是否|有沒有|怎麼|如何|怎样|怎樣|what is|what are|what does|how to|how do i|how can i|can i|can we|is it possible to)\s+/i, "")
+      .replace(/\s+(嗎|呢|呀|嗎？|\?)$/i, "")
+      .replace(/\b(如何|怎麼|怎样|怎樣|why|what|when|where|which|who|how)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  return normalized;
+}
+
+function buildQaCharBigrams(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return [];
+  }
+  if (text.length < 2) {
+    return [text];
+  }
+  const grams = [];
+  for (let index = 0; index < text.length - 1; index += 1) {
+    grams.push(text.slice(index, index + 2));
+  }
+  return grams;
+}
+
+function computeQaDiceSimilarity(left, right) {
+  const leftGrams = buildQaCharBigrams(left);
+  const rightGrams = buildQaCharBigrams(right);
+  if (!leftGrams.length || !rightGrams.length) {
+    return 0;
+  }
+  const counts = new Map();
+  for (const gram of leftGrams) {
+    counts.set(gram, (counts.get(gram) || 0) + 1);
+  }
+  let overlap = 0;
+  for (const gram of rightGrams) {
+    const count = counts.get(gram) || 0;
+    if (count > 0) {
+      overlap += 1;
+      counts.set(gram, count - 1);
+    }
+  }
+  return (2 * overlap) / (leftGrams.length + rightGrams.length);
+}
+
+function isLowSignalBatchUrlQaPair(questions, answer, evidence) {
+  const primaryQuestion = Array.isArray(questions) ? questions[0] || "" : questions || "";
+  const normalizedQuestion = normalizeQaTextForSimilarity(primaryQuestion, { stripQuestionWords: true });
+  const normalizedAnswer = normalizeQaTextForSimilarity(answer);
+  const normalizedEvidence = normalizeQaTextForSimilarity(evidence);
+
+  if (!normalizedQuestion || !normalizedAnswer || !normalizedEvidence) {
+    return true;
+  }
+
+  if (isWeakTrainingQuestion(primaryQuestion)) {
+    return true;
+  }
+
+  if (normalizedQuestion === normalizedAnswer) {
+    return true;
+  }
+
+  const similarity = computeQaDiceSimilarity(normalizedQuestion, normalizedAnswer);
+  if (similarity >= 0.88) {
+    return true;
+  }
+
+  const answerWordCount = normalizedAnswer.split(" ").filter(Boolean).length;
+  if (answerWordCount <= 2 && normalizedAnswer.length < 12) {
+    return true;
+  }
+
+  if (!normalizedEvidence.includes(normalizedAnswer) && similarity >= 0.78) {
+    return true;
+  }
+
+  return false;
+}
+
+function estimateBatchUrlQaTargetCount(pageText, headings, requestedCap = DEFAULT_BATCH_URL_QA_COUNT) {
+  const cap = Math.min(8, Math.max(2, Number(requestedCap) || DEFAULT_BATCH_URL_QA_COUNT));
+  const text = String(pageText || "").trim();
+  const headingText = String(headings || "").trim();
+  const textLength = text.length;
+  const headingCount = headingText
+    ? headingText.split(/\n+/).map((item) => item.trim()).filter(Boolean).length
+    : 0;
+
+  let score = 0;
+  if (textLength >= 1200) score += 1;
+  if (textLength >= 2500) score += 1;
+  if (textLength >= 4500) score += 1;
+  if (textLength >= 7000) score += 1;
+  if (headingCount >= 4) score += 1;
+  if (headingCount >= 8) score += 1;
+
+  const dynamicTarget = Math.min(8, Math.max(2, 2 + score));
+  return Math.min(cap, dynamicTarget);
+}
+
+function normalizeBatchUrlQaScopeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 $2")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[【】\[\]（）()<>《》「」『』"'`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanBatchUrlQaAnchorTerm(value) {
+  return String(value || "")
+    .replace(/(?:^|\s)(faq|how to|how do i|how can i|what is|what are|enable|enabled|set up|setup|configure|config|guide|tutorial|support)(?:\s|$)/gi, " ")
+    .replace(/(?:^|\s)(如何|怎麼|怎样|怎樣|設定|設置|啟用|开启|開啟|功能|教學|說明|常見問題|問題)(?:\s|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[，,、；;:：.\- ]+|[，,、；;:：.\- ]+$/gu, "");
+}
+
+function extractBatchUrlQaScopeAnchors(title, headings) {
+  const lines = [title, ...(String(headings || "").split(/\n+/).slice(0, 6))]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const candidates = new Set();
+
+  for (const line of lines) {
+    const bracketMatches = Array.from(line.matchAll(/[\[\(（【]([^\]\)）】]{2,40})[\]\)）】]/g));
+    bracketMatches.forEach((match) => candidates.add(cleanBatchUrlQaAnchorTerm(match[1] || "")));
+
+    const parts = line
+      .split(/[|｜:：\-–—/·•,，。！？!?\n]/)
+      .map((part) => cleanBatchUrlQaAnchorTerm(part))
+      .filter(Boolean);
+    parts.forEach((part) => candidates.add(part));
+  }
+
+  return Array.from(candidates)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+    .sort((left, right) => right.length - left.length)
+    .slice(0, 8);
+}
+
+function isBatchUrlQaPairAlignedToScope(pair, { title = "", headings = "" } = {}) {
+  const anchors = extractBatchUrlQaScopeAnchors(title, headings);
+  if (anchors.length < 2) {
+    return true;
+  }
+  const questionText = normalizeBatchUrlQaScopeText([
+    pair?.topic || "",
+    ...(Array.isArray(pair?.questions) ? pair.questions : []),
+  ].join(" "));
+  const combinedText = normalizeBatchUrlQaScopeText([
+    questionText,
+    pair?.answer || "",
+  ].join(" "));
+  const questionHits = anchors.filter((anchor) => questionText.includes(normalizeBatchUrlQaScopeText(anchor))).length;
+  const combinedHits = anchors.filter((anchor) => combinedText.includes(normalizeBatchUrlQaScopeText(anchor))).length;
+
+  return questionHits >= Math.min(2, anchors.length) && combinedHits >= Math.min(2, anchors.length);
+}
+
+function isWeakTrainingQuestion(question) {
+  const rawQuestion = String(question || "").trim();
+  const normalized = normalizeQaTextForSimilarity(rawQuestion, { stripQuestionWords: false });
+  if (!normalized) {
+    return true;
+  }
+
+  const stepDependentPatterns = [
+    /第\s*[一二三四五六七八九十0-9]+\s*步/,
+    /\b(first|second|third|next|final)\s+step\b/i,
+    /(下一步|上一步|前一步|最後一步|步驟\d+|步骤\d+)/,
+    /(第一個步驟|第一步驟|第一步需要做什麼|下一步需要做什麼)/,
+  ];
+  if (stepDependentPatterns.some((pattern) => pattern.test(rawQuestion))) {
+    return true;
+  }
+
+  const contextDependentPatterns = [
+    /^(這裡|這個|這頁|此頁|上述|以上|這篇|本文|本頁)/,
+    /\b(this page|this article|this step|above|here)\b/i,
+  ];
+  if (contextDependentPatterns.some((pattern) => pattern.test(rawQuestion))) {
+    return true;
+  }
+
+  const genericActionPatterns = [
+    /(需要做什麼|該做什麼|怎麼做|如何做|如何設定|如何操作)/,
+    /\b(what should i do|what do i need to do|how do i do this|how do i set this up)\b/i,
+  ];
+  const hasSpecificNamedEntity = /([A-Z][A-Za-z0-9_-]{2,}|AiMesh|ASUS|Go\s*系列|Travel\s*Mode|web\s*gui|router|路由器|多功能按鈕|按鈕功能)/i.test(rawQuestion);
+  if (genericActionPatterns.some((pattern) => pattern.test(rawQuestion)) && !hasSpecificNamedEntity) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeBatchUrlQaResult(item = {}) {
+  const status = String(item.status || "").trim().toLowerCase() === "ok" ? "ok" : "failed";
+  const qaPairs = status === "ok" && Array.isArray(item.qaPairs)
+    ? item.qaPairs.map((entry) => normalizeBatchUrlQaPair(entry)).filter(Boolean)
+    : [];
+  return {
+    url: normalizeTaskText(item.url || "", 1200),
+    title: normalizeTaskText(item.title || "", 300),
+    status,
+    reason: status === "failed" ? normalizeTaskText(item.reason || "", 500) : "",
+    qaPairs,
+    processedAt: normalizeTaskIsoDate(item.processedAt || "") || new Date().toISOString(),
+  };
+}
+
+function normalizeBatchUrlQaJob(job = {}) {
+  const parsed = parseBatchUrlInput(Array.isArray(job.urls) ? job.urls.join("\n") : job.urls || "");
+  const nowIso = new Date().toISOString();
+  const status = ["queued", "running", "completed", "failed"].includes(String(job.status || "").trim()) ? String(job.status).trim() : "queued";
+  return {
+    id: normalizeTaskText(job.id || "", 120) || createStableId("batch-url-qa"),
+    createdAt: normalizeTaskIsoDate(job.createdAt || "") || nowIso,
+    updatedAt: normalizeTaskIsoDate(job.updatedAt || "") || nowIso,
+    startedAt: normalizeTaskIsoDate(job.startedAt || ""),
+    finishedAt: normalizeTaskIsoDate(job.finishedAt || ""),
+    status,
+    model: normalizeTaskText(job.model || "", 200),
+    outputLanguage: normalizeTaskText(job.outputLanguage || "", 40) || "zh-TW",
+    extraPrompt: normalizeTaskText(job.extraPrompt || "", 3000),
+    qaPerUrl: normalizeBatchUrlQaCount(job.qaPerUrl),
+    fileName: normalizeBatchUrlQaFilename(job.fileName),
+    urls: parsed.urls,
+    invalidUrls: Array.isArray(job.invalidUrls) ? job.invalidUrls.map((item) => String(item || "").trim()).filter(Boolean) : parsed.invalid,
+    truncated: Boolean(job.truncated || parsed.truncated),
+    progress: Number.isFinite(Number(job.progress)) ? Math.max(0, Number(job.progress)) : 0,
+    total: Number.isFinite(Number(job.total)) ? Math.max(0, Number(job.total)) : parsed.urls.length,
+    successCount: Number.isFinite(Number(job.successCount)) ? Math.max(0, Number(job.successCount)) : 0,
+    failureCount: Number.isFinite(Number(job.failureCount)) ? Math.max(0, Number(job.failureCount)) : 0,
+    error: normalizeTaskText(job.error || "", 500),
+    outputPath: normalizeTaskText(job.outputPath || "", 1200),
+    stage: normalizeTaskText(job.stage || "", 60) || (status === "completed" ? "completed" : status === "failed" ? "failed" : "queued"),
+    stageLabel: normalizeTaskText(job.stageLabel || "", 240),
+    currentUrl: normalizeTaskText(job.currentUrl || "", 1200),
+    currentIndex: Number.isFinite(Number(job.currentIndex)) ? Math.max(0, Number(job.currentIndex)) : 0,
+    results: Array.isArray(job.results) ? job.results.map((item) => normalizeBatchUrlQaResult(item)).filter(Boolean) : [],
+  };
+}
+
+async function getBatchUrlQaJobs() {
+  const stored = await chrome.storage.local.get(BATCH_URL_QA_JOBS_KEY);
+  const jobs = Array.isArray(stored?.[BATCH_URL_QA_JOBS_KEY]) ? stored[BATCH_URL_QA_JOBS_KEY] : [];
+  return jobs
+    .map((job) => normalizeBatchUrlQaJob(job))
+    .sort((left, right) => (Date.parse(right.updatedAt || "") || 0) - (Date.parse(left.updatedAt || "") || 0));
+}
+
+async function saveBatchUrlQaJobs(jobs = []) {
+  const normalized = jobs.map((job) => normalizeBatchUrlQaJob(job))
+    .sort((left, right) => (Date.parse(right.updatedAt || "") || 0) - (Date.parse(left.updatedAt || "") || 0))
+    .slice(0, 20);
+  await chrome.storage.local.set({ [BATCH_URL_QA_JOBS_KEY]: normalized });
+  return normalized;
+}
+
+async function upsertBatchUrlQaJob(jobInput = {}) {
+  const jobs = await getBatchUrlQaJobs();
+  const normalized = normalizeBatchUrlQaJob(jobInput);
+  const index = jobs.findIndex((item) => item.id === normalized.id);
+  const nextJobs = [...jobs];
+  if (index >= 0) {
+    nextJobs[index] = { ...jobs[index], ...normalized };
+  } else {
+    nextJobs.unshift(normalized);
+  }
+  const saved = await saveBatchUrlQaJobs(nextJobs);
+  return saved.find((item) => item.id === normalized.id) || normalized;
+}
+
+function extractJsonObjectFromText(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    throw new Error("Model returned an empty response.");
+  }
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch?.[1]?.trim() || text;
+
+  const firstObjectBrace = candidate.indexOf("{");
+  const lastObjectBrace = candidate.lastIndexOf("}");
+  if (firstObjectBrace >= 0 && lastObjectBrace >= firstObjectBrace) {
+    return JSON.parse(candidate.slice(firstObjectBrace, lastObjectBrace + 1));
+  }
+
+  const firstArrayBrace = candidate.indexOf("[");
+  const lastArrayBrace = candidate.lastIndexOf("]");
+  if (firstArrayBrace >= 0 && lastArrayBrace >= firstArrayBrace) {
+    return JSON.parse(candidate.slice(firstArrayBrace, lastArrayBrace + 1));
+  }
+
+  throw new Error("Model did not return JSON.");
+}
+
+function extractBatchUrlQaPairsFromPayload(payload) {
+  const normalizedPayload = payload && typeof payload === "object" ? payload : {};
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  const candidateLists = [
+    normalizedPayload.qa_pairs,
+    normalizedPayload.qaPairs,
+    normalizedPayload.faq_items,
+    normalizedPayload.faqItems,
+    normalizedPayload.items,
+    normalizedPayload.results,
+    normalizedPayload.faqs,
+    normalizedPayload.data?.qa_pairs,
+    normalizedPayload.data?.qaPairs,
+    normalizedPayload.data?.items,
+    normalizedPayload.output?.qa_pairs,
+    normalizedPayload.output?.qaPairs,
+  ];
+
+  return candidateLists.find((item) => Array.isArray(item)) || [];
+}
+
+function buildBatchUrlQaPrompt({
+  url,
+  title,
+  metaDescription,
+  headings,
+  pageText,
+  qaPerUrl,
+  outputLanguage,
+  extraPrompt,
+  existingPairs = [],
+}) {
+  const trimmedText = String(pageText || "").trim().slice(0, 12000);
+  const remainingCount = Math.max(1, Number(qaPerUrl) || 1);
+  const existingSummary = Array.isArray(existingPairs) && existingPairs.length
+    ? existingPairs
+      .map((pair, index) => `${index + 1}. Topic: ${pair.topic || "-"}\nQuestions: ${(pair.questions || []).join(" | ")}\nAnswer: ${pair.answer}`)
+      .join("\n")
+    : "";
+  return [
+    "You are creating grounded FAQ training data from a single webpage.",
+    "Return one JSON object only.",
+    `Generate exactly ${remainingCount} FAQ items from the provided page.`,
+    `Write every question variant and answer in this language: ${outputLanguage || "zh-TW"}.`,
+    "Rules:",
+    "1. Use only the provided webpage content for all questions, answers, and evidence.",
+    "2. Do not use outside knowledge.",
+    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
+    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
+    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
+    "6. Prefer standalone questions that still make sense outside the original page.",
+    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
+    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
+    "12. Evidence must be a short supporting passage copied from the provided page text.",
+    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
+    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
+    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
+    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
+    existingSummary ? "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones." : "",
+    extraPrompt ? `18. Additional task instructions: ${extraPrompt}` : "",
+    "",
+    `URL: ${url}`,
+    title ? `Title: ${title}` : "",
+    metaDescription ? `Meta description: ${metaDescription}` : "",
+    headings ? `Headings: ${headings}` : "",
+    existingSummary ? "" : "",
+    existingSummary ? "EXISTING QA PAIRS TO AVOID" : "",
+    existingSummary || "",
+    "",
+    "PAGE TEXT",
+    trimmedText || "(empty)",
+  ].filter(Boolean).join("\n");
+}
+
+async function waitForTabCompletion(tabId, timeoutMs = 30000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab) {
+      throw new Error("Tab was closed before the page finished loading.");
+    }
+    if (tab.status === "complete") {
+      return tab;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("Timed out while waiting for the page to load.");
+}
+
+async function getPageContextFromUrl(url) {
+  const tab = await chrome.tabs.create({ url, active: false });
+  try {
+    await waitForTabCompletion(Number(tab.id));
+    let injectedFallback = false;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        const response = await chrome.tabs.sendMessage(Number(tab.id), { type: "edge-ai-chat:get-page-context", expandDetails: true });
+        if (response?.ok && response.context) {
+          return response.context;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!injectedFallback && /Receiving end does not exist|Could not establish connection/i.test(message)) {
+          injectedFallback = true;
+          try {
+            await injectContentScriptsIntoTab(Number(tab.id));
+          } catch (_ignored) {
+            // Fall through to retry loop.
+          }
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+    throw new Error("Page context was unavailable for this URL.");
+  } finally {
+    if (Number.isFinite(Number(tab.id))) {
+      await chrome.tabs.remove(Number(tab.id)).catch(() => {});
+    }
+  }
+}
+
+function mergeUniqueBatchUrlQaPairs(existingPairs = [], incomingPairs = []) {
+  const merged = [];
+  const seen = new Set();
+  for (const pair of [...existingPairs, ...incomingPairs]) {
+    const normalized = normalizeBatchUrlQaPair(pair);
+    if (!normalized) {
+      continue;
+    }
+    const key = `${normalized.topic}|${normalized.answer}`.trim().toLowerCase();
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(normalized);
+  }
+  return merged;
+}
+
+function convertPlainUrlsToMarkdownLinks(value) {
+  const text = String(value || "");
+  if (!text) {
+    return "";
+  }
+  return text.replace(/(?<!\]\()https?:\/\/[^\s)]+/gi, (rawUrl) => {
+    const trimmedUrl = rawUrl.replace(/[.,!?;:]+$/g, "");
+    const trailing = rawUrl.slice(trimmedUrl.length);
+    if (!trimmedUrl) {
+      return rawUrl;
+    }
+    return `[${trimmedUrl}](${trimmedUrl})${trailing}`;
+  });
+}
+
+function normalizeBatchUrlQaOutputLine(value) {
+  return String(value || "")
+    .replace(/^\s*[，,、；;:：.\-]+\s*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripLeadingQaLabel(value, label) {
+  const pattern = new RegExp(`^\\s*${label}\\s*:\\s*`, "i");
+  return String(value || "").replace(pattern, "").trim();
+}
+
+function truncateEmbeddedQaMarker(value, markerLabel) {
+  const text = String(value || "");
+  if (!text) {
+    return "";
+  }
+  const pattern = new RegExp(`(?:\\r?\\n|[\\s，,。！？!?])${markerLabel}\\s*:`, "i");
+  const match = pattern.exec(text);
+  if (!match || typeof match.index !== "number") {
+    return text;
+  }
+  return text.slice(0, match.index).trim().replace(/[，,、；;:：.\-]+\s*$/u, "").trim();
+}
+
+function buildBatchUrlQaMarkdown(results = []) {
+  const entries = (Array.isArray(results) ? results : [])
+    .filter((item) => item.status === "ok" && Array.isArray(item.qaPairs) && item.qaPairs.length)
+    .flatMap((item) => item.qaPairs)
+    .flatMap((pair) => {
+      const questions = Array.isArray(pair.questions) ? pair.questions : [];
+      const answer = normalizeBatchUrlQaOutputLine(
+        truncateEmbeddedQaMarker(
+          stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(pair.answer), "A"),
+          "Q",
+        ),
+      );
+      return questions.map((question) => {
+        const cleanedQuestion = normalizeBatchUrlQaOutputLine(
+          truncateEmbeddedQaMarker(
+            stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(question), "Q"),
+            "A",
+          ),
+        );
+        return `Q: ${cleanedQuestion}\nA: ${answer}`;
+      });
+    })
+    .filter(Boolean);
+  if (entries.length) {
+    return `${entries.join("\n\n")}\n`;
+  }
+
+  const failures = (Array.isArray(results) ? results : [])
+    .filter((item) => item.status === "failed")
+    .map((item, index) => {
+      const url = String(item.url || "").trim();
+      const reason = String(item.reason || "Unknown error.").trim();
+      return [
+        `## Failed URL ${index + 1}`,
+        url ? `URL: ${url}` : "",
+        `Reason: ${reason}`,
+      ].filter(Boolean).join("\n");
+    });
+
+  if (failures.length) {
+    return [
+      "# Batch URL QA",
+      "",
+      "No valid QA pairs were written for this run.",
+      "",
+      ...failures,
+      "",
+    ].join("\n");
+  }
+
+  return "# Batch URL QA\n\nNo QA pairs were generated yet.\n";
+}
+
+async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
+  const targetCount = estimateBatchUrlQaTargetCount(pageText, headings, qaPerUrl);
+  let collectedPairs = [];
+  const maxAttempts = 3;
+
+  for (let attempt = 0; attempt < maxAttempts && collectedPairs.length < targetCount; attempt += 1) {
+    const response = await generateWithConfiguredProvider(
+      buildBatchUrlQaPrompt({
+        url,
+        title,
+        metaDescription,
+        headings,
+        pageText,
+        qaPerUrl: targetCount - collectedPairs.length,
+        outputLanguage,
+        extraPrompt,
+        existingPairs: collectedPairs,
+      }),
+      model,
+    );
+    const parsed = extractJsonObjectFromText(response?.response || "");
+    const normalizedPairs = extractBatchUrlQaPairsFromPayload(parsed)
+      .map((item) => normalizeBatchUrlQaPair(item))
+      .filter(Boolean);
+    const scopedPairs = normalizedPairs.filter((item) => isBatchUrlQaPairAlignedToScope(item, { title, headings }));
+    const qaPairs = scopedPairs.length ? scopedPairs : normalizedPairs;
+    collectedPairs = mergeUniqueBatchUrlQaPairs(collectedPairs, qaPairs);
+  }
+
+  if (collectedPairs.length < Math.max(2, Math.min(targetCount, 2))) {
+    throw new Error(`Model returned only ${collectedPairs.length} grounded FAQ item(s) after retries.`);
+  }
+  return collectedPairs.slice(0, targetCount);
+}
+
+async function processBatchUrlQaJob(jobId) {
+  let job = normalizeBatchUrlQaJob((await getBatchUrlQaJobs()).find((item) => item.id === jobId) || {});
+  if (!job.id) {
+    throw new Error("Batch URL QA job not found.");
+  }
+  const outputPath = `${WORK_FOLDER_DATASET_DIR}/${job.fileName}`;
+  const nowIso = new Date().toISOString();
+  job = await upsertBatchUrlQaJob({
+    ...job,
+    status: "running",
+    startedAt: job.startedAt || nowIso,
+    updatedAt: nowIso,
+    total: job.urls.length,
+    progress: job.results.length,
+    outputPath,
+    stage: "starting",
+    stageLabel: "Preparing batch workflow",
+  });
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+
+  for (const [urlIndex, url] of job.urls.entries()) {
+    if (job.results.some((item) => item.url === url)) {
+      continue;
+    }
+
+    let result;
+    try {
+      job = await upsertBatchUrlQaJob({
+        ...job,
+        updatedAt: new Date().toISOString(),
+        stage: "reading",
+        stageLabel: `Reading page ${urlIndex + 1} of ${job.urls.length}`,
+        currentUrl: url,
+        currentIndex: urlIndex + 1,
+      });
+      const context = await getPageContextFromUrl(url);
+      const pageText = normalizeMarkdownText(context?.pageText || "");
+      if (pageText.length < 500) {
+        throw new Error("insufficient_content");
+      }
+      job = await upsertBatchUrlQaJob({
+        ...job,
+        updatedAt: new Date().toISOString(),
+        stage: "generating",
+        stageLabel: `Generating QA pairs for page ${urlIndex + 1} of ${job.urls.length}`,
+        currentUrl: url,
+        currentIndex: urlIndex + 1,
+      });
+      const qaPairs = await generateQaPairsForPage({
+        url,
+        title: context?.title || "",
+        metaDescription: context?.metaDescription || "",
+        headings: context?.headings || "",
+        pageText,
+        qaPerUrl: job.qaPerUrl,
+        model: job.model,
+        outputLanguage: job.outputLanguage,
+        extraPrompt: job.extraPrompt,
+      });
+      result = normalizeBatchUrlQaResult({
+        url,
+        title: context?.title || "",
+        status: "ok",
+        qaPairs,
+      });
+    } catch (error) {
+      result = normalizeBatchUrlQaResult({
+        url,
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    job = await upsertBatchUrlQaJob({
+      ...job,
+      updatedAt: new Date().toISOString(),
+      results: [...job.results, result],
+      progress: job.results.length + 1,
+      successCount: job.successCount + (result.status === "ok" ? 1 : 0),
+      failureCount: job.failureCount + (result.status === "failed" ? 1 : 0),
+      stage: "collecting",
+      stageLabel: `Collected result ${job.results.length + 1} of ${job.urls.length}`,
+      currentUrl: url,
+      currentIndex: urlIndex + 1,
+    });
+    await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+  }
+
+  job = await upsertBatchUrlQaJob({
+    ...job,
+    updatedAt: new Date().toISOString(),
+    stage: "writing",
+    stageLabel: "Writing Markdown file",
+  });
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+  job = await upsertBatchUrlQaJob({
+    ...job,
+    updatedAt: new Date().toISOString(),
+    stage: "notifying",
+    stageLabel: "Sending completion notifications",
+    outputPath,
+  });
+  await notifyBatchUrlQaCompletion({
+    fileName: job.fileName,
+    outputPath,
+    model: job.model,
+    outputLanguage: job.outputLanguage,
+    total: job.urls.length,
+    successCount: job.successCount,
+    failureCount: job.failureCount,
+    finishedAt: new Date().toISOString(),
+  });
+  await upsertBatchUrlQaJob({
+    ...job,
+    updatedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
+    status: "completed",
+    progress: job.urls.length,
+    total: job.urls.length,
+    outputPath,
+    stage: "completed",
+    stageLabel: "Completed",
+  });
+}
+
+async function startBatchUrlQaJob(input = {}) {
+  const config = await getConfig();
+  const currentJobs = await getBatchUrlQaJobs();
+  if (currentJobs.some((item) => item.status === "running")) {
+    throw new Error("Another Batch URL QA job is already running.");
+  }
+  const parsed = parseBatchUrlInput(input.urls || "");
+  if (!parsed.urls.length) {
+    throw new Error("Please provide at least one valid HTTP or HTTPS URL.");
+  }
+  const selectedModel = String(input.model || config.selectedModel || "").trim();
+  if (!selectedModel) {
+    throw new Error("Pick a model before starting Batch URL QA.");
+  }
+  await getWritableWorkFolderHandle();
+
+  const job = await upsertBatchUrlQaJob({
+    id: createStableId("batch-url-qa"),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    status: "queued",
+    model: selectedModel,
+    outputLanguage: String(input.outputLanguage || config.replyLanguage || "zh-TW").trim() || "zh-TW",
+    extraPrompt: String(input.extraPrompt || "").trim(),
+    qaPerUrl: normalizeBatchUrlQaCount(input.qaPerUrl),
+    fileName: normalizeBatchUrlQaFilename(input.fileName),
+    urls: parsed.urls,
+    invalidUrls: parsed.invalid,
+    truncated: parsed.truncated,
+    progress: 0,
+    total: parsed.urls.length,
+    successCount: 0,
+    failureCount: 0,
+    stage: "queued",
+    stageLabel: "Queued",
+    results: [],
+  });
+
+  processBatchUrlQaJob(job.id).catch(async (error) => {
+    await upsertBatchUrlQaJob({
+      ...job,
+      updatedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    }).catch(() => {});
+  });
+
+  return job;
 }
 
 async function syncGoogleDriveNow(direction = "push", interactive = false) {
@@ -1485,7 +3397,7 @@ async function fetchJson(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    throw new Error(formatHttpError(response.status, text || response.statusText));
   }
 
   return response.json();
@@ -1495,10 +3407,47 @@ async function fetchText(url, init) {
   const response = await fetch(url, init);
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    throw new Error(formatHttpError(response.status, text || response.statusText));
   }
 
   return response.text();
+}
+
+function formatHttpError(status, responseText = "") {
+  const rawText = String(responseText || "").trim();
+  if (!rawText) {
+    return `HTTP ${status}`;
+  }
+
+  try {
+    const payload = JSON.parse(rawText);
+    const error = payload?.error || payload;
+    const message = String(error?.message || "").trim();
+    const code = String(error?.code || error?.innererror?.code || "").trim();
+    const filterResult = error?.innererror?.content_filter_result || error?.content_filter_result || null;
+    const jailbreakDetected = Boolean(filterResult?.jailbreak?.detected || filterResult?.jailbreak?.filtered);
+
+    if (code === "content_filter" || code === "ResponsibleAIPolicyViolation" || filterResult) {
+      const reasons = [];
+      if (jailbreakDetected) {
+        reasons.push("possible prompt-injection or jailbreak-like text was detected in the page context or prompt");
+      }
+      const summary = reasons.length ? ` ${reasons.join("; ")}.` : "";
+      return `HTTP ${status}: The request was blocked by Azure/OpenAI content filtering.${summary} Try reducing page context, selected text, or attached content and retry.`;
+    }
+
+    if (message) {
+      return `HTTP ${status}: ${message}`;
+    }
+    if (code) {
+      return `HTTP ${status}: ${code}`;
+    }
+  } catch (_error) {
+    // Fall through to plain-text handling.
+  }
+
+  const compact = rawText.replace(/\s+/g, " ").trim();
+  return `HTTP ${status}: ${compact}`;
 }
 
 function getGithubRequestHeaders(token, accept = "application/vnd.github+json") {
@@ -1950,6 +3899,102 @@ async function openCopilotInTab(tabId) {
   return chrome.tabs.sendMessage(Number(tabId), { type: "edge-ai-chat:toggle-panel", open: true });
 }
 
+async function ensureContextMenus() {
+  if (!chrome.contextMenus?.create) {
+    return;
+  }
+
+  await chrome.contextMenus.removeAll();
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_ANALYZE_IMAGE_ID,
+    title: "用 Open Copilot 分析這張圖片",
+    contexts: ["image"],
+  });
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_PASTE_SELECTION_ID,
+    title: "貼上選取文字到 Open Copilot",
+    contexts: ["selection"],
+  });
+}
+
+function getImageFilenameFromUrl(url, mimeType = "") {
+  const normalizedUrl = String(url || "").trim();
+  let pathname = "";
+  if (normalizedUrl) {
+    try {
+      pathname = new URL(normalizedUrl).pathname;
+    } catch (_error) {
+      pathname = "";
+    }
+  }
+  const rawName = pathname.split("/").pop() || "";
+  if (rawName) {
+    return rawName;
+  }
+
+  const subtype = String(mimeType || "").split("/")[1] || "png";
+  return `context-image.${subtype}`;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function fetchImageAttachmentFromUrl(url) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const mimeType = blob.type || response.headers.get("content-type") || "image/png";
+  const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+
+  return {
+    name: getImageFilenameFromUrl(url, mimeType),
+    mimeType,
+    base64,
+    sourceUrl: url,
+  };
+}
+
+async function analyzeImageInTab(tabId, imageUrl) {
+  if (!Number.isFinite(Number(tabId))) {
+    throw new Error("Missing tab id for image analysis.");
+  }
+  if (!String(imageUrl || "").trim()) {
+    throw new Error("Missing image URL.");
+  }
+
+  const image = await fetchImageAttachmentFromUrl(String(imageUrl));
+  await openCopilotInTab(tabId);
+  return chrome.tabs.sendMessage(Number(tabId), {
+    type: "edge-ai-chat:analyze-image-context-menu",
+    image,
+  });
+}
+
+async function pasteSelectionIntoCopilot(tabId, selectionText) {
+  if (!Number.isFinite(Number(tabId))) {
+    throw new Error("Missing tab id for selection paste.");
+  }
+  if (!String(selectionText || "").trim()) {
+    throw new Error("Missing selected text.");
+  }
+
+  await openCopilotInTab(tabId);
+  return chrome.tabs.sendMessage(Number(tabId), {
+    type: "edge-ai-chat:paste-selection-context-menu",
+    selectionText: String(selectionText),
+  });
+}
+
 async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
   const ids = Array.from(
     new Set(
@@ -2212,11 +4257,819 @@ async function streamChatWithOllama(port, messages, model) {
   });
 }
 
+function getDefaultProvider(config = {}) {
+  return String(config?.defaultProvider || "ollama").trim() || "ollama";
+}
+
+function getConfiguredProviderModel(config = {}, overrideModel = "") {
+  const provider = getDefaultProvider(config);
+  const explicitModel = String(overrideModel || "").trim();
+  if (explicitModel) {
+    return explicitModel;
+  }
+  if (provider === "lmStudio") {
+    return String(config?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(config?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(config?.azureOpenAiDeployment || "").trim();
+  }
+  return String(config?.selectedModel || "").trim();
+}
+
+function extractGeminiTextFromResponse(payload = {}) {
+  return (Array.isArray(payload?.candidates) ? payload.candidates : [])
+    .flatMap((candidate) => Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [])
+    .map((part) => String(part?.text || ""))
+    .filter(Boolean)
+    .join("");
+}
+
+function buildGeminiPartsFromMessage(message = {}) {
+  const parts = [];
+  const text = String(message?.content || "").trim();
+  if (text) {
+    parts.push({ text });
+  }
+
+  const imageAttachments = Array.isArray(message?.imageAttachments) ? message.imageAttachments : [];
+  if (imageAttachments.length) {
+    imageAttachments.forEach((item) => {
+      const data = String(item?.base64 || "").trim();
+      if (!data) {
+        return;
+      }
+      parts.push({
+        inline_data: {
+          mime_type: String(item?.mimeType || "image/png").trim() || "image/png",
+          data,
+        },
+      });
+    });
+  } else if (Array.isArray(message?.images)) {
+    message.images.forEach((data) => {
+      const normalized = String(data || "").trim();
+      if (!normalized) {
+        return;
+      }
+      parts.push({
+        inline_data: {
+          mime_type: "image/png",
+          data: normalized,
+        },
+      });
+    });
+  }
+
+  return parts;
+}
+
+function convertMessagesToGeminiPayload(messages = []) {
+  const normalizedMessages = Array.isArray(messages) ? messages : [];
+  const systemParts = [];
+  const contents = [];
+
+  normalizedMessages.forEach((message) => {
+    const role = String(message?.role || "").trim().toLowerCase();
+    const parts = buildGeminiPartsFromMessage(message);
+    if (!parts.length) {
+      return;
+    }
+
+    if (role === "system") {
+      systemParts.push(...parts);
+      return;
+    }
+
+    contents.push({
+      role: role === "assistant" ? "model" : "user",
+      parts,
+    });
+  });
+
+  return {
+    systemInstruction: systemParts.length ? { parts: systemParts } : undefined,
+    contents,
+  };
+}
+
+function buildGeminiRequestUrl(model, { stream = false } = {}) {
+  const action = stream ? "streamGenerateContent?alt=sse" : "generateContent";
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${action}`;
+}
+
+function buildOpenAiCompatibleHeaders(apiKey = "") {
+  const normalizedApiKey = String(apiKey || "").trim();
+  return {
+    "Content-Type": "application/json",
+    ...(normalizedApiKey ? { Authorization: `Bearer ${normalizedApiKey}` } : {}),
+  };
+}
+
+function buildLmStudioBaseUrl(config = {}) {
+  const baseUrl = normalizeBaseUrl(config?.lmStudioUrl);
+  if (!baseUrl) {
+    throw new Error("LM Studio URL is not configured.");
+  }
+  return baseUrl;
+}
+
+function buildLmStudioChatCompletionsUrl(config = {}) {
+  return `${buildLmStudioBaseUrl(config)}/v1/chat/completions`;
+}
+
+function buildLmStudioModelsUrl(config = {}) {
+  return `${buildLmStudioBaseUrl(config)}/v1/models`;
+}
+
+function normalizeAzureOpenAiEndpoint(endpoint) {
+  return normalizeBaseUrl(endpoint).replace(/\/openai$/i, "");
+}
+
+function buildAzureOpenAiChatCompletionsUrl(config = {}, deployment = "") {
+  const endpoint = normalizeAzureOpenAiEndpoint(config?.azureOpenAiEndpoint);
+  const selectedDeployment = String(deployment || config?.azureOpenAiDeployment || "").trim();
+  const apiVersion = String(config?.azureOpenAiApiVersion || "").trim();
+
+  if (!endpoint) {
+    throw new Error("Azure OpenAI endpoint is not configured.");
+  }
+  if (!selectedDeployment) {
+    throw new Error("Azure OpenAI deployment is not configured.");
+  }
+  if (!apiVersion) {
+    throw new Error("Azure OpenAI API version is not configured.");
+  }
+
+  return `${endpoint}/openai/deployments/${encodeURIComponent(selectedDeployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+}
+
+function extractTextFromOpenAiContentParts(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      return String(part?.text || part?.content || "");
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function extractAzureOpenAiTextFromResponse(payload = {}) {
+  return (Array.isArray(payload?.choices) ? payload.choices : [])
+    .map((choice) => extractTextFromOpenAiContentParts(choice?.message?.content))
+    .filter(Boolean)
+    .join("");
+}
+
+function extractAzureOpenAiTextDeltaFromChunk(payload = {}) {
+  return (Array.isArray(payload?.choices) ? payload.choices : [])
+    .map((choice) => extractTextFromOpenAiContentParts(choice?.delta?.content))
+    .filter(Boolean)
+    .join("");
+}
+
+function buildAzureOpenAiMessageContent(message = {}) {
+  const text = String(message?.content || "").trim();
+  const imageAttachments = Array.isArray(message?.imageAttachments) ? message.imageAttachments : [];
+  const fallbackImages = Array.isArray(message?.images) ? message.images : [];
+
+  if (!imageAttachments.length && !fallbackImages.length) {
+    return text;
+  }
+
+  const content = [];
+  if (text) {
+    content.push({
+      type: "text",
+      text,
+    });
+  }
+
+  if (imageAttachments.length) {
+    imageAttachments.forEach((item) => {
+      const data = String(item?.base64 || "").trim();
+      if (!data) {
+        return;
+      }
+      const mimeType = String(item?.mimeType || "image/png").trim() || "image/png";
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${mimeType};base64,${data}`,
+        },
+      });
+    });
+  } else {
+    fallbackImages.forEach((data) => {
+      const normalized = String(data || "").trim();
+      if (!normalized) {
+        return;
+      }
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:image/png;base64,${normalized}`,
+        },
+      });
+    });
+  }
+
+  return content;
+}
+
+function convertMessagesToAzureOpenAiPayload(messages = []) {
+  return (Array.isArray(messages) ? messages : [])
+    .map((message) => {
+      const role = String(message?.role || "user").trim().toLowerCase();
+      const content = buildAzureOpenAiMessageContent(message);
+      const normalizedRole = role === "assistant" || role === "system" ? role : "user";
+      const hasContent = typeof content === "string"
+        ? Boolean(content)
+        : Array.isArray(content) && content.length > 0;
+      if (!hasContent) {
+        return null;
+      }
+      return {
+        role: normalizedRole,
+        content,
+      };
+    })
+    .filter(Boolean);
+}
+
+function extractOpenAiCompatibleModelNames(payload = {}) {
+  return (Array.isArray(payload?.data) ? payload.data : [])
+    .map((item) => ({
+      name: String(item?.id || item?.name || "").trim(),
+      size: Number(item?.size || 0) || 0,
+    }))
+    .filter((item) => item.name);
+}
+
+async function generateWithGemini(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.geminiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Gemini model configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured.");
+  }
+
+  const payload = await fetchJson(buildGeminiRequestUrl(selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: String(prompt || "") }],
+        },
+      ],
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractGeminiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function listLmStudioModels() {
+  const config = await getConfig();
+  const baseUrl = buildLmStudioBaseUrl(config);
+  const payload = await fetchJson(buildLmStudioModelsUrl(config), {
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+  });
+
+  return {
+    baseUrl,
+    models: extractOpenAiCompatibleModelNames(payload),
+    config,
+  };
+}
+
+async function generateWithLmStudio(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+
+  if (!selectedModel) {
+    throw new Error("No LM Studio model configured.");
+  }
+
+  const payload = await fetchJson(buildLmStudioChatCompletionsUrl(config), {
+    method: "POST",
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+    body: JSON.stringify({
+      model: selectedModel,
+      messages: [
+        {
+          role: "user",
+          content: String(prompt || ""),
+        },
+      ],
+      stream: false,
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractAzureOpenAiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function generateWithAzureOpenAi(prompt, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.azureOpenAiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Azure OpenAI deployment configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Azure OpenAI API key is not configured.");
+  }
+
+  const payload = await fetchJson(buildAzureOpenAiChatCompletionsUrl(config, selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: String(prompt || ""),
+        },
+      ],
+      stream: false,
+    }),
+  });
+
+  return {
+    model: selectedModel,
+    response: extractAzureOpenAiTextFromResponse(payload),
+    done: true,
+  };
+}
+
+async function streamChatWithGemini(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.geminiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Gemini model configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured.");
+  }
+
+  const geminiPayload = convertMessagesToGeminiPayload(messages);
+  if (!Array.isArray(geminiPayload.contents) || !geminiPayload.contents.length) {
+    throw new Error("Gemini request has no content.");
+  }
+
+  const response = await fetch(buildGeminiRequestUrl(selectedModel, { stream: true }), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(geminiPayload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const dataLines = rawEvent
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .filter(Boolean);
+
+      if (!dataLines.length) {
+        continue;
+      }
+
+      const chunkText = dataLines
+        .map((line) => extractGeminiTextFromResponse(JSON.parse(line)))
+        .join("");
+
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const dataLines = trailingEvent
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    const trailingText = dataLines
+      .map((line) => extractGeminiTextFromResponse(JSON.parse(line)))
+      .join("");
+
+    if (trailingText) {
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: trailingText,
+        done: false,
+      })) {
+        return;
+      }
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function streamChatWithLmStudio(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+
+  if (!selectedModel) {
+    throw new Error("No LM Studio model configured.");
+  }
+
+  const lmStudioMessages = convertMessagesToAzureOpenAiPayload(messages);
+  if (!lmStudioMessages.length) {
+    throw new Error("LM Studio request has no messages.");
+  }
+
+  const response = await fetch(buildLmStudioChatCompletionsUrl(config), {
+    method: "POST",
+    headers: buildOpenAiCompatibleHeaders(config?.lmStudioApiKey),
+    body: JSON.stringify({
+      model: selectedModel,
+      messages: lmStudioMessages,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatHttpError(response.status, text || response.statusText));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  const emitLmStudioChunk = (eventText) => {
+    const dataLines = String(eventText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    for (const line of dataLines) {
+      if (line === "[DONE]") {
+        return "done";
+      }
+
+      const chunkText = extractAzureOpenAiTextDeltaFromChunk(JSON.parse(line));
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return "disconnected";
+      }
+    }
+
+    return "continue";
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const state = emitLmStudioChunk(rawEvent);
+      if (state === "done") {
+        tryPostPortMessage(port, {
+          type: "ollama:stream-complete",
+          model: selectedModel,
+        });
+        return;
+      }
+      if (state === "disconnected") {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const state = emitLmStudioChunk(trailingEvent);
+    if (state === "disconnected") {
+      return;
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function streamChatWithAzureOpenAi(port, messages, model) {
+  const config = await getConfig();
+  const selectedModel = getConfiguredProviderModel(config, model);
+  const apiKey = String(config?.azureOpenAiApiKey || "").trim();
+
+  if (!selectedModel) {
+    throw new Error("No Azure OpenAI deployment configured.");
+  }
+  if (!apiKey) {
+    throw new Error("Azure OpenAI API key is not configured.");
+  }
+
+  const azureMessages = convertMessagesToAzureOpenAiPayload(messages);
+  if (!azureMessages.length) {
+    throw new Error("Azure OpenAI request has no messages.");
+  }
+
+  const response = await fetch(buildAzureOpenAiChatCompletionsUrl(config, selectedModel), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify({
+      messages: azureMessages,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(formatHttpError(response.status, text || response.statusText));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  const emitAzureChunk = (eventText) => {
+    const dataLines = String(eventText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+
+    for (const line of dataLines) {
+      if (line === "[DONE]") {
+        return "done";
+      }
+
+      const chunkText = extractAzureOpenAiTextDeltaFromChunk(JSON.parse(line));
+      if (!chunkText) {
+        continue;
+      }
+
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: chunkText,
+        done: false,
+      })) {
+        return "disconnected";
+      }
+    }
+
+    return "continue";
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const state = emitAzureChunk(rawEvent);
+      if (state === "done") {
+        tryPostPortMessage(port, {
+          type: "ollama:stream-complete",
+          model: selectedModel,
+        });
+        return;
+      }
+      if (state === "disconnected") {
+        return;
+      }
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    const state = emitAzureChunk(trailingEvent);
+    if (state === "disconnected") {
+      return;
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
+async function testProviderConnection(providerOverride = "") {
+  const config = await getConfig();
+  const provider = String(providerOverride || getDefaultProvider(config) || "ollama").trim();
+
+  if (provider === "ollama") {
+    const result = await listModels();
+    return {
+      provider,
+      baseUrl: result.baseUrl,
+      modelCount: result.models.length,
+      message: `Connected to ${result.baseUrl}. Found ${result.models.length} model(s).`,
+    };
+  }
+
+  if (provider === "lmStudio") {
+    const result = await listLmStudioModels();
+    return {
+      provider,
+      baseUrl: result.baseUrl,
+      modelCount: result.models.length,
+      message: `Connected to ${result.baseUrl}. Found ${result.models.length} model(s).`,
+    };
+  }
+
+  if (provider === "gemini") {
+    const result = await generateWithGemini("Reply with OK.", "");
+    return {
+      provider,
+      model: result.model,
+      message: `Connected to Gemini with model ${result.model}.`,
+    };
+  }
+
+  if (provider === "azureOpenAi") {
+    const result = await generateWithAzureOpenAi("Reply with OK.", "");
+    return {
+      provider,
+      model: result.model,
+      message: `Connected to Azure OpenAI with deployment ${result.model}.`,
+    };
+  }
+
+  throw new Error(`Unsupported provider: ${provider}`);
+}
+
+async function generateWithConfiguredProvider(prompt, model) {
+  const config = await getConfig();
+  const provider = getDefaultProvider(config);
+
+  if (provider === "lmStudio") {
+    return generateWithLmStudio(prompt, model);
+  }
+
+  if (provider === "gemini") {
+    return generateWithGemini(prompt, model);
+  }
+
+  if (provider === "azureOpenAi") {
+    return generateWithAzureOpenAi(prompt, model);
+  }
+
+  return generateWithOllama(prompt, model);
+}
+
+async function streamChatWithConfiguredProvider(port, messages, model) {
+  const config = await getConfig();
+  const provider = getDefaultProvider(config);
+
+  if (provider === "lmStudio") {
+    return streamChatWithLmStudio(port, messages, model);
+  }
+
+  if (provider === "gemini") {
+    return streamChatWithGemini(port, messages, model);
+  }
+
+  if (provider === "azureOpenAi") {
+    return streamChatWithAzureOpenAi(port, messages, model);
+  }
+
+  return streamChatWithOllama(port, messages, model);
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureSecretConfigMigrated();
   const config = await getConfig();
   await chrome.storage.sync.set(omitSecretConfig(config));
   await restoreTaskAlarms();
+  await ensureContextMenus();
   await reinjectContentScriptsIntoOpenTabs();
 });
 
@@ -2226,6 +5079,9 @@ chrome.runtime.onStartup?.addListener(() => {
   });
   restoreTaskAlarms().catch((error) => {
     console.warn("[Edge AI Chat] Failed to restore task alarms on startup", error);
+  });
+  ensureContextMenus().catch((error) => {
+    console.warn("[Edge AI Chat] Failed to restore context menus on startup", error);
   });
   reinjectContentScriptsIntoOpenTabs().catch((error) => {
     console.warn("[Edge AI Chat] Failed to re-inject content scripts on startup", error);
@@ -2245,6 +5101,25 @@ chrome.commands?.onCommand.addListener(async (command) => {
     await openCopilotInTab(activeTab.id);
   } catch (error) {
     console.warn("[Edge AI Chat] Failed to open in-page copilot from command", error);
+  }
+});
+
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (!tab?.id || !isHttpTabUrl(tab.url)) {
+    return;
+  }
+
+  if (info.menuItemId === CONTEXT_MENU_ANALYZE_IMAGE_ID && info.srcUrl) {
+    analyzeImageInTab(tab.id, info.srcUrl).catch((error) => {
+      console.warn("[Edge AI Chat] Failed to analyze image from context menu", error);
+    });
+    return;
+  }
+
+  if (info.menuItemId === CONTEXT_MENU_PASTE_SELECTION_ID && info.selectionText) {
+    pasteSelectionIntoCopilot(tab.id, info.selectionText).catch((error) => {
+      console.warn("[Edge AI Chat] Failed to paste selection from context menu", error);
+    });
   }
 });
 
@@ -2268,6 +5143,32 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       message: buildTaskNotificationMessage(task),
       priority: 2,
     });
+
+    try {
+      await notifyTelegramTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Telegram task reminder", error);
+    }
+    try {
+      await notifyLineTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver LINE task reminder", error);
+    }
+    try {
+      await notifyTeamsTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Teams task reminder", error);
+    }
+    try {
+      await notifySlackTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Slack task reminder", error);
+    }
+    try {
+      await notifyDiscordTaskReminder(task);
+    } catch (error) {
+      console.warn("[Edge AI Chat] Failed to deliver Discord task reminder", error);
+    }
 
     const nextTasks = tasks.map((item) => (item.id === taskId ? { ...item, reminderSentAt: new Date().toISOString() } : item));
     await saveTaskRecords(nextTasks);
@@ -2316,13 +5217,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return;
       }
+      case "provider:test-connection": {
+        sendResponse({ ok: true, ...(await testProviderConnection(message.provider || "")) });
+        return;
+      }
       case "ollama:select-model": {
         const config = await setConfig({ selectedModel: message.model || "" });
         sendResponse({ ok: true, config: sanitizeConfigForSender(config, sender) });
         return;
       }
       case "ollama:generate": {
-        sendResponse({ ok: true, ...(await generateWithOllama(message.prompt || "", message.model)) });
+        sendResponse({ ok: true, ...(await generateWithConfiguredProvider(message.prompt || "", message.model)) });
         return;
       }
       case "browser:list-tabs": {
@@ -2359,6 +5264,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "ollama:get-work-folder-status": {
         sendResponse({ ok: true, status: await getWorkFolderStatus() });
+        return;
+      }
+      case "batch-url-qa:list-jobs": {
+        sendResponse({ ok: true, jobs: await getBatchUrlQaJobs(), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "batch-url-qa:start-job": {
+        sendResponse({ ok: true, job: await startBatchUrlQaJob(message || {}), status: await getWorkFolderStatus() });
         return;
       }
       case "work-folder:sync-push": {
@@ -2399,6 +5312,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "ollama:get-latest-chat-session": {
         sendResponse({ ok: true, session: await getLatestChatSession() });
+        return;
+      }
+      case "telegram:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyTelegramAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "telegram:test-notification": {
+        sendResponse(await testTelegramNotification());
+        return;
+      }
+      case "line:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyLineAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "line:test-notification": {
+        sendResponse(await testLineNotification());
+        return;
+      }
+      case "teams:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyTeamsAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "teams:test-notification": {
+        sendResponse(await testTeamsNotification());
+        return;
+      }
+      case "slack:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifySlackAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "slack:test-notification": {
+        sendResponse(await testSlackNotification());
+        return;
+      }
+      case "discord:notify-agent-flow-complete": {
+        sendResponse({ ok: true, ...(await notifyDiscordAgentFlowComplete(message.payload || {})) });
+        return;
+      }
+      case "discord:test-notification": {
+        sendResponse(await testDiscordNotification());
         return;
       }
       case "task:list": {
@@ -2480,7 +5433,7 @@ chrome.runtime.onConnect.addListener((port) => {
     }
 
     if (message?.type === "ollama:stream-chat") {
-      streamChatWithOllama(port, message.messages || [], message.model)
+      streamChatWithConfiguredProvider(port, message.messages || [], message.model)
         .catch((error) => {
           tryPostPortMessage(port, {
             type: "ollama:stream-error",

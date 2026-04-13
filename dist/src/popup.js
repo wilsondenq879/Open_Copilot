@@ -170,6 +170,11 @@ Object.assign(POPUP_I18N.ko, {
 });
 
 let popupLocale = POPUP_I18N["zh-TW"];
+const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
+const SYSTEM_THEME_MEDIA_QUERY =
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: light)")
+    : null;
 
 function sendMessage(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
@@ -190,6 +195,25 @@ function applyPopupTranslations() {
   document.getElementById("refreshModels").textContent = tp("refresh");
 }
 
+function normalizeSettingsTheme(value) {
+  const normalized = String(value || "system").trim().toLowerCase();
+  return SETTINGS_THEME_OPTIONS.has(normalized) ? normalized : "system";
+}
+
+function resolveSettingsTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  if (normalized === "system") {
+    return SYSTEM_THEME_MEDIA_QUERY?.matches ? "light" : "dark";
+  }
+  return normalized;
+}
+
+function applyPopupTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  document.body.dataset.themePreference = normalized;
+  document.body.dataset.theme = resolveSettingsTheme(normalized);
+}
+
 function setMessage(message, isError = false) {
   const node = document.getElementById("popupMessage");
   node.textContent = message;
@@ -199,8 +223,10 @@ function setMessage(message, isError = false) {
 async function loadConfig() {
   const result = await sendMessage({ type: "ollama:get-config" });
   if (result?.ok) {
-    popupLocale = POPUP_I18N[result.config.replyLanguage || "zh-TW"] || POPUP_I18N.en;
+    const uiLanguage = result.config.uiLanguage || result.config.replyLanguage || "zh-TW";
+    popupLocale = POPUP_I18N[uiLanguage] || POPUP_I18N.en;
     applyPopupTranslations();
+    applyPopupTheme(result.config.settingsTheme);
     document.getElementById("endpointValue").textContent = result.config.ollamaUrl || tp("notConfigured");
   }
   return result?.config || {};
@@ -256,6 +282,13 @@ async function refreshModels() {
 document.getElementById("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
 document.getElementById("refreshModels").addEventListener("click", refreshModels);
 
+SYSTEM_THEME_MEDIA_QUERY?.addEventListener("change", () => {
+  if (document.body.dataset.themePreference === "system") {
+    applyPopupTheme("system");
+  }
+});
+
 applyPopupTranslations();
+applyPopupTheme("system");
 setMessage(tp("loading"));
 refreshModels();

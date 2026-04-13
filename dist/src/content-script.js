@@ -13,6 +13,7 @@ const MAX_CUSTOM_STARTERS = 20;
 const MIN_AGENT_FLOW_STEPS = 2;
 const MAX_AGENT_FLOW_STEPS = 5;
 const TASK_EXTRACTION_LIMIT = 8;
+const SHARE_TEXT_LIMIT = 4000;
 const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
 const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
 const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
@@ -188,6 +189,11 @@ let launcherDragState = null;
 let suppressLauncherToggle = false;
 let currentPageCopilot = null;
 let composeMode = "chat";
+const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
+const SYSTEM_THEME_MEDIA_QUERY =
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: light)")
+    : null;
 let latestPerspectiveRun = null;
 let githubTargetRepo = "";
 let githubTargetRef = "";
@@ -228,6 +234,11 @@ let customStarterBuilderIsGenerating = false;
 let customStarterBuilderIsSaving = false;
 let agentFlowBuilderOpen = false;
 let agentFlowBuilderDraft = null;
+let batchUrlQaBuilderOpen = false;
+let batchUrlQaBuilderDraft = null;
+let batchUrlQaActiveJob = null;
+let batchUrlQaPollTimer = null;
+let batchUrlQaShouldFocusUrls = false;
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
@@ -235,6 +246,7 @@ let taskInboxExpanded = false;
 let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
 let pendingStarterExecution = null;
+let pendingSuggestedStarterAction = null;
 let activeSearchCompositionRole = "";
 let confirmDialogState = null;
 const PERSPECTIVE_PREVIEW_LENGTH = 180;
@@ -351,6 +363,7 @@ const GITHUB_CODE_STARTERS = ["githubCodeReviewDeep", "githubContractCheck", "gi
 const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSurfaceReview"];
 const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
 const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
+const QA_FLOW_BLOCK_STARTERS = ["qaSourceDistill", "qaQuestionDraft", "qaAnswerEvidence", "qaMarkdownPolish"];
 const BUILTIN_STARTER_DESCRIPTIONS = {
   "zh-TW": {
     pageSummary: "快速整理目前頁面的重點、脈絡與關鍵資訊。",
@@ -404,6 +417,10 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     templateIdeas: "根據內容推薦適合套用的梗圖模板方向。",
     lowIqMeme: "把內容改成更直白、誇張、低智商風格的梗圖文案。",
     multiPerspective: "從多個角色或立場切入，同時看同一件事。",
+    qaSourceDistill: "先把頁面中適合出 QA 的事實、概念與關鍵資訊整理出來。",
+    qaQuestionDraft: "根據來源內容先擬出一批可回答、可驗證的候選問題。",
+    qaAnswerEvidence: "只根據來源內容回答問題，並附上可對照的原文證據。",
+    qaMarkdownPolish: "把已整理好的 QA 結果轉成乾淨一致的 Markdown 輸出格式。",
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
     createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
@@ -461,6 +478,10 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     templateIdeas: "Suggest meme template directions that fit the current content.",
     lowIqMeme: "Rewrite the idea into an intentionally blunt, chaotic low-IQ meme style.",
     multiPerspective: "Analyze the same topic from multiple roles or perspectives.",
+    qaSourceDistill: "Extract the grounded facts, concepts, and source material that are worth turning into QA.",
+    qaQuestionDraft: "Draft candidate questions that stay answerable and verifiable from the source.",
+    qaAnswerEvidence: "Answer the drafted questions using only source-backed content and attach evidence.",
+    qaMarkdownPolish: "Turn the grounded QA output into a clean, reusable Markdown format.",
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
     createCustomStarter: "Help teach your AI a new reusable skill.",
@@ -511,6 +532,7 @@ const CONTENT_I18N = {
     assistantRole: "助理",
     userRole: "你",
     copy: "複製",
+    share: "分享",
     dropzone: "拖放圖片或文字檔到這裡附加",
     uploadFile: "上傳檔案",
     promptPlaceholder: "輸入你想問的內容...",
@@ -604,6 +626,9 @@ const CONTENT_I18N = {
     chatCleared: "對話已清除。",
     messageNotFound: "找不到訊息。",
     copiedResponse: "已複製助理回覆。",
+    shareOpened: "已開啟分享。",
+    shareFallbackEmailOpened: "這個瀏覽器暫時無法叫出原生分享，已改用 Email 分享。",
+    shareFailed: "分享失敗。",
     copyPerspective: "複製",
     expandPerspective: "展開",
     collapsePerspective: "收合",
@@ -625,6 +650,18 @@ const CONTENT_I18N = {
     starterDraftSaved: "已儲存",
     starterDraftImportHint: "請將 JSON 貼入設定中的「教 AI 一個新技能」內建立。",
     starterDraftActionHint: "貼到 Settings 內的「教 AI 一個新技能」",
+    messageFollowupTitle: "直接繼續",
+    messageFollowupPrompt: "請直接延續你上一則回覆，幫我完成這個版本：{action}\n\n請直接輸出完整結果，不要先解釋你會怎麼做。",
+    messageFollowupSkillConfirm: "這個動作已經跑完，要不要把它整理成 custom skill？",
+    messageFollowupSkillConfirmAction: "加入 custom skill",
+    messageFollowupSkillPurpose: "把「{action}」整理成可重複使用的 custom skill，直接延續上一則回覆的處理方式與輸出風格。",
+    messageFollowupSkillOpened: "已打開 custom skill builder。",
+    suggestedStarterBadge: "AI 建議",
+    suggestedStarterRun: "直接執行",
+    suggestedStarterSave: "加入 custom starter",
+    suggestedStarterDismiss: "先不要",
+    suggestedStarterBannerTitle: "AI 建議下一步",
+    suggestedStarterBannerBody: "要直接執行「{action}」，還是先把它整理成可重複使用的 custom starter？",
     copyStarterJson: "複製 JSON",
     customStarterBuilderTitle: "教 AI 一個新技能",
     customStarterBuilderHint: "先用白話文跟 AI 一起把這個 skill 談清楚，確認後再建立成可儲存的 starter。",
@@ -760,6 +797,12 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
+    starter_qaSourceDistill: "QA · 整理來源",
+    starter_qaQuestionDraft: "QA · 擬出問題",
+    starter_qaAnswerEvidence: "QA · 回答並附證據",
+    starter_qaMarkdownPolish: "QA · 整理成 Markdown",
+    agentFlowQaBlockBadge: "QA Block",
+    starter_batchUrlQaWorkflow: "網址清單生成 QA",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
@@ -771,6 +814,10 @@ const CONTENT_I18N = {
     articleBiasCheckPrompt: "請分析這個頁面的主要論點、隱含假設與可能忽略的反面觀點。請分成「核心主張 / 依據 / 可能盲點 / 我還應該查什麼」四段，並使用{language}回答。",
     codeRiskReviewPrompt: "請把這個頁面中的程式內容當成 code review 對象，找出高風險處、潛在 bug、可讀性問題與建議改善方向。請優先列出最重要的問題，並使用{language}回答。",
     codeTeachBackPrompt: "請把這個頁面中的程式或技術內容轉成容易吸收的教學筆記。先講它在做什麼，再講關鍵概念，最後補上初學者容易卡住的點。請使用{language}回答。",
+    qaSourceDistillPrompt: "請只根據目前頁面可見內容與前面步驟已整理出的資訊，整理出一份適合後續生成 QA 的來源摘要。請不要補外部知識，也不要先回答問題。請用 Markdown 輸出，固定分成四段：\n1. 重要事實\n2. 關鍵概念 / 功能\n3. 專有名詞 / 名稱 / 連結\n4. 哪些地方資訊不足或不確定\n若某些判斷只是推測，請明確標記。請使用{language}回答。",
+    qaQuestionDraftPrompt: "請根據目前頁面可見內容，以及前面步驟已整理出的重點，先擬出 5 到 10 個候選問題。這些問題必須可以從來源內容回答，不可依賴外部知識，也不要互相重複。請優先涵蓋：頁面目的、重要功能、限制條件、操作方式、重要名詞與使用者最可能想問的問題。請用 Markdown 編號清單輸出，只有問題，不要附答案。請使用{language}回答。",
+    qaAnswerEvidencePrompt: "請根據目前頁面可見內容，以及前面步驟列出的候選問題，產出附 evidence 的 QA。規則：1. 只能根據來源內容回答，不可使用外部知識 2. 如果某題無法被來源直接支持，就不要硬答 3. 每組都要附一段最能支持答案的 evidence 4. 若 evidence 中有連結，請保留 Markdown 連結格式。請用以下 Markdown 結構輸出，每組之間空一行：\nQ: ...\nA: ...\nEvidence: ...\n請使用{language}回答。",
+    qaMarkdownPolishPrompt: "請根據目前頁面可見內容與前面步驟已整理出的 QA，做最後整理。保留內容忠於來源，不要新增外部知識。請移除重複題目、修正語句，並把最終輸出固定整理成以下 Markdown 格式，每組之間空一行：\nQ: ...\nA: ...\n如果文字裡有網址，請保留或整理成 Markdown 連結格式。請使用{language}回答。",
     githubRepoPurposePrompt: "請根據目前這個 GitHub 頁面，說明這個 repository 主要是做什麼用的。請優先整理：\n1. 這個 repo 想解決什麼問題\n2. 它的核心功能或主要模組\n3. 可能的使用對象或使用情境\n4. 主要技術棧或實作方向\n5. 我接下來最值得先看的檔案或目錄\n如果目前頁面不是 repository 首頁，也請根據可見內容、路徑、README、檔名、PR / issue / code 線索做最合理的推斷，並明確標示哪些是推測。請使用{language}回答。",
     githubSummaryPrompt: "請整理這個 GitHub 頁面的重點。如果是 repository，請說明用途、結構與值得先看的地方；如果是 PR 或 issue，請整理背景、重點變更與目前狀態。請使用{language}回答。",
     githubReviewFocusPrompt: "請站在 reviewer 角度，根據這個 GitHub 頁面整理最值得優先檢查的項目。請分成「風險最高 / 建議先看 / 可追問問題」三段，並使用{language}回答。",
@@ -858,6 +905,43 @@ const CONTENT_I18N = {
     agentFlowNeedName: "請先替這條 Agent Flow 命名。",
     agentFlowNeedMoreSteps: "至少要選擇 {min} 個 skill 才能建立 Agent Flow。",
     agentFlowTooManySteps: "目前最多只能放 {max} 個 skill。",
+    batchUrlQaWorkflowTitle: "網址清單生成 QA",
+    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容，依內容密度生成 2 到 8 組高品質 FAQ，寫入單一 md 檔，並在完成後發送通知。",
+    batchUrlQaUrlsLabel: "網址列表",
+    batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
+    batchUrlQaCountLabel: "每頁 FAQ 上限",
+    batchUrlQaLanguageLabel: "輸出語言",
+    batchUrlQaFileLabel: "輸出檔名",
+    batchUrlQaExtraPromptLabel: "額外指示",
+    batchUrlQaExtraPromptPlaceholder: "例如：問題請偏向使用者常見 FAQ，答案若有操作流程請保留完整步驟。",
+    batchUrlQaSettingsTitle: "任務設定",
+    batchUrlQaStatusTitle: "執行狀態",
+    batchUrlQaStart: "開始執行",
+    batchUrlQaRunning: "正在執行",
+    batchUrlQaStatusIdle: "先貼上網址，再開始這條 workflow。",
+    batchUrlQaNeedUrls: "請先貼上至少一個有效網址。",
+    batchUrlQaCurrentStage: "目前步驟",
+    batchUrlQaProgress: "處理進度",
+    batchUrlQaOutputFile: "輸出檔案",
+    batchUrlQaOutputLanguage: "輸出語言",
+    batchUrlQaStageQueued: "步驟 1/5：等待開始",
+    batchUrlQaStageStarting: "步驟 1/5：初始化工作流",
+    batchUrlQaStageReading: "步驟 2/5：讀取網址內容",
+    batchUrlQaStageGenerating: "步驟 3/5：生成 QA pairs",
+    batchUrlQaStageCollecting: "步驟 3/5：整理本頁結果",
+    batchUrlQaStageWriting: "步驟 4/5：寫入 Markdown 檔案",
+    batchUrlQaStageNotifying: "步驟 5/5：發送完成通知",
+    batchUrlQaStageCompleted: "已完成",
+    batchUrlQaStageFailed: "執行失敗",
+    batchUrlQaCompleted: "網址清單 QA workflow 已完成。",
+    batchUrlQaClose: "隱藏",
+    batchUrlQaHideHint: "隱藏視窗不會中止工作，背景流程會繼續執行。",
+    batchUrlQaMiniTitle: "網址清單 QA 執行中",
+    batchUrlQaMiniOpen: "查看詳情",
+    batchUrlQaRailSetup: "初始化",
+    batchUrlQaRailRead: "讀取內容",
+    batchUrlQaRailGenerate: "生成 QA",
+    batchUrlQaRailExport: "輸出完成",
     perspectiveInputFallback: "請從摘要、質疑與行動建議三個角度分析這個頁面，最後整合成一份結論。",
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
@@ -937,6 +1021,7 @@ const CONTENT_I18N = {
     assistantRole: "assistant",
     userRole: "you",
     copy: "Copy",
+    share: "Share",
     dropzone: "Drop image or text file here to attach",
     uploadFile: "Upload file",
     promptPlaceholder: "Ask anything about this page...",
@@ -1015,6 +1100,9 @@ const CONTENT_I18N = {
     chatCleared: "Chat cleared.",
     messageNotFound: "Message not found.",
     copiedResponse: "Copied assistant response.",
+    shareOpened: "Opened share sheet.",
+    shareFallbackEmailOpened: "Native sharing is unavailable here, so an email share draft was opened instead.",
+    shareFailed: "Share failed.",
     copyPerspective: "Copy",
     expandPerspective: "Expand",
     collapsePerspective: "Collapse",
@@ -1036,6 +1124,18 @@ const CONTENT_I18N = {
     starterDraftSaved: "Saved",
     starterDraftImportHint: "Paste this JSON into Teach Your AI a New Skill in Settings to create it.",
     starterDraftActionHint: "Paste into Teach Your AI a New Skill in Settings",
+    messageFollowupTitle: "Continue With",
+    messageFollowupPrompt: "Please continue directly from your previous reply and produce this version: {action}\n\nOutput the full result directly without first explaining what you will do.",
+    messageFollowupSkillConfirm: "This follow-up is finished. Do you want to turn it into a custom skill?",
+    messageFollowupSkillConfirmAction: "Add custom skill",
+    messageFollowupSkillPurpose: "Turn \"{action}\" into a reusable custom skill that follows the same workflow and output style as the previous reply.",
+    messageFollowupSkillOpened: "Opened the custom skill builder.",
+    suggestedStarterBadge: "AI Suggested",
+    suggestedStarterRun: "Run Now",
+    suggestedStarterSave: "Add Custom Starter",
+    suggestedStarterDismiss: "Not Now",
+    suggestedStarterBannerTitle: "AI Suggested Next Step",
+    suggestedStarterBannerBody: "Do you want to run \"{action}\" now, or turn it into a reusable custom starter first?",
     copyStarterJson: "Copy JSON",
     customStarterBuilderTitle: "Teach Your AI a New Skill",
     customStarterBuilderHint: "Talk it through with AI in plain language first, then create the starter once it looks right.",
@@ -1186,6 +1286,12 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
+    starter_qaSourceDistill: "QA · Distill Source",
+    starter_qaQuestionDraft: "QA · Draft Questions",
+    starter_qaAnswerEvidence: "QA · Answer With Evidence",
+    starter_qaMarkdownPolish: "QA · Polish Markdown",
+    agentFlowQaBlockBadge: "QA Block",
+    starter_batchUrlQaWorkflow: "URL List To QA",
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
@@ -1197,6 +1303,10 @@ const CONTENT_I18N = {
     articleBiasCheckPrompt: "Analyze this page's main claims, hidden assumptions, and possible blind spots. Structure the answer as Core claims, Evidence, Blind spots, and What to verify next. Respond in {language}.",
     codeRiskReviewPrompt: "Treat the code or technical content on this page like a code review. Identify the highest-risk areas, possible bugs, readability issues, and practical improvements. Prioritize the most important findings first and respond in {language}.",
     codeTeachBackPrompt: "Turn the code or technical content on this page into easy-to-follow study notes. Explain what it does, the key concepts behind it, and where a beginner is most likely to get stuck. Respond in {language}.",
+    qaSourceDistillPrompt: "Using only the visible page content and any relevant output from earlier steps, distill the source material that is worth turning into QA. Do not answer questions yet and do not add outside knowledge. Output Markdown with exactly these sections: 1. Important facts 2. Key concepts / features 3. Proper nouns / names / links 4. What is unclear, missing, or uncertain. If something is an inference, label it clearly. Respond in {language}.",
+    qaQuestionDraftPrompt: "Using only the visible page content and any distilled source notes from earlier steps, draft 5 to 10 candidate questions. Every question must be answerable from the source, must avoid outside knowledge, and should not duplicate another question. Prioritize page purpose, important features, limits, how-to information, important terms, and the questions a user is most likely to ask. Output a numbered Markdown list containing only questions. Respond in {language}.",
+    qaAnswerEvidencePrompt: "Using only the visible page content and the drafted candidate questions from earlier steps, produce grounded QA with evidence. Rules: 1. Answer only from the source material 2. If a question is not directly supported, skip it instead of guessing 3. Every QA pair must include the strongest supporting evidence snippet 4. If the evidence contains links, preserve them as Markdown links. Output each item in this exact Markdown shape, with a blank line between items:\nQ: ...\nA: ...\nEvidence: ...\nRespond in {language}.",
+    qaMarkdownPolishPrompt: "Use the visible page content and the earlier QA draft to produce the final polished QA output. Stay faithful to the source and do not add outside knowledge. Remove duplicates, tighten wording, and format the final result in this exact Markdown shape with a blank line between items:\nQ: ...\nA: ...\nIf text contains URLs, preserve or convert them into Markdown links. Respond in {language}.",
     githubRepoPurposePrompt: "Explain what this GitHub repository is mainly for based on the current GitHub page. Prioritize: 1. What problem this repo is trying to solve 2. Its main features or modules 3. Who it seems to be for or when it would be used 4. The likely tech stack or implementation direction 5. Which files or directories I should read next. If the current page is not the repository homepage, still infer from the visible page, path, README, filenames, PR / issue / code clues, and clearly mark anything that is an inference. Respond in {language}.",
     githubSummaryPrompt: "Summarize this GitHub page. If it is a repository, explain what it is for, how it seems organized, and what is worth reading first. If it is a PR or issue, summarize the background, key changes, and current status. Respond in {language}.",
     githubReviewFocusPrompt: "Act like a reviewer and identify the most important things to inspect on this GitHub page. Structure the answer as Highest risk, Review first, and Questions to ask. Respond in {language}.",
@@ -1265,6 +1375,43 @@ const CONTENT_I18N = {
     agentFlowMissingSteps: "This Agent Flow depends on skills that are not currently available.",
     agentFlowImagesUnsupported: "The first Agent Flow version does not support image attachments yet.",
     agentFlowUserMessage: "Run Agent Flow: {name}",
+    batchUrlQaWorkflowTitle: "URL List To QA",
+    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate 2 to 8 high-quality FAQ items based on content density, write one Markdown file, and send completion notifications.",
+    batchUrlQaUrlsLabel: "URL List",
+    batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
+    batchUrlQaCountLabel: "FAQ Cap Per Page",
+    batchUrlQaLanguageLabel: "Output Language",
+    batchUrlQaFileLabel: "Output File",
+    batchUrlQaExtraPromptLabel: "Extra Instructions",
+    batchUrlQaExtraPromptPlaceholder: "For example: favor common FAQ wording, and preserve full step-by-step answers when the source is procedural.",
+    batchUrlQaSettingsTitle: "Workflow Settings",
+    batchUrlQaStatusTitle: "Run Status",
+    batchUrlQaStart: "Start Workflow",
+    batchUrlQaRunning: "Running",
+    batchUrlQaStatusIdle: "Paste URLs first, then start this workflow.",
+    batchUrlQaNeedUrls: "Provide at least one valid URL first.",
+    batchUrlQaCurrentStage: "Current Step",
+    batchUrlQaProgress: "Progress",
+    batchUrlQaOutputFile: "Output File",
+    batchUrlQaOutputLanguage: "Output Language",
+    batchUrlQaStageQueued: "Step 1/5: queued",
+    batchUrlQaStageStarting: "Step 1/5: preparing workflow",
+    batchUrlQaStageReading: "Step 2/5: reading webpages",
+    batchUrlQaStageGenerating: "Step 3/5: generating QA pairs",
+    batchUrlQaStageCollecting: "Step 3/5: collecting page result",
+    batchUrlQaStageWriting: "Step 4/5: writing Markdown file",
+    batchUrlQaStageNotifying: "Step 5/5: sending completion notifications",
+    batchUrlQaStageCompleted: "Completed",
+    batchUrlQaStageFailed: "Failed",
+    batchUrlQaCompleted: "URL list QA workflow completed.",
+    batchUrlQaClose: "Hide",
+    batchUrlQaHideHint: "Hiding this window will not stop the workflow. It will keep running in the background.",
+    batchUrlQaMiniTitle: "URL QA Workflow Running",
+    batchUrlQaMiniOpen: "Open Details",
+    batchUrlQaRailSetup: "Setup",
+    batchUrlQaRailRead: "Read",
+    batchUrlQaRailGenerate: "Generate",
+    batchUrlQaRailExport: "Export",
     createAgentFlowTitle: "Create Agent Flow",
     createAgentFlowHint: "Pick 2 to 5 currently available skills and save them as a step-by-step workflow.",
     agentFlowNameLabel: "Flow name",
@@ -1913,7 +2060,11 @@ function normalizeRuntimeError(error) {
 }
 
 function getUiLanguage() {
-  return currentConfig?.replyLanguage || "zh-TW";
+  return currentConfig?.uiLanguage || currentConfig?.replyLanguage || "zh-TW";
+}
+
+function getReplyLanguage() {
+  return currentConfig?.replyLanguage || currentConfig?.uiLanguage || "zh-TW";
 }
 
 function tl(key, vars = {}) {
@@ -1923,7 +2074,7 @@ function tl(key, vars = {}) {
 }
 
 function getTargetLanguageLabel() {
-  return LANGUAGE_LABELS[getUiLanguage()] || getUiLanguage();
+  return LANGUAGE_LABELS[getReplyLanguage()] || getReplyLanguage();
 }
 
 function getPageTypeLabel(pageType) {
@@ -2447,6 +2598,30 @@ function collectHeadingsFromDocument(doc) {
       .filter(Boolean);
   } catch (_error) {
     return [];
+  }
+}
+
+function withExpandedDetails(includeChildFrames, callback) {
+  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+  const toggledNodes = [];
+  try {
+    documents.forEach((doc) => {
+      queryAllIncludingShadow(doc, "details", 120).forEach((node) => {
+        if (node instanceof HTMLDetailsElement && !node.open) {
+          node.open = true;
+          toggledNodes.push(node);
+        }
+      });
+    });
+    return callback();
+  } finally {
+    toggledNodes.forEach((node) => {
+      try {
+        node.open = false;
+      } catch (_error) {
+        // Ignore restore errors.
+      }
+    });
   }
 }
 
@@ -2988,32 +3163,38 @@ function detectDocumentWorkspaceSignals(signals) {
   };
 }
 
-function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true) {
-  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
-  const blocks = [];
-  const seen = new Set();
+function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = true, options = {}) {
+  const collectSnapshot = () => {
+    const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+    const blocks = [];
+    const seen = new Set();
 
-  documents.forEach((doc) => {
-    collectTextBlocksFromDocument(doc).forEach((block) => {
-      appendUniqueTextBlock(blocks, seen, block, maxLength);
+    documents.forEach((doc) => {
+      collectTextBlocksFromDocument(doc).forEach((block) => {
+        appendUniqueTextBlock(blocks, seen, block, maxLength);
+      });
     });
-  });
 
-  const normalized = normalizeExtractedText(blocks.join("\n\n"));
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
+    const normalized = normalizeExtractedText(blocks.join("\n\n"));
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
 
-  const officeSignals = detectDocumentWorkspaceSignals({
-    hostname: window.location.hostname.toLowerCase(),
-    pathname: window.location.pathname.toLowerCase(),
-    title: document.title || "",
-    sampleText: normalized.slice(0, 2500),
-  });
+    const officeSignals = detectDocumentWorkspaceSignals({
+      hostname: window.location.hostname.toLowerCase(),
+      pathname: window.location.pathname.toLowerCase(),
+      title: document.title || "",
+      sampleText: normalized.slice(0, 2500),
+    });
 
-  return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
-    ? normalized.slice(-maxLength)
-    : normalized.slice(0, maxLength);
+    return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
+      ? normalized.slice(-maxLength)
+      : normalized.slice(0, maxLength);
+  };
+
+  return options?.expandDetails
+    ? withExpandedDetails(includeChildFrames, collectSnapshot)
+    : collectSnapshot();
 }
 
 function toAbsolutePageUrl(value) {
@@ -3114,22 +3295,28 @@ function getPageImageSnapshot(maxItems = MAX_PAGE_IMAGE_CANDIDATES, includeChild
   return items;
 }
 
-function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true) {
-  const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
-  const headings = [];
-  const seen = new Set();
+function getPageHeadingsSnapshot(maxItems = 12, includeChildFrames = true, options = {}) {
+  const collectSnapshot = () => {
+    const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
+    const headings = [];
+    const seen = new Set();
 
-  documents.forEach((doc) => {
-    collectHeadingsFromDocument(doc).forEach((heading) => {
-      const key = heading.toLowerCase();
-      if (!seen.has(key) && headings.length < maxItems) {
-        seen.add(key);
-        headings.push(heading);
-      }
+    documents.forEach((doc) => {
+      collectHeadingsFromDocument(doc).forEach((heading) => {
+        const key = heading.toLowerCase();
+        if (!seen.has(key) && headings.length < maxItems) {
+          seen.add(key);
+          headings.push(heading);
+        }
+      });
     });
-  });
 
-  return headings;
+    return headings;
+  };
+
+  return options?.expandDetails
+    ? withExpandedDetails(includeChildFrames, collectSnapshot)
+    : collectSnapshot();
 }
 
 function getSelectionText() {
@@ -3514,7 +3701,7 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "createAgentFlow", "createCustomStarter"];
+  nextKeys = [...nextKeys, "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
 }
@@ -3542,6 +3729,8 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
   let nextKeys = [
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
+    ...QA_FLOW_BLOCK_STARTERS,
+    "batchUrlQaWorkflow",
     "createAgentFlow",
     "createCustomStarter",
   ];
@@ -3765,6 +3954,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
 
   return allKeys.map((starterKey) => {
     const recommendationRank = recommendedKeys.includes(starterKey) ? recommendedKeys.indexOf(starterKey) : recommendedKeys.length + 20;
+    const isQaFlowBlock = QA_FLOW_BLOCK_STARTERS.includes(starterKey);
     return {
       id: `builtin:${starterKey}`,
       label: getStarterText(starterKey),
@@ -3773,8 +3963,12 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
       isCustomStarter: false,
       starterKey,
-      showInPopup: !Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey),
+      showInPopup: (!Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey))
+        && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized)
+        && !isQaFlowBlock,
       isRecommended: highlightedKeys.includes(starterKey),
+      isBatchUrlQaBuilder: starterKey === "batchUrlQaWorkflow",
+      isQaFlowBlock,
       isCustomStarterBuilder: starterKey === "createCustomStarter",
       isAgentFlowBuilder: starterKey === "createAgentFlow",
       recommendationRank,
@@ -3784,28 +3978,34 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
 
 function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
   function getStarterPriority(starter) {
-    if (starter.id === highlightedStarterId) {
+    if (starter.isSuggestedFollowup) {
       return 0;
     }
-    if (starter.isAgentFlowBuilder) {
+    if (starter.id === highlightedStarterId) {
       return 1;
     }
-    if (starter.isCustomStarterBuilder) {
+    if (starter.isAgentFlowBuilder) {
       return 2;
     }
-    if (starter.isAgentFlow) {
+    if (starter.isBatchUrlQaBuilder) {
       return 3;
     }
-    if (starter.isCustomStarter) {
+    if (starter.isCustomStarterBuilder) {
       return 4;
     }
-    if (starter.isRecommended) {
+    if (starter.isAgentFlow) {
       return 5;
     }
-    return 6;
+    if (starter.isCustomStarter) {
+      return 6;
+    }
+    if (starter.isRecommended) {
+      return 7;
+    }
+    return 8;
   }
 
-  return [...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
+  return [...getLatestAssistantSuggestedStarterEntries(), ...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
     .map((starter, index) => ({ ...starter, sortIndex: index }))
     .sort((left, right) => {
       const leftPriority = getStarterPriority(left);
@@ -3824,21 +4024,107 @@ function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
 
 function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
   const entries = getActiveStarterEntries(pageCopilot).filter((starter) => starter.showInPopup !== false);
-  const query = starterSearch.trim().toLowerCase();
+  const query = normalizeStarterSearchText(starterSearch);
   if (!query) {
     return entries;
   }
 
+  const queryTerms = query.split(" ").filter(Boolean);
   return entries.filter((starter) => {
-    const label = String(starter.label || "").toLowerCase();
-    const description = String(starter.description || "").toLowerCase();
-    const prompt = String(starter.prompt || "").toLowerCase();
-    return label.includes(query) || description.includes(query) || prompt.includes(query);
+    const searchTerms = [
+      starter.label,
+      starter.description,
+      starter.prompt,
+      starter.composeMode,
+      starter.isSuggestedFollowup ? "ai suggested followup next step recommended 建議下一步 推薦動作 建議動作" : "",
+      starter.isBatchUrlQaBuilder ? "batch url qa workflow url list md markdown dataset qa pairs workflow 網址 qa 工作流 批次" : "",
+      starter.isCustomStarter ? "custom starter custom skill custom 自訂 自定义 自訂工具 自訂技能 技能" : "",
+      starter.isCustomStarterBuilder ? "custom starter builder create custom starter teach ai new skill custom 自訂 starter 建立自訂 starter 教 ai 一個新技能 新技能" : "",
+      starter.isAgentFlowBuilder ? "agent flow flow builder workflow create agent flow custom agent flow flow agent 流程 工作流 建立流程 建立 agent flow" : "",
+      starter.isAgentFlow ? "agent flow flow workflow custom agent flow agent 流程 工作流 自訂流程 自訂 agent flow" : "",
+    ]
+      .map((value) => normalizeStarterSearchText(value))
+      .filter(Boolean)
+      .join(" ");
+    return queryTerms.every((term) => searchTerms.includes(term));
   });
 }
 
+function normalizeStarterSearchText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getDefaultQuickReplyModel() {
+  const provider = getDefaultProvider();
+  if (provider === "lmStudio") {
+    return String(currentConfig?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(currentConfig?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(currentConfig?.azureOpenAiDeployment || "").trim();
+  }
   return String(currentConfig?.selectedModel || "").trim();
+}
+
+function getDefaultProvider() {
+  return String(currentConfig?.defaultProvider || "ollama").trim() || "ollama";
+}
+
+function getProviderDisplayName(provider = getDefaultProvider()) {
+  if (provider === "lmStudio") {
+    return "LM Studio";
+  }
+  if (provider === "gemini") {
+    return "Gemini";
+  }
+  if (provider === "azureOpenAi") {
+    return "Azure OpenAI";
+  }
+  return "Ollama";
+}
+
+function getConfiguredProviderModel() {
+  const provider = getDefaultProvider();
+  if (provider === "lmStudio") {
+    return String(currentConfig?.lmStudioModel || "").trim();
+  }
+  if (provider === "gemini") {
+    return String(currentConfig?.geminiModel || "").trim();
+  }
+  if (provider === "azureOpenAi") {
+    return String(currentConfig?.azureOpenAiDeployment || "").trim();
+  }
+  return String(currentConfig?.selectedModel || "").trim();
+}
+
+function providerSupportsInPageModelSelection(provider = getDefaultProvider()) {
+  return provider === "ollama";
+}
+
+function getProviderModelStatusText() {
+  const provider = getDefaultProvider();
+  const providerName = getProviderDisplayName(provider);
+  const model = getConfiguredProviderModel();
+
+  if (provider === "ollama") {
+    return model
+      ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model }))
+      : tl("pickModelToStart");
+  }
+
+  if (currentConfig?.replyLanguage === "zh-TW") {
+    return `${providerName} 已設定${model ? `：${model}` : ""}。目前聊天會使用這個 provider，但聊天面板內的手動模型切換仍只支援 Ollama。`;
+  }
+  if (currentConfig?.replyLanguage === "zh-CN") {
+    return `${providerName} 已配置${model ? `：${model}` : ""}。当前聊天会使用这个 provider，但聊天面板内的手动模型切换仍只支持 Ollama。`;
+  }
+  return `${providerName} is configured${model ? `: ${model}` : ""}. Chat execution uses this provider, but in-panel manual model switching is still Ollama-only.`;
 }
 
 function getModelSelectionMode() {
@@ -3850,6 +4136,10 @@ function isAutoModelSelectionEnabled() {
 }
 
 function getAvailableModelNames() {
+  if (!providerSupportsInPageModelSelection()) {
+    const configuredModel = getConfiguredProviderModel();
+    return configuredModel ? [configuredModel] : [];
+  }
   return Array.isArray(cachedModels)
     ? cachedModels.map((item) => String(item?.name || "").trim()).filter(Boolean)
     : [];
@@ -4285,7 +4575,7 @@ function normalizeHtmlDocument(value) {
 
   return [
     "<!doctype html>",
-    `<html lang="${escapeHtml(String(getUiLanguage() || "en"))}">`,
+    `<html lang="${escapeHtml(String(getReplyLanguage() || "en"))}">`,
     "<head>",
     '  <meta charset="utf-8" />',
     '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
@@ -5163,6 +5453,22 @@ function getStarterPrompt(starterKey) {
     return tl("codeTeachBackPrompt", { language: getTargetLanguageLabel() });
   }
 
+  if (starterKey === "qaSourceDistill") {
+    return tl("qaSourceDistillPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaQuestionDraft") {
+    return tl("qaQuestionDraftPrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaAnswerEvidence") {
+    return tl("qaAnswerEvidencePrompt", { language: getTargetLanguageLabel() });
+  }
+
+  if (starterKey === "qaMarkdownPolish") {
+    return tl("qaMarkdownPolishPrompt", { language: getTargetLanguageLabel() });
+  }
+
   if (starterKey === "githubRepoPurpose") {
     return tl("githubRepoPurposePrompt", { language: getTargetLanguageLabel() });
   }
@@ -5340,6 +5646,16 @@ function createDefaultAgentFlowBuilderDraft() {
   };
 }
 
+function createDefaultBatchUrlQaBuilderDraft() {
+  return {
+    urls: "",
+    qaPerUrl: "8",
+    outputLanguage: getReplyLanguage(),
+    fileName: `batch-url-qa-${Date.now()}.md`,
+    extraPrompt: "",
+  };
+}
+
 function resetCustomStarterBuilderState() {
   customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
   customStarterBuilderConversation = [];
@@ -5349,6 +5665,11 @@ function resetCustomStarterBuilderState() {
 
 function resetAgentFlowBuilderState() {
   agentFlowBuilderDraft = createDefaultAgentFlowBuilderDraft();
+}
+
+function resetBatchUrlQaBuilderState() {
+  batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
+  batchUrlQaActiveJob = null;
 }
 
 function ensureCustomStarterBuilderDraft() {
@@ -5367,6 +5688,13 @@ function ensureAgentFlowBuilderDraft() {
   }
   agentFlowBuilderDraft.outputStepIds = normalizeAgentFlowOutputStepIds(agentFlowBuilderDraft.outputStepIds, agentFlowBuilderDraft.steps);
   return agentFlowBuilderDraft;
+}
+
+function ensureBatchUrlQaBuilderDraft() {
+  if (!batchUrlQaBuilderDraft || typeof batchUrlQaBuilderDraft !== "object") {
+    batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
+  }
+  return batchUrlQaBuilderDraft;
 }
 
 function normalizeAgentFlowOutputStepIds(value, steps = []) {
@@ -5406,6 +5734,20 @@ function buildAgentFlowSummary(starter, pageCopilot = currentPageCopilot) {
   return steps
     .map((step, index) => `${index + 1}. ${getFlowStarterStepLabel(step, pageCopilot)}`)
     .join(" -> ");
+}
+
+function buildStarterHoverTip(starter, pageCopilot = currentPageCopilot) {
+  const description = String(starter?.description || starter?.prompt || starter?.label || "").trim();
+  if (!starter?.isAgentFlow) {
+    return description;
+  }
+
+  const steps = Array.isArray(starter?.flowSteps) ? starter.flowSteps : [];
+  const flowLines = steps
+    .map((step, index) => `${index + 1}. ${getFlowStarterStepLabel(step, pageCopilot)}`)
+    .filter(Boolean);
+
+  return [description, flowLines.length ? "FLOW STEPS" : "", ...flowLines].filter(Boolean).join("\n");
 }
 
 function moveArrayItem(list, fromIndex, toIndex) {
@@ -5682,10 +6024,11 @@ function renderPerspectivePanel(run) {
       </div>
       <div class="ollama-quick-perspective-grid">${stageCards}</div>
       <article class="ollama-quick-perspective-final ${run.isComplete ? "is-done" : "is-running"} ${isFinalExpanded ? "is-expanded" : ""}">
-        <div class="ollama-quick-perspective-card-top">
+          <div class="ollama-quick-perspective-card-top">
           <div class="ollama-quick-perspective-card-title">${escapeHtml(tl("perspectiveFinalTitle"))}</div>
           <div class="ollama-quick-perspective-card-actions">
             ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-perspective" data-perspective-key="${finalKey}" title="${escapeHtml(tl("copyPerspective"))}" aria-label="${escapeHtml(tl("copyPerspective"))}">⧉</button>` : ""}
+            ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="share-perspective" data-perspective-key="${finalKey}" title="${escapeHtml(tl("share"))}" aria-label="${escapeHtml(tl("share"))}">↗</button>` : ""}
             ${run.finalContent ? `<button class="ollama-quick-message-action-icon" type="button" data-action="download-chat-markdown" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>` : ""}
             <button class="ollama-quick-copy" type="button" data-action="toggle-perspective" data-perspective-key="${finalKey}">${escapeHtml(isFinalExpanded ? tl("collapsePerspective") : tl("expandPerspective"))}</button>
           </div>
@@ -5706,6 +6049,11 @@ async function loadConfig() {
 }
 
 async function loadModels() {
+  if (!providerSupportsInPageModelSelection(getDefaultProvider())) {
+    cachedModels = [];
+    return;
+  }
+
   const result = await runtimeMessage({ type: "ollama:list-models" });
   if (!result?.ok) {
     throw new Error(result?.error || "Failed to fetch Ollama models.");
@@ -5715,6 +6063,25 @@ async function loadModels() {
   if (result.config) {
     currentConfig = result.config;
   }
+}
+
+function normalizeSettingsTheme(value) {
+  const normalized = String(value || "system").trim().toLowerCase();
+  return SETTINGS_THEME_OPTIONS.has(normalized) ? normalized : "system";
+}
+
+function resolveSettingsTheme(value) {
+  const normalized = normalizeSettingsTheme(value);
+  if (normalized === "system") {
+    return SYSTEM_THEME_MEDIA_QUERY?.matches ? "light" : "dark";
+  }
+  return normalized;
+}
+
+function applyShellTheme(host = ensureHost()) {
+  const preference = normalizeSettingsTheme(currentConfig?.settingsTheme);
+  host.dataset.themePreference = preference;
+  host.dataset.theme = resolveSettingsTheme(preference);
 }
 
 function sanitizeLauncherPosition(value) {
@@ -5819,6 +6186,7 @@ function syncHostScale(host = ensureHost()) {
 function syncHostState(host = ensureHost()) {
   host.classList.toggle("is-panel-open", isPanelOpen);
   host.classList.toggle("is-panel-maximized", isPanelOpen && isPanelMaximized);
+  applyShellTheme(host);
 }
 
 function getLauncherSize(host = ensureHost()) {
@@ -6133,11 +6501,219 @@ function renderMarkdown(markdown, options = {}) {
   }, blocks);
 }
 
-function getPageContext(includeChildFrames = true) {
+function normalizeQuickFollowupLabel(rawLabel) {
+  return String(rawLabel || "")
+    .replace(/^[-*•]\s+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .replace(/^\*\*(.*?)\*\*$/g, "$1")
+    .replace(/^__(.*?)__$/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[。．.!！?？:：;,，、]+$/g, "")
+    .trim();
+}
+
+function isLikelyQuickFollowupIntro(line) {
+  const value = String(line || "").trim();
+  if (!value) {
+    return false;
+  }
+
+  return /(如果你(?:想|要|希望)|如果需要|若你想|若需要|要的話|需要的話|我也可以|我還可以|我可以再|If you want|If you'd like|If needed|If helpful|I can also|I can turn this into|I can also turn this)/i.test(value);
+}
+
+function isLikelyQuickFollowupLine(line) {
+  const value = normalizeQuickFollowupLabel(line);
+  if (!value || value.length > 40) {
+    return false;
+  }
+
+  if (/[|`]/.test(value)) {
+    return false;
+  }
+
+  if (/^(#+|---+)$/.test(value)) {
+    return false;
+  }
+
+  if (/[。.!！?？]/.test(value) && value.length > 24) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractSingleLineQuickFollowup(line) {
+  const value = String(line || "").trim().replace(/[。．.!！?？]+$/g, "").trim();
+  if (!value || !isLikelyQuickFollowupIntro(value)) {
+    return "";
+  }
+
+  const quotedMatch = value.match(/[「『“"]([^」』”"]+)[」』”"]([^。．.!！?？]*)$/);
+  let candidate = "";
+  if (quotedMatch) {
+    candidate = `${quotedMatch[1]}${quotedMatch[2] || ""}`;
+  } else {
+    const actionMatch = value.match(/(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/);
+    candidate = actionMatch ? actionMatch[1] : "";
+  }
+
+  candidate = String(candidate || "")
+    .replace(/^(一個|一份|一版|一種)/, "")
+    .replace(/^的/, "")
+    .trim();
+  candidate = normalizeQuickFollowupLabel(candidate);
+
+  if (!candidate || candidate.length < 3 || candidate.length > 48) {
+    return "";
+  }
+
+  return candidate;
+}
+
+function extractMessageQuickFollowups(content) {
+  const normalized = String(content || "").replace(/\r\n/g, "\n");
+  if (!normalized.trim()) {
+    return { body: "", actions: [] };
+  }
+
+  const lines = normalized.split("\n");
+  let introIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (isLikelyQuickFollowupIntro(lines[index])) {
+      introIndex = index;
+      break;
+    }
+  }
+
+  if (introIndex < 0) {
+    return { body: normalized.trim(), actions: [] };
+  }
+
+  const actionLines = lines
+    .slice(introIndex + 1)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+
+  let actions = [];
+  if (actionLines.length >= 2 && actionLines.length <= 5) {
+    if (actionLines.some((line) => !/^[-*•]\s+/.test(line) && !/^\d+\.\s+/.test(line))) {
+      return { body: normalized.trim(), actions: [] };
+    }
+
+    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line))) {
+      return { body: normalized.trim(), actions: [] };
+    }
+
+    actions = actionLines
+      .map((line, index) => ({
+        id: `followup-${index + 1}`,
+        label: normalizeQuickFollowupLabel(line),
+      }))
+      .filter((item) => item.label);
+  } else if (introIndex >= 0) {
+    const singleAction = extractSingleLineQuickFollowup(lines[introIndex]);
+    if (singleAction) {
+      actions = [{ id: "followup-1", label: singleAction }];
+    }
+  }
+
+  if (!actions.length) {
+    return { body: normalized.trim(), actions: [] };
+  }
+
+  const body = lines
+    .slice(0, introIndex)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return { body, actions };
+}
+
+function renderMessageQuickFollowups(messageId, actions) {
+  if (!Array.isArray(actions) || !actions.length) {
+    return "";
+  }
+
+  const buttons = actions
+    .map((action, index) => `
+      <button
+        class="ollama-quick-followup-action"
+        type="button"
+        data-action="run-message-followup"
+        data-message-id="${escapeHtml(messageId)}"
+        data-followup-index="${index}"
+      >${escapeHtml(action.label)}</button>
+    `)
+    .join("");
+
+  return `
+    <section class="ollama-quick-message-followups">
+      <div class="ollama-quick-message-followups-title">${escapeHtml(tl("messageFollowupTitle"))}</div>
+      <div class="ollama-quick-message-followups-list">${buttons}</div>
+    </section>
+  `;
+}
+
+function openCustomStarterBuilderFromFollowup(actionLabel) {
+  customStarterBuilderOpen = true;
+  agentFlowBuilderOpen = false;
+  batchUrlQaBuilderOpen = false;
+  includePickerOpen = false;
+  localDocumentPickerOpen = false;
+  browserTabPickerOpen = false;
+  resetCustomStarterBuilderState();
+  ensureCustomStarterBuilderDraft().purpose = tl("messageFollowupSkillPurpose", { action: actionLabel });
+  renderShell();
+  setStatus(tl("messageFollowupSkillOpened"));
+}
+
+function getLatestAssistantSuggestedStarterEntries() {
+  const entries = [];
+  const seenLabels = new Set();
+  for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+    const message = chatMessages[index];
+    if (!message || message.role !== "assistant" || message.flowRun) {
+      continue;
+    }
+    const parsed = extractMessageQuickFollowups(message.content);
+    if (!Array.isArray(parsed.actions) || !parsed.actions.length) {
+      continue;
+    }
+    parsed.actions.forEach((action, actionIndex) => {
+      const dedupeKey = normalizeStarterSearchText(action.label);
+      if (!dedupeKey || seenLabels.has(dedupeKey) || entries.length >= 4) {
+        return;
+      }
+      seenLabels.add(dedupeKey);
+      entries.push({
+        id: `suggested:${message.id}:${actionIndex}`,
+        label: action.label,
+        prompt: tl("messageFollowupPrompt", { action: action.label }),
+        description: tl("suggestedStarterBannerBody", { action: action.label }),
+        composeMode: "chat",
+        isCustomStarter: false,
+        isSuggestedFollowup: true,
+        sourceMessageId: String(message.id),
+        sourceActionIndex: actionIndex,
+        showInPopup: true,
+        isRecommended: true,
+        recommendationRank: entries.length,
+      });
+    });
+    if (entries.length >= 4) {
+      break;
+    }
+  }
+  return entries;
+}
+
+function getPageContext(includeChildFrames = true, options = {}) {
   const selection = getSelectionText();
-  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames);
+  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames, options);
   const imageCandidates = getPageImageSnapshot(MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
-  const headings = getPageHeadingsSnapshot(12, includeChildFrames)
+  const headings = getPageHeadingsSnapshot(12, includeChildFrames, options)
     .slice(0, 12)
     .join(" | ");
 
@@ -6689,6 +7265,13 @@ async function buildPrompt(userMessage) {
   const wrappedAttachedDocumentsContext = wrapUntrustedPromptSection("attached documents", attachedDocumentsContext);
   const wrappedBrowserTabsContext = wrapUntrustedPromptSection("browser tab context", browserTabsContext);
   const wrappedHistory = history ? wrapUntrustedPromptSection("recent chat history", history) : "";
+  const attachedDocumentsInstruction = attachedDocumentsContext
+    ? [
+        "ATTACHED DOCUMENTS ARE INCLUDED IN THIS REQUEST.",
+        "If an ATTACHED DOCUMENTS section is present, treat it as user-provided source data that is available for direct analysis.",
+        "Do not claim that no file, spreadsheet, CSV, or document content was provided when that section is present.",
+      ].join("\n")
+    : "";
   const starterBuilderInstruction = starterRequest
     ? [
         "STARTER GENERATION MODE",
@@ -6732,11 +7315,11 @@ async function buildPrompt(userMessage) {
 
   return [
     `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
-    buildUntrustedContentSafetyRules(),
     wrappedContextBlock,
     wrappedGithubPageContext,
     wrappedGithubVisibleCodeContext,
     wrappedGithubContext,
+    attachedDocumentsInstruction,
     wrappedAttachedDocumentsContext,
     wrappedBrowserTabsContext,
     wrappedHistory,
@@ -6913,6 +7496,62 @@ function downloadTextBlob(filename, contents, mimeType = "text/plain;charset=utf
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function buildShareText(rawText, label = "") {
+  const normalized = normalizeMarkdownText(rawText);
+  if (!normalized) {
+    return "";
+  }
+
+  const truncated = normalized.length > SHARE_TEXT_LIMIT
+    ? `${normalized.slice(0, SHARE_TEXT_LIMIT).trim()}...`
+    : normalized;
+
+  return [label.trim(), truncated].filter(Boolean).join("\n\n");
+}
+
+function openMailtoShareDraft({ title = "", text = "" } = {}) {
+  const subject = String(title || document.title || "Open Copilot").trim();
+  const body = String(text || "").trim();
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const anchor = document.createElement("a");
+  anchor.href = mailtoUrl;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+async function shareTextContent(rawText, options = {}) {
+  const text = buildShareText(rawText, options.label || "");
+  if (!text) {
+    setStatus(tl("messageNotFound"));
+    return;
+  }
+
+  const title = String(options.title || document.title || "Open Copilot").trim();
+  const shareData = { title, text };
+
+  if (typeof navigator?.share === "function") {
+    try {
+      await navigator.share(shareData);
+      setStatus(tl("shareOpened"));
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+    }
+  }
+
+  try {
+    openMailtoShareDraft({ title, text });
+    setStatus(tl("shareFallbackEmailOpened"));
+  } catch {
+    setStatus(tl("shareFailed"));
+  }
 }
 
 async function persistConversationSnapshot(snapshot) {
@@ -7112,6 +7751,15 @@ function fileToBase64(file) {
   });
 }
 
+function base64ToBlobUrl(base64, mimeType = "image/png") {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+}
+
 function fileToText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -7257,6 +7905,34 @@ function getLocalDocumentSummary() {
   return `<span class="ollama-quick-include-text">${escapeHtml(tl("attachedDocumentsCount", { count: docs.length }))}</span>`;
 }
 
+async function replaceLocalDocumentsFromFiles(files) {
+  const textDocumentFiles = files.filter(isTextDocumentFile);
+  if (!textDocumentFiles.length) {
+    setStatus(tl("filesUnsupported"));
+    return;
+  }
+
+  const nonLocalDocuments = attachedDocuments.filter((item) => item.source !== "local-work-folder");
+  if (nonLocalDocuments.length + textDocumentFiles.length > MAX_ATTACHED_DOCUMENTS) {
+    throw new Error(tl("localDocumentLimitReached"));
+  }
+
+  const nextLocalDocuments = await Promise.all(
+    textDocumentFiles.map(async (file) => ({
+      id: `local-upload-${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+      name: file.name,
+      text: await fileToText(file),
+      path: file.name,
+      source: "local-work-folder",
+    }))
+  );
+
+  attachedDocuments = [...nonLocalDocuments, ...nextLocalDocuments];
+  renderShell();
+  renderAttachments();
+  setStatus(tl("localDocumentSelectionSaved"));
+}
+
 async function loadLocalDocumentFiles(pathOverride = localDocumentBrowsePath) {
   localDocumentLoading = true;
   localDocumentPickerOpen = true;
@@ -7353,18 +8029,120 @@ async function attachFiles(files) {
   }
 }
 
-async function attachClipboardItems(items) {
-  const imageFiles = items
+function getClipboardImageFiles(clipboardData) {
+  const itemFiles = Array.from(clipboardData?.items || [])
     .filter((item) => item.type.startsWith("image/"))
-    .map((item) => item.getAsFile())
+    .map((item, index) => {
+      const file = item.getAsFile();
+      if (!file) {
+        return null;
+      }
+
+      if (file.name) {
+        return file;
+      }
+
+      const extension = item.type.split("/")[1] || "png";
+      return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, { type: file.type || item.type });
+    })
     .filter(Boolean);
 
-  if (!imageFiles.length) {
+  if (itemFiles.length) {
+    return itemFiles;
+  }
+
+  return Array.from(clipboardData?.files || [])
+    .filter((file) => file.type.startsWith("image/"))
+    .map((file, index) => {
+      if (file.name) {
+        return file;
+      }
+
+      const extension = file.type.split("/")[1] || "png";
+      return new File([file], `pasted-image-${Date.now()}-${index + 1}.${extension}`, { type: file.type });
+    });
+}
+
+function getPromptTargetFromEvent(event) {
+  const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+  const promptFromPath = path.find((node) => node instanceof HTMLTextAreaElement && node.dataset.role === "prompt");
+  if (promptFromPath instanceof HTMLTextAreaElement) {
+    return promptFromPath;
+  }
+
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "prompt") {
+    return target;
+  }
+
+  return null;
+}
+
+function createImageAttachmentFromPayload(payload = {}) {
+  const base64 = String(payload.base64 || "").trim();
+  const mimeType = String(payload.mimeType || "image/png").trim() || "image/png";
+  if (!base64) {
+    throw new Error("Missing image payload.");
+  }
+
+  return {
+    id: `${Date.now()}-${payload.name || "context-image"}-${Math.random().toString(36).slice(2, 8)}`,
+    name: String(payload.name || "context-image").trim() || "context-image",
+    mimeType,
+    base64,
+    previewUrl: base64ToBlobUrl(base64, mimeType),
+  };
+}
+
+function appendTextToPrompt(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    setStatus(tl("noSelectedText"));
     return false;
   }
 
-  await attachImageFiles(imageFiles);
+  if (!document.getElementById(HOST_ID)) {
+    renderShell();
+  }
+
+  togglePanel(true);
+  const prompt = ensureHost().querySelector("[data-role='prompt']");
+  if (!(prompt instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  const existing = prompt.value.trim();
+  prompt.value = existing ? `${existing}\n\n${normalized}` : normalized;
+  prompt.focus();
+  prompt.selectionStart = prompt.selectionEnd = prompt.value.length;
+  setStatus(tl("insertedSelection"));
   return true;
+}
+
+async function analyzeImageFromContextMenu(payload = {}) {
+  if (!document.getElementById(HOST_ID)) {
+    renderShell();
+  }
+
+  togglePanel(true);
+
+  const starter = getBuiltinStarterEntries(currentPageCopilot).find((item) => item.starterKey === "imageAnalysis");
+  if (!starter) {
+    throw new Error("Image analysis starter is not available.");
+  }
+
+  const imageAttachment = createImageAttachmentFromPayload(payload);
+  const executionPlan = resolveStarterExecutionPlan(starter);
+  clearPendingStarterExecution();
+  await startStarterExecution(executionPlan, executionPlan.suggestedModel, {
+    imageAttachments: [imageAttachment],
+    userMessageOverride: starter.prompt,
+    displayMessageOverride: `${starter.label}: ${imageAttachment.name}`,
+  });
+}
+
+function pasteSelectionFromContextMenu(selectionText) {
+  return appendTextToPrompt(selectionText);
 }
 
 function isTaskInboxVisible() {
@@ -7646,7 +8424,7 @@ async function buildTaskExtractionPrompt() {
     `Current local datetime: ${currentTime.toISOString()}`,
     `Current timezone: ${timezone}`,
     `Configured extraction window: last ${extractionWindowDays} day(s), maximum 7 day(s).`,
-    `Response language target: ${getUiLanguage()}`,
+    `Response language target: ${getReplyLanguage()}`,
     "Focus on tasks that are assigned to me, delegated to me, or clearly need my follow-up.",
     `Prioritize visible content from the last ${extractionWindowDays} day(s). If older content is visible, exclude it unless it is clearly still active and directly tied to a recent follow-up.`,
     "Merge duplicate mentions from the same topic into one task.",
@@ -7664,7 +8442,8 @@ async function buildTaskExtractionPrompt() {
 }
 
 async function extractTaskCandidatesFromChat() {
-  if (!currentConfig?.selectedModel) {
+  const executionModel = getDefaultQuickReplyModel();
+  if (!executionModel) {
     setStatus(tl("taskExtractModelRequired"));
     return;
   }
@@ -7685,7 +8464,7 @@ async function extractTaskCandidatesFromChat() {
 
   try {
     const prompt = await buildTaskExtractionPrompt();
-    const response = await runGenerate(prompt, currentConfig.selectedModel);
+    const response = await runGenerate(prompt, executionModel);
     extractedTaskCandidates = filterOutSavedTaskDuplicates(parseTaskCandidatesFromResponse(response));
     taskInboxView = "candidates";
     taskInboxExpanded = false;
@@ -7924,6 +8703,9 @@ function renderMessages() {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
+          actionButtons.unshift(
+            `<button class="ollama-quick-message-action-icon" type="button" data-action="share-message" data-message-id="${message.id}" title="${escapeHtml(tl("share"))}" aria-label="${escapeHtml(tl("share"))}">↗</button>`
+          );
           if (message.agentFlowStepOutput) {
             actionButtons.unshift(
               `<button class="ollama-quick-message-action-icon" type="button" data-action="download-message-markdown" data-message-id="${message.id}" title="${escapeHtml(tl("downloadMarkdown"))}" aria-label="${escapeHtml(tl("downloadMarkdown"))}">↓</button>`
@@ -8075,19 +8857,28 @@ function renderShell() {
     includePickerOpen = false;
   }
   const activeStarterEntries = getFilteredActiveStarterEntries(currentPageCopilot);
+  const visibleStarterEntries = isPanelMaximized
+    ? activeStarterEntries
+    : activeStarterEntries.filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelSelectionMode = getModelSelectionMode();
-  const modelOptions = cachedModels.length
-    ? [
-        `<option value="__auto__" ${modelSelectionMode === "auto" ? "selected" : ""}>${escapeHtml(tl("modelAutoOption"))}</option>`,
-        ...cachedModels
-        .map((model) => {
-          const selected = modelSelectionMode === "manual" && currentConfig?.selectedModel === model.name ? "selected" : "";
-          return `<option value="${escapeHtml(model.name)}" ${selected}>${escapeHtml(model.name)}</option>`;
-        })
-      ].join("")
-    : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`;
+  const provider = getDefaultProvider();
+  const providerName = getProviderDisplayName(provider);
+  const providerModel = getConfiguredProviderModel();
+  const canSelectInPageModel = providerSupportsInPageModelSelection(provider);
+  const modelOptions = canSelectInPageModel
+    ? (cachedModels.length
+      ? [
+          `<option value="__auto__" ${modelSelectionMode === "auto" ? "selected" : ""}>${escapeHtml(tl("modelAutoOption"))}</option>`,
+          ...cachedModels
+          .map((model) => {
+            const selected = modelSelectionMode === "manual" && currentConfig?.selectedModel === model.name ? "selected" : "";
+            return `<option value="${escapeHtml(model.name)}" ${selected}>${escapeHtml(model.name)}</option>`;
+          })
+        ].join("")
+      : `<option value="">${escapeHtml(tl("pickModelToStart"))}</option>`)
+    : `<option value="__provider__" selected>${escapeHtml(providerModel ? `${providerName}: ${providerModel}` : providerName)}</option>`;
 
   host.innerHTML = `
     <div class="ollama-quick-shell">
@@ -8111,7 +8902,6 @@ function renderShell() {
               aria-pressed="${canDetachTaskRail ? String(showDetachedTaskRail) : "false"}"
             >☰${canExtractTaskCandidates ? `<span class="ollama-quick-icon-badge" aria-hidden="true"></span>` : ""}</button>
           ` : ""}
-          <button class="ollama-quick-icon-button" type="button" data-action="use-selection" title="${escapeHtml(tl("useSelection"))}" aria-label="${escapeHtml(tl("useSelection"))}">✦</button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
             <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M9 4h6" />
@@ -8132,6 +8922,20 @@ function renderShell() {
             <span class="ollama-quick-status-indicator" data-role="status-indicator"></span>
             <div class="ollama-quick-status" data-role="status">${escapeHtml(tl("ready"))}</div>
           </div>
+          ${renderBatchUrlQaMiniStatus()}
+          ${pendingSuggestedStarterAction?.label ? `
+            <div class="ollama-quick-starter-route-banner">
+              <div class="ollama-quick-starter-route-copy">
+                <div class="ollama-quick-starter-route-kicker">${escapeHtml(tl("suggestedStarterBannerTitle"))}</div>
+                <div class="ollama-quick-starter-route-title">${escapeHtml(tl("suggestedStarterBannerBody", { action: pendingSuggestedStarterAction.label }))}</div>
+              </div>
+              <div class="ollama-quick-starter-route-actions">
+                <button class="ollama-quick-secondary" type="button" data-action="run-suggested-starter">${escapeHtml(tl("suggestedStarterRun"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="save-suggested-starter">${escapeHtml(tl("suggestedStarterSave"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="dismiss-suggested-starter">${escapeHtml(tl("suggestedStarterDismiss"))}</button>
+              </div>
+            </div>
+          ` : ""}
           ${pendingStarterExecution?.starter && pendingStarterExecution?.suggestedModel ? `
             <div class="ollama-quick-starter-route-banner">
               <div class="ollama-quick-starter-route-copy">
@@ -8169,7 +8973,7 @@ function renderShell() {
           <div class="ollama-quick-controls">
             <label class="ollama-quick-toggle ollama-quick-toggle-below ollama-quick-model-control">
               <span>${escapeHtml(tl("modelLabel"))}</span>
-              <select class="ollama-quick-select" data-role="model-select">${modelOptions}</select>
+              <select class="ollama-quick-select" data-role="model-select" ${canSelectInPageModel ? "" : "disabled"} title="${escapeHtml(canSelectInPageModel ? "" : getProviderModelStatusText())}">${modelOptions}</select>
             </label>
             <label class="ollama-quick-toggle ollama-quick-toggle-below">
               <span>${escapeHtml(pageContextControlLabel)}</span>
@@ -8187,6 +8991,7 @@ function renderShell() {
           </div>
           <div class="ollama-quick-include-panel">
             <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
+            <input hidden class="ollama-quick-local-document-input" type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="local-document-upload" multiple />
             <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
             ${localDocuments.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-local-documents" aria-label="${escapeHtml(tl("clearLocalDocuments"))}" title="${escapeHtml(tl("clearLocalDocuments"))}">×</button>` : ""}
           </div>
@@ -8216,30 +9021,36 @@ function renderShell() {
             </div>
             ${isPanelMaximized ? `<input class="ollama-quick-starter-search" type="text" data-role="starter-search" value="${escapeHtml(starterSearch)}" aria-label="${escapeHtml(tl("searchStarters"))}" title="${escapeHtml(tl("searchStarters"))}" />` : ""}
             <div class="ollama-quick-starters">
-            ${activeStarterEntries.map((starter) => {
-              const title = starterHoverTipsEnabled ? ` title="${escapeHtml(starter.description || starter.prompt || starter.label)}"` : "";
+            ${visibleStarterEntries.map((starter) => {
+              const hoverTip = starterHoverTipsEnabled ? buildStarterHoverTip(starter, currentPageCopilot) : "";
+              const title = hoverTip ? ` title="${escapeHtml(hoverTip)}"` : "";
+              const hoverTipAttr = hoverTip ? ` data-hover-tip="${escapeHtml(hoverTip)}"` : "";
               const classNames = [
                 "ollama-quick-starter",
                 starter.isRecommended ? "is-recommended" : "",
+                starter.isSuggestedFollowup ? "is-suggested-followup" : "",
                 starter.isCustomStarter ? "is-custom" : "",
                 starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+                starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
                 starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
                 starter.isAgentFlow ? "is-agent-flow" : "",
                 starter.id === highlightedStarterId ? "is-highlighted" : "",
               ].filter(Boolean).join(" ");
               const prefix = starter.isRecommended
                 ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
-                : starter.isAgentFlow || starter.isAgentFlowBuilder
+                : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
-                : starter.isCustomStarter
+                : starter.isCustomStarter || starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
                   : "";
-              const suffix = starter.isAgentFlow
+              const suffix = starter.isSuggestedFollowup
+                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">${escapeHtml(tl("suggestedStarterBadge"))}</span>`
+                : starter.isAgentFlow
                 ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
                 : starter.isCustomStarter && !starter.isCustomStarterBuilder
                   ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
-                : "";
-              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
+                  : "";
+              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}${hoverTipAttr}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
             }).join("")}
             </div>
           </div>
@@ -8250,6 +9061,7 @@ function renderShell() {
       ${renderLocalDocumentPicker()}
       ${renderCustomStarterBuilder()}
       ${renderAgentFlowBuilder()}
+      ${renderBatchUrlQaBuilder()}
       ${renderConfirmDialog()}
       </section>
     </div>
@@ -8260,6 +9072,7 @@ function renderShell() {
   host.oninput = handleInput;
   host.oncompositionstart = handleCompositionStart;
   host.oncompositionend = handleCompositionEnd;
+  host.onkeyup = handleKeyup;
   host.onpaste = handlePaste;
   host.ondragenter = handleDragEnter;
   host.ondragover = handleDragOver;
@@ -8306,6 +9119,16 @@ function renderShell() {
       window.requestAnimationFrame(() => {
         nameField.focus();
       });
+    }
+  }
+
+  if (batchUrlQaBuilderOpen) {
+    const urlsField = host.querySelector('[data-role="batch-url-qa-urls"]');
+    if (batchUrlQaShouldFocusUrls && urlsField instanceof HTMLTextAreaElement) {
+      window.requestAnimationFrame(() => {
+        urlsField.focus();
+      });
+      batchUrlQaShouldFocusUrls = false;
     }
   }
 }
@@ -8699,12 +9522,14 @@ function renderAgentFlowBuilder() {
     .map((starter) => {
       const alreadySelected = draft.steps.some((step) => step.starterId === starter.id);
       const disabled = alreadySelected || draft.steps.length >= MAX_AGENT_FLOW_STEPS;
+      const qaAlias = starter.isQaFlowBlock ? `${tl("agentFlowQaBlockBadge")} · ${starter.starterKey}` : "";
+      const metaLine = [qaAlias, starter.description || starter.label].filter(Boolean).join(" • ");
       return `
         <button class="ollama-quick-picker-row ${alreadySelected ? "is-selected" : ""}" type="button" data-action="add-agent-flow-step" data-flow-starter-id="${escapeHtml(starter.id)}" ${disabled ? "disabled" : ""}>
           <span class="ollama-quick-picker-icon">${alreadySelected ? "✓" : "＋"}</span>
           <span class="ollama-quick-picker-stack">
             <span class="ollama-quick-picker-name">${escapeHtml(starter.label)}</span>
-            <span class="ollama-quick-picker-meta">${escapeHtml(starter.description || starter.label)}</span>
+            <span class="ollama-quick-picker-meta">${escapeHtml(metaLine || starter.label)}</span>
           </span>
         </button>
       `;
@@ -8752,6 +9577,206 @@ function renderAgentFlowBuilder() {
           <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="save-agent-flow">${escapeHtml(tl("agentFlowSave"))}</button>
         </div>
       </section>
+    </div>
+  `;
+}
+
+function getBatchUrlQaStageLabel(stage = "") {
+  const normalized = String(stage || "").trim().toLowerCase();
+  if (normalized === "starting") return tl("batchUrlQaStageStarting");
+  if (normalized === "reading") return tl("batchUrlQaStageReading");
+  if (normalized === "generating") return tl("batchUrlQaStageGenerating");
+  if (normalized === "collecting") return tl("batchUrlQaStageCollecting");
+  if (normalized === "writing") return tl("batchUrlQaStageWriting");
+  if (normalized === "notifying") return tl("batchUrlQaStageNotifying");
+  if (normalized === "completed") return tl("batchUrlQaStageCompleted");
+  if (normalized === "failed") return tl("batchUrlQaStageFailed");
+  return tl("batchUrlQaStageQueued");
+}
+
+function getBatchUrlQaRailState(stage = "") {
+  const normalized = String(stage || "").trim().toLowerCase();
+  if (normalized === "completed") {
+    return 4;
+  }
+  if (normalized === "writing" || normalized === "notifying") {
+    return 4;
+  }
+  if (normalized === "generating" || normalized === "collecting") {
+    return 3;
+  }
+  if (normalized === "reading") {
+    return 2;
+  }
+  return 1;
+}
+
+function renderBatchUrlQaProgressRail(activeJob, draft) {
+  const stage = String(activeJob?.stage || "queued").trim().toLowerCase();
+  const currentStep = getBatchUrlQaRailState(stage);
+  const progressText = activeJob ? `${activeJob.progress || 0} / ${activeJob.total || 0}` : "0 / 0";
+  const currentUrl = String(activeJob?.currentUrl || "").trim();
+  const metaText = currentUrl
+    ? `${getBatchUrlQaStageLabel(stage)} · ${progressText} · ${currentUrl}`
+    : `${getBatchUrlQaStageLabel(stage)} · ${progressText} · ${LANGUAGE_LABELS[draft.outputLanguage] || draft.outputLanguage}`;
+  const steps = [
+    tl("batchUrlQaRailSetup"),
+    tl("batchUrlQaRailRead"),
+    tl("batchUrlQaRailGenerate"),
+    tl("batchUrlQaRailExport"),
+  ];
+
+  const items = steps.map((label, index) => {
+    const stepNumber = index + 1;
+    const stateClass = stepNumber < currentStep
+      ? "is-done"
+      : stepNumber === currentStep
+        ? "is-active"
+        : "";
+    return `
+      <div class="ollama-quick-batch-url-qa-progress-step ${stateClass}">
+        <span class="ollama-quick-batch-url-qa-progress-dot">${stepNumber}</span>
+        <span class="ollama-quick-batch-url-qa-progress-label">${escapeHtml(label)}</span>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="ollama-quick-batch-url-qa-progress-surface">
+      <div class="ollama-quick-batch-url-qa-progress-rail">${items}</div>
+      <div class="ollama-quick-batch-url-qa-progress-meta">${escapeHtml(metaText)}</div>
+    </div>
+  `;
+}
+
+async function loadBatchUrlQaActiveJob() {
+  const result = await runtimeMessage({ type: "batch-url-qa:list-jobs" });
+  if (!result?.ok) {
+    throw new Error(result?.error || "Failed to load batch URL QA jobs.");
+  }
+  const jobs = Array.isArray(result.jobs) ? result.jobs : [];
+  const draft = ensureBatchUrlQaBuilderDraft();
+  const targetJob = jobs.find((item) => item.id === batchUrlQaActiveJob?.id)
+    || jobs.find((item) => item.fileName === draft.fileName && item.status === "running")
+    || jobs.find((item) => item.status === "running" || item.status === "queued")
+    || null;
+  batchUrlQaActiveJob = targetJob;
+  if (targetJob?.status === "completed") {
+    setStatus(tl("batchUrlQaCompleted"));
+    if (!batchUrlQaBuilderOpen && batchUrlQaPollTimer) {
+      window.clearInterval(batchUrlQaPollTimer);
+      batchUrlQaPollTimer = null;
+    }
+  } else if (targetJob?.status === "failed" && targetJob?.error) {
+    setStatus(targetJob.error);
+    if (!batchUrlQaBuilderOpen && batchUrlQaPollTimer) {
+      window.clearInterval(batchUrlQaPollTimer);
+      batchUrlQaPollTimer = null;
+    }
+  }
+  renderShell();
+}
+
+function startBatchUrlQaPolling() {
+  if (batchUrlQaPollTimer) {
+    window.clearInterval(batchUrlQaPollTimer);
+  }
+  batchUrlQaPollTimer = window.setInterval(() => {
+    if (!batchUrlQaBuilderOpen && !batchUrlQaActiveJob?.id) {
+      return;
+    }
+    loadBatchUrlQaActiveJob().catch(() => {});
+  }, 2500);
+}
+
+function renderBatchUrlQaBuilder() {
+  if (!batchUrlQaBuilderOpen) {
+    return "";
+  }
+
+  const draft = ensureBatchUrlQaBuilderDraft();
+  const activeJob = batchUrlQaActiveJob;
+  const isRunning = activeJob?.status === "running" || activeJob?.status === "queued";
+  const stageText = getBatchUrlQaStageLabel(activeJob?.stage || "");
+  const progressText = activeJob ? `${activeJob.progress || 0} / ${activeJob.total || 0}` : "0 / 0";
+  const languageOptions = Object.entries(LANGUAGE_LABELS)
+    .map(([value, label]) => `<option value="${escapeHtml(value)}" ${draft.outputLanguage === value ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-custom-starter-modal ollama-quick-batch-url-qa-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("batchUrlQaWorkflowTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("batchUrlQaWorkflowHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-batch-url-qa-builder" aria-label="${escapeHtml(tl("batchUrlQaClose"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form ollama-quick-batch-url-qa-form">
+          <div class="ollama-quick-batch-url-qa-hint">${escapeHtml(tl("batchUrlQaHideHint"))}</div>
+          <div class="ollama-quick-batch-url-qa-layout">
+            <div class="ollama-quick-batch-url-qa-column is-urls">
+              <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-surface is-urls-surface">
+                <span>${escapeHtml(tl("batchUrlQaUrlsLabel"))}</span>
+                <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-textarea" data-role="batch-url-qa-urls" placeholder="${escapeHtml(tl("batchUrlQaUrlsPlaceholder"))}">${escapeHtml(draft.urls)}</textarea>
+              </label>
+            </div>
+            <div class="ollama-quick-batch-url-qa-column is-side">
+              <div class="ollama-quick-batch-url-qa-surface ollama-quick-batch-url-qa-side-panel is-settings">
+                <div class="ollama-quick-batch-url-qa-panel-title">${escapeHtml(tl("batchUrlQaSettingsTitle"))}</div>
+                <div class="ollama-quick-batch-url-qa-config-grid">
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-count">
+                    <span>${escapeHtml(tl("batchUrlQaCountLabel"))}</span>
+                    <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="number" min="2" max="8" data-role="batch-url-qa-count" value="${escapeHtml(draft.qaPerUrl)}" />
+                  </label>
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-language">
+                    <span>${escapeHtml(tl("batchUrlQaLanguageLabel"))}</span>
+                    <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="batch-url-qa-language">${languageOptions}</select>
+                  </label>
+                </div>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-file">
+                  <span>${escapeHtml(tl("batchUrlQaFileLabel"))}</span>
+                  <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="text" data-role="batch-url-qa-file" value="${escapeHtml(draft.fileName)}" />
+                </label>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-extra-prompt">
+                  <span>${escapeHtml(tl("batchUrlQaExtraPromptLabel"))}</span>
+                  <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-extra-prompt" data-role="batch-url-qa-extra-prompt" placeholder="${escapeHtml(tl("batchUrlQaExtraPromptPlaceholder"))}">${escapeHtml(draft.extraPrompt || "")}</textarea>
+                </label>
+              </div>
+            </div>
+          </div>
+          ${renderBatchUrlQaProgressRail(activeJob, draft)}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaClose"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="start-batch-url-qa-workflow" ${isRunning ? "disabled" : ""}>${escapeHtml(isRunning ? tl("batchUrlQaRunning") : tl("batchUrlQaStart"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderBatchUrlQaMiniStatus() {
+  const activeJob = batchUrlQaActiveJob;
+  const isRunning = activeJob?.status === "running" || activeJob?.status === "queued";
+  if (!isRunning || batchUrlQaBuilderOpen) {
+    return "";
+  }
+
+  const stageText = getBatchUrlQaStageLabel(activeJob?.stage || "");
+  const progressText = `${activeJob?.progress || 0} / ${activeJob?.total || 0}`;
+  const currentUrl = String(activeJob?.currentUrl || "").trim();
+
+  return `
+    <div class="ollama-quick-batch-url-qa-mini-status">
+      <div class="ollama-quick-batch-url-qa-mini-copy">
+        <div class="ollama-quick-batch-url-qa-mini-title">${escapeHtml(tl("batchUrlQaMiniTitle"))}</div>
+        <div class="ollama-quick-batch-url-qa-mini-meta">${escapeHtml(stageText)} · ${escapeHtml(progressText)}</div>
+        ${currentUrl ? `<div class="ollama-quick-batch-url-qa-mini-url">${escapeHtml(currentUrl)}</div>` : ""}
+      </div>
+      <button class="ollama-quick-secondary" type="button" data-action="open-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaMiniOpen"))}</button>
     </div>
   `;
 }
@@ -9174,6 +10199,81 @@ async function runAgentFlow(starter, modelOverride = "") {
       message.content = "";
     });
     publishAgentFlowFinalMessage(starter.label, resolvedSteps[resolvedSteps.length - 1]);
+    try {
+      await runtimeMessage({
+        type: "telegram:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Telegram flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "line:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("LINE flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "teams:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Teams flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "slack:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Slack flow notification failed:", error);
+    }
+    try {
+      await runtimeMessage({
+        type: "discord:notify-agent-flow-complete",
+        payload: {
+          flowName: starter.label,
+          model: effectiveModel,
+          pageTitle: document.title || "",
+          pageUrl: window.location.href || "",
+          finalOutput: resolvedSteps[resolvedSteps.length - 1]?.output || "",
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.warn("Discord flow notification failed:", error);
+    }
     setStatus(tl("doneWithModel", { model: effectiveModel }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -9265,7 +10365,7 @@ async function runMultiPerspectiveAnalysis(userMessage, modelOverride = "") {
   }
 }
 
-async function startStarterExecution(plan, modelOverride = "") {
+async function startStarterExecution(plan, modelOverride = "", executionOptions = {}) {
   if (!plan?.starter) {
     return;
   }
@@ -9292,7 +10392,7 @@ async function startStarterExecution(plan, modelOverride = "") {
         ? tl("starterReasoningModelReady", { model: effectiveModel })
         : tl("starterRouteResolved", { route: getRouteLabel(plan.routeKind), model: effectiveModel })
   );
-  await sendCurrentPrompt({ modelOverride: effectiveModel, starterPlan: plan });
+  await sendCurrentPrompt({ ...executionOptions, modelOverride: effectiveModel, starterPlan: plan });
 }
 
 async function handleClick(event) {
@@ -9498,17 +10598,11 @@ async function handleClick(event) {
   }
 
   if (action === "open-local-document-picker") {
-    localDocumentPickerOpen = true;
-    localDocumentSearch = "";
-    localDocumentSelections = getLocalWorkFolderAttachedDocuments().map((item) => item.path).filter(Boolean);
-    includePickerOpen = false;
-    browserTabPickerOpen = false;
-    try {
-      await loadLocalDocumentFiles("");
-    } catch (error) {
-      localDocumentPickerOpen = false;
-      renderShell();
-      setStatus(error instanceof Error ? error.message : String(error));
+    const input = ensureHost().querySelector("[data-role='local-document-upload']");
+    if (input instanceof HTMLInputElement) {
+      input.click();
+    } else {
+      setStatus(tl("filesUnsupported"));
     }
     return;
   }
@@ -9850,20 +10944,8 @@ async function handleClick(event) {
   }
 
   if (action === "use-selection") {
-    const prompt = ensureHost().querySelector("[data-role='prompt']");
-    if (!(prompt instanceof HTMLTextAreaElement)) {
-      return;
-    }
-
     const selectedText = window.getSelection?.()?.toString().trim() || "";
-    if (!selectedText) {
-      setStatus(tl("noSelectedText"));
-      return;
-    }
-
-    prompt.value = tl("selectionPrompt", { selection: selectedText.slice(0, MAX_SELECTION_TEXT) });
-    prompt.focus();
-    setStatus(tl("insertedSelection"));
+    appendTextToPrompt(tl("selectionPrompt", { selection: selectedText.slice(0, MAX_SELECTION_TEXT) }));
     return;
   }
 
@@ -9890,9 +10972,23 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.isSuggestedFollowup) {
+      pendingSuggestedStarterAction = {
+        label: starter.label,
+        prompt: starter.prompt,
+        sourceMessageId: starter.sourceMessageId || "",
+        sourceActionIndex: starter.sourceActionIndex,
+      };
+      clearPendingStarterExecution();
+      renderShell();
+      return;
+    }
+
     if (starter.id === "builtin:createCustomStarter") {
+      pendingSuggestedStarterAction = null;
       customStarterBuilderOpen = true;
       agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -9906,6 +11002,7 @@ async function handleClick(event) {
     if (starter.id === "builtin:createAgentFlow") {
       agentFlowBuilderOpen = true;
       customStarterBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -9914,10 +11011,28 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.id === "builtin:batchUrlQaWorkflow") {
+      batchUrlQaBuilderOpen = true;
+      batchUrlQaShouldFocusUrls = true;
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      if (!batchUrlQaBuilderDraft) {
+        resetBatchUrlQaBuilderState();
+      }
+      startBatchUrlQaPolling();
+      loadBatchUrlQaActiveJob().catch(() => {});
+      renderShell();
+      return;
+    }
+
     if (isGenerating || customStarterBuilderIsGenerating || customStarterBuilderIsSaving) {
       return;
     }
 
+    pendingSuggestedStarterAction = null;
     const executionPlan = resolveStarterExecutionPlan(starter);
     clearPendingStarterExecution();
     await startStarterExecution(executionPlan, executionPlan.suggestedModel);
@@ -9925,6 +11040,7 @@ async function handleClick(event) {
   }
 
   if (action === "use-starter-default-route") {
+    pendingSuggestedStarterAction = null;
     if (!pendingStarterExecution?.starter) {
       return;
     }
@@ -9933,10 +11049,41 @@ async function handleClick(event) {
   }
 
   if (action === "use-starter-quick-reply") {
+    pendingSuggestedStarterAction = null;
     if (!pendingStarterExecution?.starter) {
       return;
     }
     await startStarterExecution(pendingStarterExecution, pendingStarterExecution.quickModel);
+    return;
+  }
+
+  if (action === "dismiss-suggested-starter") {
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    return;
+  }
+
+  if (action === "save-suggested-starter") {
+    if (!pendingSuggestedStarterAction?.label) {
+      return;
+    }
+    openCustomStarterBuilderFromFollowup(pendingSuggestedStarterAction.label);
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    return;
+  }
+
+  if (action === "run-suggested-starter") {
+    if (!pendingSuggestedStarterAction?.label || !pendingSuggestedStarterAction?.prompt) {
+      return;
+    }
+    const plannedAction = { ...pendingSuggestedStarterAction };
+    pendingSuggestedStarterAction = null;
+    renderShell();
+    await sendCurrentPrompt({
+      userMessageOverride: plannedAction.prompt,
+      displayMessageOverride: plannedAction.label,
+    });
     return;
   }
 
@@ -9948,6 +11095,51 @@ async function handleClick(event) {
 
   if (action === "close-agent-flow-builder") {
     agentFlowBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "close-batch-url-qa-builder") {
+    batchUrlQaBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
+  if (action === "open-batch-url-qa-builder") {
+    batchUrlQaBuilderOpen = true;
+    batchUrlQaShouldFocusUrls = true;
+    loadBatchUrlQaActiveJob().catch(() => {});
+    renderShell();
+    return;
+  }
+
+  if (action === "start-batch-url-qa-workflow") {
+    const draft = ensureBatchUrlQaBuilderDraft();
+    if (!draft.urls.trim()) {
+      setStatus(tl("batchUrlQaNeedUrls"));
+      return;
+    }
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
+      setStatus(tl("pickModelFirst"));
+      return;
+    }
+    const result = await runtimeMessage({
+      type: "batch-url-qa:start-job",
+      urls: draft.urls,
+      qaPerUrl: draft.qaPerUrl,
+      fileName: draft.fileName,
+      extraPrompt: draft.extraPrompt || "",
+      outputLanguage: draft.outputLanguage,
+      model: executionModel,
+    });
+    if (!result?.ok) {
+      setStatus(result?.error || tl("batchUrlQaStageFailed"));
+      return;
+    }
+    batchUrlQaActiveJob = result.job || null;
+    setStatus(batchUrlQaActiveJob?.stageLabel || tl("batchUrlQaStageStarting"));
+    startBatchUrlQaPolling();
     renderShell();
     return;
   }
@@ -10028,7 +11220,8 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderFillMore"));
       return;
     }
-    if (!currentConfig?.selectedModel) {
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
     }
@@ -10049,7 +11242,7 @@ async function handleClick(event) {
     setStatus(tl("customStarterBuilderThinking"));
 
     try {
-      const response = await runGenerate(await buildCustomStarterDiscussionPrompt(userMessage), currentConfig.selectedModel);
+      const response = await runGenerate(await buildCustomStarterDiscussionPrompt(userMessage), executionModel);
       customStarterBuilderConversation = [
         ...customStarterBuilderConversation,
         {
@@ -10077,7 +11270,8 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderNeedDiscussion"));
       return;
     }
-    if (!currentConfig?.selectedModel) {
+    const executionModel = getDefaultQuickReplyModel();
+    if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
     }
@@ -10090,7 +11284,7 @@ async function handleClick(event) {
     setStatus(tl("customStarterBuilderThinking"));
 
     try {
-      const response = await runGenerate(await buildCustomStarterCreationPrompt(), currentConfig.selectedModel);
+      const response = await runGenerate(await buildCustomStarterCreationPrompt(), executionModel);
       const drafts = extractStarterDraftsFromText(response);
       if (!drafts.length) {
         throw new Error(tl("starterSaveFailed"));
@@ -10198,6 +11392,62 @@ async function handleClick(event) {
       setStatus(tl("copiedResponse"));
     } catch {
       setStatus(tl("copyFailed"));
+    }
+    return;
+  }
+
+  if (action === "share-perspective") {
+    if (!latestPerspectiveRun) {
+      return;
+    }
+
+    const perspectiveKey = actionNode.dataset.perspectiveKey || "";
+    const stage = latestPerspectiveRun.stages.find((item) => item.id === perspectiveKey);
+    const content = perspectiveKey === "final" ? latestPerspectiveRun.finalContent : stage?.content;
+    const label = perspectiveKey === "final"
+      ? tl("perspectiveFinalTitle")
+      : String(stage?.label || tl("assistantRole")).trim();
+    await shareTextContent(content, {
+      title: document.title || "Open Copilot",
+      label,
+    });
+    return;
+  }
+
+  if (action === "run-message-followup") {
+    if (isGenerating || customStarterBuilderIsGenerating || customStarterBuilderIsSaving) {
+      return;
+    }
+
+    const messageId = actionNode.dataset.messageId || "";
+    const followupIndex = Number.parseInt(actionNode.dataset.followupIndex || "-1", 10);
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const followupData = extractMessageQuickFollowups(message.content);
+    const selectedFollowup = Array.isArray(followupData.actions) ? followupData.actions[followupIndex] : null;
+    if (!selectedFollowup?.label) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const followupPrompt = tl("messageFollowupPrompt", { action: selectedFollowup.label });
+    const completed = await sendCurrentPrompt({
+      userMessageOverride: followupPrompt,
+      displayMessageOverride: selectedFollowup.label,
+    });
+    if (!completed) {
+      return;
+    }
+
+    if (await requestConfirmation(tl("messageFollowupSkillConfirm"), {
+      title: tl("customStarterBuilderTitle"),
+      confirmLabel: tl("messageFollowupSkillConfirmAction"),
+    })) {
+      openCustomStarterBuilderFromFollowup(selectedFollowup.label);
     }
     return;
   }
@@ -10333,6 +11583,7 @@ async function handleClick(event) {
     chatMessages = [];
     latestPerspectiveRun = null;
     composeMode = "chat";
+    pendingSuggestedStarterAction = null;
     clearPendingStarterExecution();
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
@@ -10365,7 +11616,27 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "share-message") {
+    const messageId = actionNode.dataset.messageId || "";
+    const message = chatMessages.find((item) => String(item.id) === String(messageId));
+    if (!message) {
+      setStatus(tl("messageNotFound"));
+      return;
+    }
+
+    const starterDrafts = getStarterDraftsForMessage(message);
+    const content = starterDrafts.length
+      ? serializeStarterDraftsForExport(starterDrafts)
+      : message.content;
+    await shareTextContent(content, {
+      title: document.title || "Open Copilot",
+      label: tl("assistantRole"),
+    });
+    return;
+  }
+
   if (action === "send-message") {
+    pendingSuggestedStarterAction = null;
     await sendCurrentPrompt();
   }
 }
@@ -10373,6 +11644,10 @@ async function handleClick(event) {
 async function handleChange(event) {
   const target = event.target;
   if (target instanceof HTMLSelectElement && target.dataset.role === "model-select") {
+    if (!providerSupportsInPageModelSelection()) {
+      setStatus(getProviderModelStatusText());
+      return;
+    }
     const result = target.value === "__auto__"
       ? await runtimeMessage({ type: "ollama:set-config", config: { modelSelectionMode: "auto" } })
       : await runtimeMessage({ type: "ollama:set-config", config: { selectedModel: target.value, modelSelectionMode: "manual" } });
@@ -10414,6 +11689,27 @@ async function handleChange(event) {
     } finally {
       target.value = "";
     }
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "local-document-upload") {
+    const files = Array.from(target.files || []);
+    if (!files.length) {
+      return;
+    }
+
+    try {
+      await replaceLocalDocumentsFromFiles(files);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      target.value = "";
+    }
+  }
+
+  if (target instanceof HTMLSelectElement && target.dataset.role === "batch-url-qa-language") {
+    ensureBatchUrlQaBuilderDraft().outputLanguage = target.value || getReplyLanguage();
+    renderShell();
   }
 }
 
@@ -10431,6 +11727,29 @@ function handleInput(event) {
 
   if (target instanceof HTMLInputElement && target.dataset.role === "agent-flow-name") {
     ensureAgentFlowBuilderDraft().name = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-urls") {
+    ensureBatchUrlQaBuilderDraft().urls = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-count") {
+    const parsed = Number.parseInt(target.value, 10);
+    const normalized = Number.isFinite(parsed) ? String(Math.min(8, Math.max(2, parsed))) : "8";
+    target.value = normalized;
+    ensureBatchUrlQaBuilderDraft().qaPerUrl = normalized;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-file") {
+    ensureBatchUrlQaBuilderDraft().fileName = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-extra-prompt") {
+    ensureBatchUrlQaBuilderDraft().extraPrompt = target.value;
     return;
   }
 
@@ -10543,9 +11862,24 @@ function handleCompositionEnd(event) {
 
   if (role === "starter-search") {
     starterSearch = target.value;
-    renderShell();
-    restorePickerInputFocus("starter-search");
+    requestAnimationFrame(() => {
+      renderShell();
+      restorePickerInputFocus("starter-search");
+    });
   }
+}
+
+function handleKeyup(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.dataset.role !== "starter-search") {
+    return;
+  }
+  if (event.isComposing || activeSearchCompositionRole === "starter-search") {
+    return;
+  }
+  starterSearch = target.value;
+  renderShell();
+  restorePickerInputFocus("starter-search");
 }
 
 async function handleKeydown(event) {
@@ -10573,24 +11907,22 @@ async function handleKeydown(event) {
 }
 
 async function handlePaste(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLTextAreaElement) || target.dataset.role !== "prompt") {
+  const promptTarget = getPromptTargetFromEvent(event);
+  if (!(promptTarget instanceof HTMLTextAreaElement)) {
     return;
   }
 
-  const items = Array.from(event.clipboardData?.items || []);
-  const hasImage = items.some((item) => item.type.startsWith("image/"));
-  if (!hasImage) {
+  const imageFiles = getClipboardImageFiles(event.clipboardData);
+  if (!imageFiles.length) {
     return;
   }
 
   event.preventDefault();
 
   try {
-    const attached = await attachClipboardItems(items);
-    if (attached) {
-      setStatus(tl("pastedImage"));
-    }
+    await attachImageFiles(imageFiles);
+    promptTarget.focus();
+    setStatus(tl("pastedImage"));
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error));
   }
@@ -10604,35 +11936,44 @@ async function sendCurrentPrompt(options = {}) {
 
   const starterPlan = options.starterPlan || pendingStarterExecution || null;
   const pendingStarter = starterPlan?.starter || null;
+  const hasUserMessageOverride = Object.prototype.hasOwnProperty.call(options, "userMessageOverride");
+  const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
+  const documentAttachments = Array.isArray(options.documentAttachments) ? options.documentAttachments : attachedDocuments;
   const typedUserMessage = promptNode.value.trim();
   const starterPrompt = String(pendingStarter?.prompt || "").trim();
-  const userMessage = typedUserMessage || starterPrompt;
-  if (!userMessage && !attachedImages.length && !attachedDocuments.length) {
+  const implicitAttachmentPrompt = !typedUserMessage && !starterPrompt
+    ? (documentAttachments.length ? tl("analyzeTextFile") : (imageAttachments.length ? tl("analyzeImage") : ""))
+    : "";
+  const userMessage = hasUserMessageOverride
+    ? String(options.userMessageOverride || "").trim()
+    : (typedUserMessage || starterPrompt || implicitAttachmentPrompt);
+  if (!userMessage && !imageAttachments.length && !documentAttachments.length) {
     setStatus(tl("typePromptOrAttach"));
-    return;
+    return false;
   }
 
   const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage });
   const effectiveModel = String(options.modelOverride || starterPlan?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
-    return;
+    return false;
   }
 
-  if (attachedImages.length && !modelLikelySupportsVision(effectiveModel)) {
-    setStatus(tl("sendingVisionWarning", { count: attachedImages.length, model: effectiveModel }));
+  if (imageAttachments.length && !modelLikelySupportsVision(effectiveModel)) {
+    setStatus(tl("sendingVisionWarning", { count: imageAttachments.length, model: effectiveModel }));
   }
 
+  pendingSuggestedStarterAction = null;
   clearPendingStarterExecution();
   setStatus(
     getModelSelectionMode() === "auto"
       ? getAutoModelStatusText({ starter: pendingStarter, userMessage })
       : tl("preparingRequest", { model: effectiveModel })
   );
-  const displayMessage = typedUserMessage || pendingStarter?.label || (attachedDocuments.length ? tl("analyzeTextFile") : tl("analyzeImage"));
+  const displayMessage = String(options.displayMessageOverride || (hasUserMessageOverride ? "" : typedUserMessage) || pendingStarter?.label || (documentAttachments.length ? tl("analyzeTextFile") : tl("analyzeImage"))).trim();
   const outgoingAttachments = {
-    images: attachedImages.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
-    documents: attachedDocuments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
+    images: imageAttachments.map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType })),
+    documents: documentAttachments.map((item) => ({ id: item.id, name: item.name, source: item.source || "upload" })),
     githubSources: includedGithubSources.map((item) => ({
       type: item.type,
       repoFullName: item.repoFullName,
@@ -10640,7 +11981,9 @@ async function sendCurrentPrompt(options = {}) {
       ref: item.ref || "",
     })),
   };
-  promptNode.value = "";
+  if (!hasUserMessageOverride) {
+    promptNode.value = "";
+  }
 
   if (composeMode === "perspective") {
     chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
@@ -10648,9 +11991,11 @@ async function sendCurrentPrompt(options = {}) {
     renderMessages();
     scheduleConversationSave();
     await runMultiPerspectiveAnalysis(userMessage, effectiveModel);
-    attachedDocuments = [];
-    renderAttachments();
-    return;
+    if (!Array.isArray(options.documentAttachments)) {
+      attachedDocuments = [];
+      renderAttachments();
+    }
+    return true;
   }
 
   chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
@@ -10661,30 +12006,42 @@ async function sendCurrentPrompt(options = {}) {
   scheduleConversationSave();
   togglePanel(true);
   const waitingParts = [];
-  if (attachedImages.length) {
-    waitingParts.push(tl("attachedImages", { count: attachedImages.length }).replace(/^已附加 |^Attached /, "").replace(/\.$/, ""));
+  if (imageAttachments.length) {
+    waitingParts.push(tl("attachedImages", { count: imageAttachments.length }).replace(/^已附加 |^Attached /, "").replace(/\.$/, ""));
   }
-  if (attachedDocuments.length) {
-    waitingParts.push(`${attachedDocuments.length} ${tl("attachedFileLabel").toLowerCase()}${attachedDocuments.length > 1 ? "s" : ""}`);
+  if (documentAttachments.length) {
+    waitingParts.push(`${documentAttachments.length} ${tl("attachedFileLabel").toLowerCase()}${documentAttachments.length > 1 ? "s" : ""}`);
   }
   setStatus(tl("waitingForModel", { model: effectiveModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(await buildChatMessages(userMessage), effectiveModel);
-    attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    attachedImages = [];
-    attachedDocuments = [];
+    await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments }), effectiveModel);
+    imageAttachments.forEach((item) => {
+      if (item.previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+    if (!Array.isArray(options.imageAttachments)) {
+      attachedImages = [];
+    }
+    if (!Array.isArray(options.documentAttachments)) {
+      attachedDocuments = [];
+    }
+    renderShell();
     renderAttachments();
     isGenerating = false;
     scheduleConversationSave();
     setStatus(tl("doneWithModel", { model: effectiveModel }));
+    return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    renderShell();
     renderMessages();
     isGenerating = false;
     scheduleConversationSave();
     setStatus(message);
+    return false;
   }
 }
 
@@ -10748,9 +12105,10 @@ function updateAssistantDraft(text) {
   scheduleConversationSave();
 }
 
-async function buildChatMessages(userMessage) {
+async function buildChatMessages(userMessage, options = {}) {
   const contextPrompt = await buildPrompt(userMessage);
   const systemPrompt = buildSystemPrompt();
+  const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
   const messages = [];
 
   if (systemPrompt) {
@@ -10763,7 +12121,12 @@ async function buildChatMessages(userMessage) {
   messages.push({
     role: "user",
     content: contextPrompt,
-    images: attachedImages.map((item) => item.base64),
+    images: imageAttachments.map((item) => item.base64),
+    imageAttachments: imageAttachments.map((item) => ({
+      name: item.name,
+      mimeType: item.mimeType,
+      base64: item.base64,
+    })),
   });
 
   return messages;
@@ -10892,11 +12255,7 @@ async function bootstrap() {
     await loadSavedTaskReminders().catch(() => {});
     await loadLauncherPosition();
     renderShell();
-    setStatus(
-      currentConfig?.selectedModel
-        ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model: currentConfig.selectedModel }))
-        : tl("pickModelToStart")
-    );
+    setStatus(getProviderModelStatusText());
   } catch (error) {
     renderShell();
     setStatus(error instanceof Error ? error.message : String(error));
@@ -10924,9 +12283,15 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   if (
+    changes.defaultProvider ||
     changes.ollamaUrl ||
+    changes.lmStudioModel ||
+    changes.geminiModel ||
+    changes.azureOpenAiDeployment ||
     changes.selectedModel ||
+    changes.uiLanguage ||
     changes.replyLanguage ||
+    changes.settingsTheme ||
     changes.systemPrompt ||
     changes.multiPerspectiveProfiles ||
     changes.githubApiKeyConfigured ||
@@ -10978,7 +12343,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return false;
     }
 
-    sendResponse({ ok: true, context: getPageContext(true) });
+    sendResponse({ ok: true, context: getPageContext(true, { expandDetails: message?.expandDetails === true }) });
     return false;
   }
 
@@ -11004,10 +12369,47 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false;
   }
 
+  if (message?.type === "edge-ai-chat:analyze-image-context-menu") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Image analysis is only available from the top frame." });
+      return false;
+    }
+
+    analyzeImageFromContextMenu(message.image || {})
+      .then(() => {
+        sendResponse({ ok: true, isOpen: isPanelOpen });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+      });
+    return true;
+  }
+
+  if (message?.type === "edge-ai-chat:paste-selection-context-menu") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Selection paste is only available from the top frame." });
+      return false;
+    }
+
+    try {
+      const inserted = pasteSelectionFromContextMenu(message.selectionText || "");
+      sendResponse({ ok: inserted });
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return false;
+  }
+
   return false;
 });
 
 if (IS_TOP_FRAME) {
+  SYSTEM_THEME_MEDIA_QUERY?.addEventListener("change", () => {
+    if (document.getElementById(HOST_ID) && normalizeSettingsTheme(currentConfig?.settingsTheme) === "system") {
+      syncHostState();
+    }
+  });
+
   window.setTimeout(() => {
     bootstrap().catch(() => {});
   }, 250);
