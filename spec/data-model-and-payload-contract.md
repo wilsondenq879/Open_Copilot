@@ -24,18 +24,33 @@ type Config = {
   starterModelRoutingEnabled: boolean;
   starterReasoningModel: string;
   starterVisionModel: string;
+  uiLanguage: string;
   replyLanguage: string;
   settingsTheme: "system" | "dark" | "light";
   taskExtractionWindowDays: number;
   starterHoverTipsEnabled: boolean;
+  teamsInlineActionEnabled: boolean;
+  telegramNotificationEnabled: boolean;
+  telegramChatId: string;
+  lineNotificationEnabled: boolean;
+  lineTo: string;
+  teamsNotificationEnabled: boolean;
+  slackNotificationEnabled: boolean;
+  discordNotificationEnabled: boolean;
   googleDriveClientId: string;
   googleDriveSyncEnabled: boolean;
   googleDriveAutoSync: boolean;
   githubApiKeyConfigured: boolean;
   geminiApiKeyConfigured: boolean;
   azureOpenAiApiKeyConfigured: boolean;
+  telegramBotTokenConfigured: boolean;
+  lineChannelAccessTokenConfigured: boolean;
+  teamsWebhookUrlConfigured: boolean;
+  slackWebhookUrlConfigured: boolean;
+  discordWebhookUrlConfigured: boolean;
   multiPerspectiveProfiles: string;
   customStarters: Starter[];
+  hiddenBuiltinStarterIds: string[];
   recentGithubFiles: unknown[];
   systemPrompt: string;
 };
@@ -48,6 +63,11 @@ type SecretConfig = {
   githubApiKey: string;
   geminiApiKey: string;
   azureOpenAiApiKey: string;
+  telegramBotToken: string;
+  lineChannelAccessToken: string;
+  teamsWebhookUrl: string;
+  slackWebhookUrl: string;
+  discordWebhookUrl: string;
 };
 ```
 
@@ -183,6 +203,7 @@ type ChatSession = {
 | --- | --- |
 | `latestChatSession` | 最近一份聊天 session |
 | `taskReminderItems` | 已儲存 task reminders |
+| `batchUrlQaJobs` | 最近的 Batch URL QA jobs 與執行進度 |
 | `googleDriveSyncMeta` | Drive 連線與同步狀態 |
 | `googleDriveSyncDocuments` | Drive sync documents |
 | `work-folder-handle` | 本機資料夾 handle |
@@ -239,5 +260,7 @@ type ModelRequest = {
 ## Rebuild Guardrails
 
 - 不可把 `customStarters` 簡化成單一字串陣列
+- 不可把 `uiLanguage` 和 `replyLanguage` 重新混成同一個欄位
+- 不可把通知通道設定只做成前端假欄位而沒有 secret/configured 狀態
 - 不可讓 `latestPerspectiveRun` 只剩 finalContent
 - 不可把 attachments 全塞進 `content` 字串而失去結構

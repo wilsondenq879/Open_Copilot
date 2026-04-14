@@ -13,7 +13,7 @@ Popup 是最輕量的控制入口，負責三件事：
 ## 對外行為契約
 
 - 開 popup 時必須自動讀取 config
-- 讀到 `replyLanguage` 後，popup UI 文案要同步切換語言
+- popup UI 文案優先跟 `uiLanguage`，若未設定才 fallback 到 `replyLanguage`
 - 必須顯示 endpoint 目前值，沒有設定時顯示 `Not configured` 類型文案
 - 必須列出模型卡片
 - 點模型卡片後要立即更新 selected 狀態
@@ -81,6 +81,7 @@ Popup
 
 - 輸入：
   - `ollamaUrl`
+  - `uiLanguage`
   - `replyLanguage`
   - `selectedModel`
 - 運行時：

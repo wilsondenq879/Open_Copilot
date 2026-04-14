@@ -32,18 +32,32 @@ body.settings-page
 |- main.panel.settings-panel
    |- .panel-header.settings-header
    |- .actions.settings-toolbar
-   |- section.settings-layout
-      |- article.setting-card.provider-card
-      |  |- .provider-tabs
-      |  |- #panel-ollama / #panel-lmStudio / #panel-gemini / #panel-azureOpenAi
+   |- .utility-tabs.settings-page-tabs
+   |- section.settings-tab-panels
+      |- #generalTabPanel
+      |  |- .settings-layout
+      |  |  |- .setting-card.utility-card.behavior-card.side-card
+      |  |  |- .provider-support-grid
+      |- #aiProviderTabPanel
+      |  |- .settings-layout
+      |  |  |- .setting-card.provider-priority-card
+      |  |  |- article.setting-card.provider-card
+      |  |     |- .provider-tabs
+      |  |     |- #providerStatusMessage
+      |  |     |- #testButton
+      |  |     |- #panel-ollama / #panel-lmStudio / #panel-gemini / #panel-azureOpenAi
+      |  |     |- .provider-support-grid
+      |- #notificationTabPanel
       |  |- .provider-support-grid
-      |- section.setting-card.utility-card.behavior-card.side-card
-         |- .utility-tabs
-         |- #panel-experience
-         |- #panel-starter-skills
-         |- #panel-agent-flows
+      |- #starterTabPanel
+      |  |- .starter-library-hero
+      |  |- .starter-studio-shell
+      |- #flowTabPanel
+      |  |- .starter-library-hero
+      |  |- .starter-studio-shell
 |- #starterAiEditorModal
 |- #starterFlowEditorModal
+|- #batchUrlQaLogsModal
 ```
 
 ## In-Page Host DOM Contract
@@ -67,6 +81,7 @@ body.settings-page
       |- include/browser/local pickers (conditional)
       |- custom starter builder (conditional)
       |- agent flow builder (conditional)
+      |- batch URL QA builder (conditional)
 ```
 
 ## Main Pane Contract
@@ -153,3 +168,4 @@ attachments strip
 - `data-role` 和 `data-action` 類型節點要保留，因為互動綁定大量依賴它們。
 - overlay / picker / modal 都是條件渲染，但開啟時要仍屬於同一 host 節點內。
 - maximized 與 non-maximized 主要透過 class 切換，不是換一套全新 DOM。
+- settings page 有 top-level tabs 與 provider tabs 兩層 tab 結構，兩者都要保留。

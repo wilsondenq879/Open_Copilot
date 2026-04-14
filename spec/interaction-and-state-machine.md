@@ -37,6 +37,7 @@
 - `browserTabPickerOpen`
 - `customStarterBuilderOpen`
 - `agentFlowBuilderOpen`
+- `batchUrlQaBuilderOpen`
 
 ### Analysis and Tasks
 
@@ -79,6 +80,9 @@
 - `discuss-custom-starter`
 - `create-custom-starter-skill`
 - flow editor add/remove/move/save
+- `open-batch-url-qa-builder`
+- `start-batch-url-qa-workflow`
+- `cancel-batch-url-qa-workflow`
 
 ### Task Events
 
@@ -159,4 +163,5 @@ stateDiagram-v2
 
 - 不可把所有互動改成 React route 或全頁切換
 - 不可把多個 picker 合併成單一模糊的「attach anything」視窗
+- 不可忽略 builder 之間的互斥開關；custom starter / agent flow / batch URL QA 開啟時都會關掉其他 picker
 - 不可把 state 簡化成只剩 `messages` 和 `open`

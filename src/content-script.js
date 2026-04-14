@@ -4586,9 +4586,13 @@ function getProviderModelStatusText() {
   const model = getConfiguredProviderModel();
 
   if (provider === "ollama") {
-    return model
-      ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model }))
-      : tl("pickModelToStart");
+    if (getModelSelectionMode() === "auto") {
+      const autoStatus = getAutoModelStatusText();
+      return autoStatus === tl("modelAutoSelected") && !getAvailableModelNames().length
+        ? tl("pickModelToStart")
+        : autoStatus;
+    }
+    return model ? tl("usingModel", { model }) : tl("pickModelToStart");
   }
 
   if (currentConfig?.replyLanguage === "zh-TW") {
@@ -4895,6 +4899,11 @@ function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {})
     reasoningModel,
     visionModel,
   };
+}
+
+function resolveUsableModelForTask({ starter = null, userMessage = "", modelOverride = "", preferredModel = "" } = {}) {
+  const resolved = resolveExecutionModelForTask({ starter, userMessage });
+  return String(modelOverride || preferredModel || resolved.model || resolved.quickModel || getDefaultQuickReplyModel()).trim();
 }
 
 function resolveStarterExecutionPlan(starter, preferredModel = "") {
@@ -6986,13 +6995,119 @@ function normalizeQuickFollowupLabel(rawLabel) {
     .trim();
 }
 
+const QUICK_FOLLOWUP_INTRO_PATTERNS = [
+  /^(?:你)?如果你(?:想|要|希望)/i,
+  /^(?:您)?如果您(?:想|要|希望)/i,
+  /^(?:你)?如果需要/i,
+  /^(?:您)?如果您需要/i,
+  /^若你想/i,
+  /^若需要/i,
+  /要的話/i,
+  /需要的話/i,
+  /我也可以/i,
+  /我還可以/i,
+  /我可以再/i,
+  /我可以幫你/i,
+  /我幫您/i,
+  /^例如[:：]/i,
+  /^for example[:：]/i,
+  /^if you (?:want|need)/i,
+  /^if you'd like/i,
+  /^if needed/i,
+  /^if helpful/i,
+  /^i can also/i,
+  /^i can help/i,
+  /^i can turn this into/i,
+  /^i can also turn this/i,
+  /^if you want help/i,
+  /^if you need help/i,
+  /^if you'd like help/i,
+  /^(?:もし)?必要(?:であれば|なら|でしたら|に応じて)/i,
+  /^もしよければ/i,
+  /^ご希望であれば/i,
+  /^例えば[:：]/i,
+  /^たとえば[:：]/i,
+  /^以下もできます/i,
+  /^次のこともできます/i,
+  /^원하시면/i,
+  /^필요하시면/i,
+  /^도움이 필요하시면/i,
+  /^예를 들어[:：]/i,
+  /^제가 .*도와드릴 수/i,
+  /^다음도 도와드릴 수/i,
+  /^si (?:quieres|quiere|quieren|lo deseas|lo necesita(?:s)?|necesitas|necesita)/i,
+  /^si te sirve/i,
+  /^también puedo/i,
+  /^puedo ayudarte/i,
+  /^por ejemplo[:：]/i,
+  /^si (?:vous voulez|tu veux|besoin|cela peut aider)/i,
+  /^je peux aussi/i,
+  /^je peux vous aider/i,
+  /^par exemple[:：]/i,
+  /^(?:wenn du möchtest|wenn sie möchten|falls nötig|wenn es hilfreich ist)/i,
+  /^ich kann auch/i,
+  /^ich kann dir helfen/i,
+  /^zum beispiel[:：]/i,
+  /^(?:se quiser|se você quiser|se precisar|se for útil)/i,
+  /^tamb[eé]m posso/i,
+  /^posso ajudar/i,
+  /^por exemplo[:：]/i,
+  /^(?:अगर आप चाहें|अगर आपको ज़रूरत हो|ज़रूरत हो तो)/i,
+  /^मैं (?:भी )?मदद कर सकता/i,
+  /^उदाहरण[:：]/i,
+];
+
+const QUICK_FOLLOWUP_LEAD_PATTERNS = [
+  /^(?:我可以(?:再)?|我也可以|我還可以|如果你需要(?:的話)?|如果你想(?:要)?|如果您需要(?:的話)?|如果您想(?:要)?|若你需要|若你想(?:要)?|也可以|還可以|例如[:：])\s*/i,
+  /^(?:if you (?:want|need)|if you'd like|if needed|if helpful|for example[:：])[\s,:-]*/i,
+  /^(?:i can also|i can help|i can turn this into|i can also turn this into|i can rewrite this as|i can convert this into|i can make this into)\s*/i,
+  /^(?:必要(?:であれば|なら|でしたら|に応じて)|もしよければ|ご希望であれば|例えば[:：]|たとえば[:：])\s*/i,
+  /^(?:以下もできます|次のこともできます|私(?:が|も)?(?:対応|お手伝い)?できます)\s*/i,
+  /^(?:원하시면|필요하시면|도움이 필요하시면|예를 들어[:：])\s*/i,
+  /^(?:제가 .*도와드릴 수 있어요|제가 .*도와드릴 수 있습니다|다음도 도와드릴 수 있어요)\s*/i,
+  /^(?:si (?:quieres|quiere|quieren|lo deseas|lo necesita(?:s)?|necesitas|necesita)|si te sirve|por ejemplo[:：])\s*/i,
+  /^(?:también puedo|puedo ayudarte(?: a)?|puedo ayudarle(?: a)?|puedo convertir esto en|puedo reescribir esto como)\s*/i,
+  /^(?:si (?:vous voulez|tu veux|besoin|cela peut aider)|par exemple[:：])\s*/i,
+  /^(?:je peux aussi|je peux vous aider(?: à)?|je peux transformer cela en|je peux réécrire cela en)\s*/i,
+  /^(?:wenn du möchtest|wenn sie möchten|falls nötig|wenn es hilfreich ist|zum beispiel[:：])\s*/i,
+  /^(?:ich kann auch|ich kann dir helfen|ich kann das in .* umwandeln)\s*/i,
+  /^(?:se quiser|se você quiser|se precisar|se for útil|por exemplo[:：])\s*/i,
+  /^(?:tamb[eé]m posso|posso ajudar(?: a)?|posso transformar isso em|posso reescrever isso como)\s*/i,
+  /^(?:अगर आप चाहें|अगर आपको ज़रूरत हो|ज़रूरत हो तो|उदाहरण[:：])\s*/i,
+  /^(?:मैं (?:भी )?मदद कर सकता(?: हूँ)?|मैं इसे .* में बदल सकता(?: हूँ)?)\s*/i,
+];
+
+const QUICK_FOLLOWUP_SINGLE_ACTION_PATTERNS = [
+  /(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/i,
+  /(?:turn this into|also turn this into|rewrite this as|convert this into|make this into|help with|help you with|help you turn this into)(.+)$/i,
+  /(?:これを|内容を)?(?:変換して|まとめて|書き換えて|整理して)(.+)$/i,
+  /(?:이것을|내용을)?(?:바꿔서|정리해서|다듬어서|변환해서)(.+)$/i,
+  /(?:convertir esto en|reescribir esto como|convertirlo en|ayudarte con)(.+)$/i,
+  /(?:transformer cela en|réécrire cela en|vous aider à)(.+)$/i,
+  /(?:das in|daraus)(.+?)(?:umwandeln|umschreiben)$/i,
+  /(?:transformar isso em|reescrever isso como|ajudar com)(.+)$/i,
+  /(?:इसे|इसको)?(?:बदलकर|लिखकर|सजाकर)(.+)$/i,
+];
+
+function matchesQuickFollowupPattern(value, patterns) {
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function stripQuickFollowupLead(value) {
+  let nextValue = String(value || "").trim();
+  QUICK_FOLLOWUP_LEAD_PATTERNS.forEach((pattern) => {
+    nextValue = nextValue.replace(pattern, "").trim();
+  });
+  return nextValue;
+}
+
 function isLikelyQuickFollowupIntro(line) {
   const value = String(line || "").trim();
   if (!value) {
     return false;
   }
 
-  return /^(?:你)?如果你(?:想|要|希望)|^(?:您)?如果您(?:想|要|希望)|^(?:你)?如果需要|^(?:您)?如果您需要|^若你想|^若需要|要的話|需要的話|我也可以|我還可以|我可以再|我可以幫你|我幫您|例如[:：]|for example[:：]|If you want|If you'd like|If needed|If helpful|I can also|I can help|I can turn this into|I can also turn this/i.test(value);
+  return matchesQuickFollowupPattern(value, QUICK_FOLLOWUP_INTRO_PATTERNS);
 }
 
 function isLikelyQuickFollowupLine(line) {
@@ -7025,7 +7140,19 @@ function isEnumeratedFollowupQuestionLine(line) {
   if (value.length > 140) {
     return false;
   }
-  return /[?？]$/.test(raw) || /(?:是否|需不需要|要不要|希望我|需要我|provide|summarize|convert|rewrite|整理|彙整|總結|轉換|輸出)/i.test(value);
+  return /[?？]$/.test(raw) || /(?:是否|需不需要|要不要|希望我|需要我|provide|summarize|convert|rewrite|organize|draft|outline|整理|彙整|總結|轉換|輸出|まとめ|整理|変換|정리|변환|요약|resumir|convertir|reescribir|résumer|réécrire|umwandeln|umschreiben|transformar|reescrever|सारांश|बदल)/i.test(value);
+}
+
+function isEnumeratedFollowupActionLine(line) {
+  const raw = String(line || "").trim();
+  const value = normalizeQuickFollowupLabel(raw);
+  if (!/^\d+\.\s+/.test(raw) || !value) {
+    return false;
+  }
+  if (value.length > 180) {
+    return false;
+  }
+  return /^(?:find|get|search|summarize|review|check|compare|map|build|draft|write|extract|organize|convert|rewrite|translate|explain|analyze|identify|list|look up|prepare|outline|整理|彙整|總結|搜尋|查找|查詢|改寫|轉成|輸出|撰寫|比較|檢查|建立|分析|說明|找出|まとめ|検索|調べ|要約|整理|変換|作成|比較|確認|설명|분석|정리|요약|검색|비교|확인|resumir|buscar|explicar|analizar|comparar|organizar|convertir|résumer|chercher|expliquer|analyser|comparer|organiser|zusammenfassen|suchen|erklären|analysieren|vergleichen|organisieren|resumir|buscar|explicar|analisar|comparar|organizar|सारांश|खोज|समझा|विश्लेषण|तुलना|सूची)/i.test(value);
 }
 
 function extractQuickFollowupActionFromLine(line) {
@@ -7034,9 +7161,8 @@ function extractQuickFollowupActionFromLine(line) {
     return "";
   }
 
-  value = value
-    .replace(/^(?:我可以(?:再)?|我也可以|我還可以|如果你需要(?:的話)?|如果你想(?:要)?|如果您需要(?:的話)?|如果您想(?:要)?|若你需要|若你想(?:要)?|也可以|還可以|例如[:：])\s*/i, "")
-    .replace(/^(?:幫你|替你|直接幫你|先幫你|再幫你|幫您|替您|直接幫您|先幫您|再幫您)\s*/i, "")
+  value = stripQuickFollowupLead(value)
+    .replace(/^(?:幫你|替你|直接幫你|先幫你|再幫你|幫您|替您|直接幫您|先幫您|再幫您|help you(?: with)?|assist you(?: with)?|ayudarte(?: con)?|vous aider(?: à)?|dir helfen(?: bei)?|ajudar(?: com)?|도와드릴게요|도와드릴 수 있어요|お手伝いできます|मदद कर सकता(?: हूँ)?|मदद करने में)\s*/i, "")
     .replace(/^(?:把|將)\s*/i, (match) => match)
     .trim();
 
@@ -7073,8 +7199,10 @@ function extractSingleLineQuickFollowup(line) {
   if (quotedMatch) {
     candidate = `${quotedMatch[1]}${quotedMatch[2] || ""}`;
   } else {
-    const actionMatch = value.match(/(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/);
-    candidate = actionMatch ? actionMatch[1] : "";
+    const actionMatch = QUICK_FOLLOWUP_SINGLE_ACTION_PATTERNS
+      .map((pattern) => value.match(pattern))
+      .find(Boolean);
+    candidate = actionMatch ? actionMatch[1] : stripQuickFollowupLead(value);
   }
 
   candidate = extractQuickFollowupActionFromLine(candidate);
@@ -7112,13 +7240,13 @@ function extractMessageQuickFollowups(content) {
 
   let actions = [];
   const introLine = String(lines[introIndex] || "").trim();
-  const explicitOfferList = /^(?:你)?如果你(?:想|要|希望)|^(?:您)?如果您(?:想|要|希望)|^(?:你)?如果需要|^(?:您)?如果您需要|^若你想|^若需要|^我可以幫你|^我幫您|例如[:：]/i.test(introLine);
+  const explicitOfferList = isLikelyQuickFollowupIntro(introLine);
   if (actionLines.length >= 2 && actionLines.length <= 5) {
     if (!explicitOfferList && actionLines.some((line) => !/^[-*•]\s+/.test(line) && !/^\d+\.\s+/.test(line) && !/^(?:幫你|替你|把|將|改成|整理成|精簡成|轉成)/.test(normalizeQuickFollowupLabel(line)))) {
       return { body: normalized.trim(), actions: [] };
     }
 
-    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line) && !(explicitOfferList && isEnumeratedFollowupQuestionLine(line)))) {
+    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line) && !(explicitOfferList && (isEnumeratedFollowupQuestionLine(line) || isEnumeratedFollowupActionLine(line))))) {
       return { body: normalized.trim(), actions: [] };
     }
 
@@ -9075,7 +9203,7 @@ async function buildTaskExtractionPrompt() {
 }
 
 async function extractTaskCandidatesFromChat() {
-  const executionModel = getDefaultQuickReplyModel();
+  const executionModel = resolveUsableModelForTask({ userMessage: tl("extractingChatTasks") });
   if (!executionModel) {
     setStatus(tl("taskExtractModelRequired"));
     return;
@@ -10766,7 +10894,11 @@ async function runAgentFlow(starter, modelOverride = "") {
     return;
   }
 
-  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({
+    starter,
+    userMessage: tl("agentFlowUserMessage", { name: starter.label }),
+    modelOverride,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -10992,7 +11124,7 @@ async function runMultiPerspectiveAnalysis(userMessage, modelOverride = "") {
   }
 
   const promptText = userMessage || tl("perspectiveInputFallback");
-  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({ userMessage: promptText, modelOverride });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -11056,7 +11188,12 @@ async function startStarterExecution(plan, modelOverride = "", executionOptions 
     return;
   }
 
-  const effectiveModel = String(modelOverride || plan.suggestedModel || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({
+    starter: plan.starter,
+    userMessage: plan.starter?.prompt || "",
+    modelOverride,
+    preferredModel: plan.suggestedModel,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -11827,7 +11964,7 @@ async function handleClick(event) {
       setStatus(tl("batchUrlQaNeedUrls"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const executionModel = resolveUsableModelForTask({ userMessage: draft.extraPrompt || tl("starter_batchUrlQaWorkflow") });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -11967,7 +12104,7 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderFillMore"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const executionModel = resolveUsableModelForTask({ userMessage });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -12017,7 +12154,11 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderNeedDiscussion"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const discussionContext = customStarterBuilderConversation
+      .map((item) => String(item?.content || "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+    const executionModel = resolveUsableModelForTask({ userMessage: discussionContext || tl("customStarterBuilderTitle") });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -12700,7 +12841,12 @@ async function sendCurrentPrompt(options = {}) {
   }
 
   const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage });
-  const effectiveModel = String(options.modelOverride || starterPlan?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({
+    starter: pendingStarter,
+    userMessage,
+    modelOverride: options.modelOverride,
+    preferredModel: starterPlan?.suggestedModel,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return false;

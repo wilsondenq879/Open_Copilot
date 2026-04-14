@@ -43,13 +43,17 @@
 | 功能 | 入口 | 核心行為 |
 | --- | --- | --- |
 | Popup 模型切換 | extension popup | 看 endpoint、抓模型、切換 selected model |
-| Settings | options page | 管理 provider、theme、language、folder、Drive、starters |
+| Settings | options page | 以 top-level tabs 管理 General、AI Provider、Notifications、Starter、Agent Flow |
 | 浮動聊天面板 | 任意一般網頁 | 右側 launcher、收合展開、聊天、最大化 |
 | Context / Attachments | 聊天面板 | 自動頁面 context、圖片、文件、GitHub source、tabs |
 | Starters / Flows | 聊天面板與 settings | 依頁型推薦、快速套用、建立 reusable workflows |
 | Multi-Perspective | 聊天面板 | 多個角色逐步分析，最後 synthesis |
 | Task Reminders | 聊天面板 | 從聊天抽 task，儲存 reminder，做 alarm/notification |
 | Local / Drive Sync | settings + export | 本機資料夾與 Google Drive app data 同步 |
+| Batch URL QA | 聊天面板 workflow + settings logs | 批次讀網址、產生 grounded FAQ、輸出單一 JSONL、記錄 job 狀態 |
+| Notifications | settings | Telegram / LINE / Teams / Slack / Discord 測試與完成通知 |
+| UI Localization | popup + settings + in-page panel | `uiLanguage` 控制介面語言，`replyLanguage` 控制模型回覆語言 |
+| Teams Inline Action | Microsoft Teams 頁面 | hover 訊息時顯示 `Send to Open Copilot` 動作 |
 
 ## 對 AI 重建者的要求
 
@@ -64,3 +68,11 @@
 - Settings / Popup：深色玻璃感儀表板，藍青色光暈，厚圓角，高透明度卡片。
 - In-page panel：超高 z-index 的右側浮動工作台，含發光 orb launcher。
 - 視覺氣質：不是極簡企業後台，而是「local-first AI cockpit」。
+
+## 近期已跟上的實作重點
+
+- Settings 已不是單一長表單，而是上層分成 `General`、`AI Provider`、`Notifications`、`Starter`、`Agent Flow` 五個 tab。
+- `uiLanguage` 已與 `replyLanguage` 分離；popup 會優先跟 `uiLanguage` 走。
+- 通知通道已包含 Telegram、LINE、Teams、Slack、Discord。
+- Batch URL QA 已改為輸出 `.jsonl`，並支援 job logs、取消執行、唯一檔名與完成通知。
+- Teams 頁面支援 inline `Send to Open Copilot` hover action。
