@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSONL 解析工具</title>
+  <style>
+    :root {
+      --bg: linear-gradient(135deg, #f4efe6 0%, #dfe9f3 100%);
+      --panel: rgba(255, 255, 255, 0.88);
+      --panel-strong: rgba(255, 255, 255, 0.96);
+      --text: #1f2a37;
+      --muted: #5b6777;
+      --line: rgba(31, 42, 55, 0.12);
+      --accent: #c96f3b;
+      --accent-deep: #8f4d25;
+      --good: #1f7a4d;
+      --bad: #b63f34;
+      --shadow: 0 20px 40px rgba(31, 42, 55, 0.12);
+      --radius: 20px;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: "Segoe UI", "Noto Sans TC", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .page {
+      width: min(1200px, calc(100% - 32px));
+      margin: 32px auto;
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero,
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -60px -60px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201, 111, 59, 0.25) 0%, rgba(201, 111, 59, 0) 70%);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+    }
+
+    .panel {
+      padding: 22px;
+    }
+
+    .dropzone {
+      border: 2px dashed rgba(201, 111, 59, 0.35);
+      border-radius: 18px;
+      padding: 28px;
+      background: rgba(255, 255, 255, 0.45);
+      transition: 0.2s ease;
+      text-align: center;
+    }
+
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(201, 111, 59, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .dropzone strong {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .hint {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 18px;
+    }
+
+    button,
+    .file-label {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .file-label,
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .secondary {
+      background: rgba(31, 42, 55, 0.08);
+      color: var(--text);
+    }
+
+    button:hover,
+    .file-label:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.02);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .meta {
+      display: grid;
+      gap: 12px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .meta-row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .value {
+      color: var(--text);
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .stat {
+      padding: 18px;
+      border-radius: 18px;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: clamp(24px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .good {
+      color: var(--good);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search {
+      width: min(420px, 100%);
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.86);
+      font: inherit;
+    }
+
+    .viewer {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .record,
+    .error-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--panel-strong);
+    }
+
+    .record summary,
+    .error-card summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .record summary::-webkit-details-marker,
+    .error-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .record-title {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .record-title strong {
+      font-size: 16px;
+    }
+
+    .record-title span {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-ok {
+      background: rgba(31, 122, 77, 0.12);
+      color: var(--good);
+    }
+
+    .badge-err {
+      background: rgba(182, 63, 52, 0.12);
+      color: var(--bad);
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow: auto;
+      border-top: 1px solid var(--line);
+      background: #17202a;
+      color: #edf2f7;
+      font-size: 13px;
+      line-height: 1.6;
+      font-family: var(--mono);
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 36px 20px;
+      border: 1px dashed var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.52);
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 860px) {
+      .upload-grid,
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        align-items: stretch;
+      }
+
+      .search {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>JSONL 讀取與解析工具</h1>
+      <p class="subtitle">
+        上傳 `.jsonl` 檔後，頁面會逐行解析 JSON、統計成功與失敗筆數，並把每一筆內容展開給你看。
+        這個工具完全在瀏覽器本機執行，不會把檔案送出去。
+      </p>
+    </section>
+
+    <section class="upload-grid">
+      <div class="panel">
+        <div id="dropzone" class="dropzone">
+          <strong>把 JSONL 檔拖進來</strong>
+          <div class="hint">或按下面按鈕選檔。每一行都會獨立解析，空白行會自動略過。</div>
+          <div class="controls">
+            <label class="file-label" for="fileInput">選擇 JSONL 檔</label>
+            <input id="fileInput" type="file" accept=".jsonl,.txt,application/json">
+            <button id="sampleButton" class="secondary" type="button">載入範例資料</button>
+            <button id="clearButton" class="secondary" type="button">清空畫面</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title">檔案資訊</h2>
+        <div class="meta">
+          <div class="meta-row"><span>目前檔名</span><span id="fileName" class="value">尚未載入</span></div>
+          <div class="meta-row"><span>檔案大小</span><span id="fileSize" class="value">-</span></div>
+          <div class="meta-row"><span>總行數</span><span id="totalLines" class="value">0</span></div>
+          <div class="meta-row"><span>解析時間</span><span id="parseTime" class="value">-</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary">
+      <div class="stat">
+        <div class="stat-label">有效資料筆數</div>
+        <div id="validCount" class="stat-value good">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">錯誤行數</div>
+        <div id="errorCount" class="stat-value bad">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">空白行數</div>
+        <div id="blankCount" class="stat-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">頂層欄位 Keys</div>
+        <div id="keyCount" class="stat-value">0</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <h2 class="section-title">解析結果</h2>
+        <input id="searchInput" class="search" type="search" placeholder="搜尋內容、key 或值">
+      </div>
+      <div id="viewer" class="viewer">
+        <div class="empty">上傳檔案後，這裡會顯示逐筆解析結果。</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const elements = {
+      dropzone: document.getElementById("dropzone"),
+      fileInput: document.getElementById("fileInput"),
+      sampleButton: document.getElementById("sampleButton"),
+      clearButton: document.getElementById("clearButton"),
+      fileName: document.getElementById("fileName"),
+      fileSize: document.getElementById("fileSize"),
+      totalLines: document.getElementById("totalLines"),
+      parseTime: document.getElementById("parseTime"),
+      validCount: document.getElementById("validCount"),
+      errorCount: document.getElementById("errorCount"),
+      blankCount: document.getElementById("blankCount"),
+      keyCount: document.getElementById("keyCount"),
+      searchInput: document.getElementById("searchInput"),
+      viewer: document.getElementById("viewer")
+    };
+
+    let currentRecords = [];
+    let currentErrors = [];
+
+    const sampleJsonl = [
+      JSON.stringify({ id: 1, title: "Open Copilot", tags: ["extension", "ai"], published: true }),
+      JSON.stringify({ id: 2, title: "README Parser", owner: { name: "Wilson", team: "Docs" } }),
+      "{ invalid json line",
+      "",
+      JSON.stringify({ id: 3, title: "Batch QA", score: 98.5, url: "https://example.com" })
+    ].join("\n");
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return "-";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function getPreview(record) {
+      if (record && typeof record === "object" && !Array.isArray(record)) {
+        const entries = Object.entries(record).slice(0, 3);
+        if (entries.length) {
+          return entries.map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`).join(" | ");
+        }
+      }
+      return JSON.stringify(record);
+    }
+
+    function parseJsonl(text) {
+      const start = performance.now();
+      const lines = text.replace(/\r\n/g, "\n").split("\n");
+      const records = [];
+      const errors = [];
+      const keys = new Set();
+      let blanks = 0;
+
+      lines.forEach((line, index) => {
+        if (!line.trim()) {
+          blanks += 1;
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            Object.keys(parsed).forEach((key) => keys.add(key));
+          }
+          records.push({
+            lineNumber: index + 1,
+            value: parsed,
+            preview: getPreview(parsed),
+            searchText: JSON.stringify(parsed).toLowerCase()
+          });
+        } catch (error) {
+          errors.push({
+            lineNumber: index + 1,
+            line,
+            message: error.message
+          });
+        }
+      });
+
+      return {
+        records,
+        errors,
+        blanks,
+        keyCount: keys.size,
+        totalLines: lines.length,
+        parseMs: Math.round(performance.now() - start)
+      };
+    }
+
+    function renderResults() {
+      const keyword = elements.searchInput.value.trim().toLowerCase();
+      const filteredRecords = keyword
+        ? currentRecords.filter((item) =>
+            item.searchText.includes(keyword) ||
+            item.preview.toLowerCase().includes(keyword) ||
+            `line ${item.lineNumber}`.includes(keyword)
+          )
+        : currentRecords;
+
+      const filteredErrors = keyword
+        ? currentErrors.filter((item) =>
+            item.message.toLowerCase().includes(keyword) ||
+            item.line.toLowerCase().includes(keyword) ||
+            `line ${item.lineNumber}`.includes(keyword)
+          )
+        : currentErrors;
+
+      if (!filteredRecords.length && !filteredErrors.length) {
+        elements.viewer.innerHTML = `<div class="empty">查不到符合 "${escapeHtml(keyword)}" 的內容。</div>`;
+        return;
+      }
+
+      const recordHtml = filteredRecords.map((item) => `
+        <details class="record">
+          <summary>
+            <div class="record-title">
+              <strong>第 ${item.lineNumber} 行</strong>
+              <span>${escapeHtml(item.preview)}</span>
+            </div>
+            <span class="badge badge-ok">JSON OK</span>
+          </summary>
+          <pre>${escapeHtml(JSON.stringify(item.value, null, 2))}</pre>
+        </details>
+      `).join("");
+
+      const errorHtml = filteredErrors.map((item) => `
+        <details class="error-card">
+          <summary>
+            <div class="record-title">
+              <strong>第 ${item.lineNumber} 行解析失敗</strong>
+              <span>${escapeHtml(item.message)}</span>
+            </div>
+            <span class="badge badge-err">JSON ERROR</span>
+          </summary>
+          <pre>${escapeHtml(item.line)}</pre>
+        </details>
+      `).join("");
+
+      elements.viewer.innerHTML = recordHtml + errorHtml;
+    }
+
+    function updateSummary(meta) {
+      elements.totalLines.textContent = String(meta.totalLines);
+      elements.parseTime.textContent = `${meta.parseMs} ms`;
+      elements.validCount.textContent = String(meta.records.length);
+      elements.errorCount.textContent = String(meta.errors.length);
+      elements.blankCount.textContent = String(meta.blanks);
+      elements.keyCount.textContent = String(meta.keyCount);
+    }
+
+    function clearAll() {
+      currentRecords = [];
+      currentErrors = [];
+      elements.fileInput.value = "";
+      elements.searchInput.value = "";
+      elements.fileName.textContent = "尚未載入";
+      elements.fileSize.textContent = "-";
+      elements.totalLines.textContent = "0";
+      elements.parseTime.textContent = "-";
+      elements.validCount.textContent = "0";
+      elements.errorCount.textContent = "0";
+      elements.blankCount.textContent = "0";
+      elements.keyCount.textContent = "0";
+      elements.viewer.innerHTML = '<div class="empty">上傳檔案後，這裡會顯示逐筆解析結果。</div>';
+    }
+
+    function loadText(text, sourceName = "未命名資料", sourceSize = text.length) {
+      const result = parseJsonl(text);
+      currentRecords = result.records;
+      currentErrors = result.errors;
+      elements.fileName.textContent = sourceName;
+      elements.fileSize.textContent = formatBytes(sourceSize);
+      updateSummary(result);
+      renderResults();
+    }
+
+    async function handleFile(file) {
+      const text = await file.text();
+      loadText(text, file.name, file.size);
+    }
+
+    elements.fileInput.addEventListener("change", async (event) => {
+      const [file] = event.target.files || [];
+      if (file) {
+        await handleFile(file);
+      }
+    });
+
+    ["dragenter", "dragover"].forEach((eventName) => {
+      elements.dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        elements.dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      elements.dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        elements.dropzone.classList.remove("dragover");
+      });
+    });
+
+    elements.dropzone.addEventListener("drop", async (event) => {
+      const [file] = event.dataTransfer.files || [];
+      if (file) {
+        await handleFile(file);
+      }
+    });
+
+    elements.searchInput.addEventListener("input", renderResults);
+    elements.clearButton.addEventListener("click", clearAll);
+    elements.sampleButton.addEventListener("click", () => loadText(sampleJsonl, "sample.jsonl", sampleJsonl.length));
+
+    clearAll();
+  </script>
+</body>
+</html>

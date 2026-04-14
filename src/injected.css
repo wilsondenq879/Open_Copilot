@@ -59,6 +59,42 @@
   margin: 0;
 }
 
+.ollama-quick-teams-inline-button {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483646;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(113, 194, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(11, 19, 36, 0.92);
+  color: #eef7ff;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow:
+    0 10px 28px rgba(3, 10, 24, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  opacity: 0.96;
+  transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.ollama-quick-teams-inline-button:hover,
+.ollama-quick-teams-inline-button:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  opacity: 1;
+  border-color: rgba(132, 214, 255, 0.5);
+  background: rgba(14, 26, 46, 0.96);
+}
+
 .ollama-quick-launcher {
   position: relative;
   z-index: 3;
@@ -260,6 +296,13 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
   color: #f5f9ff;
+  color-scheme: dark;
+}
+
+.ollama-quick-select option,
+.ollama-quick-select optgroup {
+  background: #2b2b2b;
+  color: #ffffff;
 }
 
 .ollama-quick-starters-panel {
@@ -1061,8 +1104,8 @@
 }
 
 .ollama-quick-message-body {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.58;
   color: #f5f9ff;
 }
 
@@ -1132,21 +1175,21 @@
 .rendered-markdown h2,
 .rendered-markdown h3 {
   margin: 0 0 10px;
-  line-height: 1.25;
+  line-height: 1.32;
   color: #ffffff !important;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .rendered-markdown h1 {
-  font-size: 22px;
-}
-
-.rendered-markdown h2 {
   font-size: 18px;
 }
 
+.rendered-markdown h2 {
+  font-size: 16px;
+}
+
 .rendered-markdown h3 {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .rendered-markdown p,
@@ -1286,8 +1329,8 @@
 
 .rendered-markdown strong,
 .rendered-markdown b {
-  color: #ffffff !important;
-  font-weight: 800;
+  color: #f5f9ff !important;
+  font-weight: 500;
 }
 
 .rendered-markdown em,
@@ -1322,6 +1365,7 @@
 
 .ollama-quick-compose-input {
   position: relative;
+  min-width: 0;
 }
 
 .ollama-quick-compose-attachments {
@@ -1393,8 +1437,9 @@
   display: block;
   height: 54px;
   min-height: 54px;
-  max-height: 96px;
-  resize: none;
+  max-height: min(36vh, 280px);
+  resize: vertical;
+  overflow: auto;
   padding: 14px 12px 12px 50px;
   border: 1px solid rgba(154, 176, 255, 0.18);
   border-radius: 14px;
@@ -1576,6 +1621,13 @@
 }
 
 #ollama-quick-chat-host[data-theme="light"] .ollama-quick-select {
+  color: #17324a;
+  color-scheme: light;
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-select option,
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-select optgroup {
+  background: #ffffff;
   color: #17324a;
 }
 
@@ -3558,8 +3610,8 @@
 }
 
 .ollama-quick-panel.is-maximized .ollama-quick-message-body {
-  font-size: 15px;
-  line-height: 1.72;
+  font-size: 13px;
+  line-height: 1.64;
 }
 
 .ollama-quick-panel.is-maximized .ollama-quick-message.is-user {
@@ -3726,8 +3778,8 @@
 }
 
 .ollama-quick-message.is-assistant .ollama-quick-message-body.rendered-markdown > * + * {
-  margin-top: 18px;
-  padding-top: 14px;
+  margin-top: 14px;
+  padding-top: 10px;
   border-top: 1px solid rgba(143, 221, 255, 0.12);
 }
 
@@ -3758,7 +3810,7 @@
 
 .ollama-quick-markdown-table th {
   background: rgba(143, 221, 255, 0.1);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .ollama-quick-markdown-table tbody tr:nth-child(even) {

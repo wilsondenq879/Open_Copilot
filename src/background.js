@@ -68,6 +68,7 @@ const DEFAULT_CONFIG = {
   settingsTheme: "system",
   taskExtractionWindowDays: DEFAULT_TASK_EXTRACTION_WINDOW_DAYS,
   starterHoverTipsEnabled: true,
+  teamsInlineActionEnabled: true,
   telegramNotificationEnabled: false,
   telegramChatId: "",
   lineNotificationEnabled: false,
@@ -96,6 +97,12 @@ const DEFAULT_CONFIG = {
     "If the page context is insufficient, say what is missing.",
     "When you mention a URL or file path, format it as a Markdown link.",
     "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
+    "When helpful, suggest 1 to 3 concrete next-step options for the conversation.",
+    "Prefer this format:",
+    "If you need, I can help you:",
+    "1. ...",
+    "2. ...",
+    "3. ...",
   ].join("\n"),
 };
 
@@ -1462,7 +1469,7 @@ function buildDiscordTaskReminderPayload(task = {}) {
 }
 
 function buildBatchUrlQaNotificationTextLines(payload = {}) {
-  const fileName = String(payload.fileName || "batch-url-qa.md").trim() || "batch-url-qa.md";
+  const fileName = String(payload.fileName || "batch-url-qa.jsonl").trim() || "batch-url-qa.jsonl";
   const outputPath = String(payload.outputPath || "").trim();
   const model = String(payload.model || "").trim();
   const outputLanguage = String(payload.outputLanguage || "").trim();
@@ -1506,7 +1513,7 @@ function buildTeamsBatchUrlQaNotificationCard(payload = {}) {
     accentColor: "4DA3FF",
     metadata: {
       eventType: "batch_url_qa_complete",
-      eventLabel: String(payload.fileName || "batch-url-qa.md"),
+      eventLabel: String(payload.fileName || "batch-url-qa.jsonl"),
       sentAt: String(payload.finishedAt || new Date().toISOString()),
       source: "Open Copilot",
     },
@@ -2440,9 +2447,53 @@ function normalizeBatchUrlQaCount(value) {
 }
 
 function normalizeBatchUrlQaFilename(value) {
-  const fallback = `batch-url-qa-${timestampForFile()}.md`;
-  const normalized = sanitizeFileSegment(String(value || "").replace(/\.md$/i, ""), "batch-url-qa");
-  return `${normalized || fallback.replace(/\.md$/i, "")}.md`;
+  const fallback = `batch-url-qa-${timestampForFile()}.jsonl`;
+  const normalized = sanitizeFileSegment(String(value || "").replace(/\.(md|jsonl)$/i, ""), "batch-url-qa");
+  return `${normalized || fallback.replace(/\.jsonl$/i, "")}.jsonl`;
+}
+
+function splitFilenameParts(value) {
+  const fileName = String(value || "").trim();
+  const match = fileName.match(/^(.*?)(\.[^.]+)?$/);
+  return {
+    stem: (match?.[1] || fileName || "file").trim() || "file",
+    ext: match?.[2] || "",
+  };
+}
+
+async function workFolderFileExists(path, fileName) {
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  try {
+    await directoryHandle.getFileHandle(String(fileName || "").trim());
+    return true;
+  } catch (error) {
+    const errorName = error && typeof error === "object" && "name" in error ? String(error.name || "") : "";
+    if (errorName === "NotFoundError") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function ensureUniqueBatchUrlQaFilename(fileName, options = {}) {
+  const normalized = normalizeBatchUrlQaFilename(fileName);
+  const excludedJobId = String(options.excludeJobId || "").trim();
+  const jobs = await getBatchUrlQaJobs();
+  const reservedNames = new Set(
+    jobs
+      .filter((job) => job.id !== excludedJobId)
+      .map((job) => String(job.fileName || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const { stem, ext } = splitFilenameParts(normalized);
+  let attempt = 1;
+  let candidate = normalized;
+  while (reservedNames.has(candidate.toLowerCase()) || await workFolderFileExists(WORK_FOLDER_DATASET_DIR, candidate)) {
+    attempt += 1;
+    candidate = `${stem}-${attempt}${ext}`;
+  }
+  return candidate;
 }
 
 function normalizeBatchUrl(value) {
@@ -2768,7 +2819,7 @@ function normalizeBatchUrlQaResult(item = {}) {
 function normalizeBatchUrlQaJob(job = {}) {
   const parsed = parseBatchUrlInput(Array.isArray(job.urls) ? job.urls.join("\n") : job.urls || "");
   const nowIso = new Date().toISOString();
-  const status = ["queued", "running", "completed", "failed"].includes(String(job.status || "").trim()) ? String(job.status).trim() : "queued";
+  const status = ["queued", "running", "completed", "failed", "canceled"].includes(String(job.status || "").trim()) ? String(job.status).trim() : "queued";
   return {
     id: normalizeTaskText(job.id || "", 120) || createStableId("batch-url-qa"),
     createdAt: normalizeTaskIsoDate(job.createdAt || "") || nowIso,
@@ -2826,6 +2877,51 @@ async function upsertBatchUrlQaJob(jobInput = {}) {
   }
   const saved = await saveBatchUrlQaJobs(nextJobs);
   return saved.find((item) => item.id === normalized.id) || normalized;
+}
+
+async function getBatchUrlQaJobById(jobId) {
+  const jobs = await getBatchUrlQaJobs();
+  return jobs.find((item) => item.id === jobId) || null;
+}
+
+function createBatchUrlQaCanceledError() {
+  const error = new Error("Batch URL QA job was canceled.");
+  error.name = "BatchUrlQaCanceledError";
+  return error;
+}
+
+function isBatchUrlQaCanceledError(error) {
+  return error instanceof Error && error.name === "BatchUrlQaCanceledError";
+}
+
+async function throwIfBatchUrlQaCanceled(jobId) {
+  const latestJob = await getBatchUrlQaJobById(jobId);
+  if (!latestJob) {
+    throw new Error("Batch URL QA job not found.");
+  }
+  if (latestJob.status === "canceled") {
+    throw createBatchUrlQaCanceledError();
+  }
+  return latestJob;
+}
+
+async function cancelBatchUrlQaJob(jobId) {
+  const current = await getBatchUrlQaJobById(jobId);
+  if (!current) {
+    throw new Error("Batch URL QA job not found.");
+  }
+  if (current.status === "completed" || current.status === "failed" || current.status === "canceled") {
+    return current;
+  }
+  return upsertBatchUrlQaJob({
+    ...current,
+    updatedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
+    status: "canceled",
+    stage: "canceled",
+    stageLabel: "Canceled",
+    error: "",
+  });
 }
 
 function extractJsonObjectFromText(value) {
@@ -3036,57 +3132,51 @@ function truncateEmbeddedQaMarker(value, markerLabel) {
   return text.slice(0, match.index).trim().replace(/[，,、；;:：.\-]+\s*$/u, "").trim();
 }
 
-function buildBatchUrlQaMarkdown(results = []) {
+function buildBatchUrlQaJsonl(results = []) {
   const entries = (Array.isArray(results) ? results : [])
     .filter((item) => item.status === "ok" && Array.isArray(item.qaPairs) && item.qaPairs.length)
-    .flatMap((item) => item.qaPairs)
-    .flatMap((pair) => {
-      const questions = Array.isArray(pair.questions) ? pair.questions : [];
+    .flatMap((item) => item.qaPairs.map((pair, pairIndex) => {
+      const questions = Array.isArray(pair.questions)
+        ? pair.questions
+          .map((question) => normalizeBatchUrlQaOutputLine(
+            truncateEmbeddedQaMarker(
+              stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(question), "Q"),
+              "A",
+            ),
+          ))
+          .filter(Boolean)
+        : [];
       const answer = normalizeBatchUrlQaOutputLine(
         truncateEmbeddedQaMarker(
           stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(pair.answer), "A"),
           "Q",
         ),
       );
-      return questions.map((question) => {
-        const cleanedQuestion = normalizeBatchUrlQaOutputLine(
-          truncateEmbeddedQaMarker(
-            stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(question), "Q"),
-            "A",
-          ),
-        );
-        return `Q: ${cleanedQuestion}\nA: ${answer}`;
+      const evidence = normalizeBatchUrlQaOutputLine(
+        truncateEmbeddedQaMarker(
+          stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(pair.evidence), "Evidence"),
+          "Q",
+        ),
+      );
+      if (!questions.length || !answer || !evidence) {
+        return "";
+      }
+      const canonicalQuestion = questions[0];
+      const aliases = questions.slice(1);
+      return JSON.stringify({
+        chunk_id: `${item.processedAt || "batch-url-qa"}::${pairIndex + 1}::${normalizeTaskText(item.url || "", 200)}`,
+        source_url: normalizeTaskText(item.url || "", 1200),
+        source_title: normalizeTaskText(item.title || "", 300),
+        processed_at: normalizeTaskIsoDate(item.processedAt || "") || new Date().toISOString(),
+        topic: normalizeTaskText(pair.topic || "", 300),
+        canonical_question: canonicalQuestion,
+        question_aliases: aliases,
+        answer,
+        evidence,
       });
-    })
+    }))
     .filter(Boolean);
-  if (entries.length) {
-    return `${entries.join("\n\n")}\n`;
-  }
-
-  const failures = (Array.isArray(results) ? results : [])
-    .filter((item) => item.status === "failed")
-    .map((item, index) => {
-      const url = String(item.url || "").trim();
-      const reason = String(item.reason || "Unknown error.").trim();
-      return [
-        `## Failed URL ${index + 1}`,
-        url ? `URL: ${url}` : "",
-        `Reason: ${reason}`,
-      ].filter(Boolean).join("\n");
-    });
-
-  if (failures.length) {
-    return [
-      "# Batch URL QA",
-      "",
-      "No valid QA pairs were written for this run.",
-      "",
-      ...failures,
-      "",
-    ].join("\n");
-  }
-
-  return "# Batch URL QA\n\nNo QA pairs were generated yet.\n";
+  return entries.length ? `${entries.join("\n")}\n` : "";
 }
 
 async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
@@ -3142,15 +3232,17 @@ async function processBatchUrlQaJob(jobId) {
     stage: "starting",
     stageLabel: "Preparing batch workflow",
   });
-  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
 
   for (const [urlIndex, url] of job.urls.entries()) {
+    job = await throwIfBatchUrlQaCanceled(jobId);
     if (job.results.some((item) => item.url === url)) {
       continue;
     }
 
     let result;
     try {
+      job = await throwIfBatchUrlQaCanceled(jobId);
       job = await upsertBatchUrlQaJob({
         ...job,
         updatedAt: new Date().toISOString(),
@@ -3164,6 +3256,7 @@ async function processBatchUrlQaJob(jobId) {
       if (pageText.length < 500) {
         throw new Error("insufficient_content");
       }
+      job = await throwIfBatchUrlQaCanceled(jobId);
       job = await upsertBatchUrlQaJob({
         ...job,
         updatedAt: new Date().toISOString(),
@@ -3183,6 +3276,7 @@ async function processBatchUrlQaJob(jobId) {
         outputLanguage: job.outputLanguage,
         extraPrompt: job.extraPrompt,
       });
+      await throwIfBatchUrlQaCanceled(jobId);
       result = normalizeBatchUrlQaResult({
         url,
         title: context?.title || "",
@@ -3209,16 +3303,18 @@ async function processBatchUrlQaJob(jobId) {
       currentUrl: url,
       currentIndex: urlIndex + 1,
     });
-    await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+    await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
   }
 
+  job = await throwIfBatchUrlQaCanceled(jobId);
   job = await upsertBatchUrlQaJob({
     ...job,
     updatedAt: new Date().toISOString(),
     stage: "writing",
-    stageLabel: "Writing Markdown file",
+    stageLabel: "Writing JSONL file",
   });
-  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaMarkdown(job.results));
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
+  job = await throwIfBatchUrlQaCanceled(jobId);
   job = await upsertBatchUrlQaJob({
     ...job,
     updatedAt: new Date().toISOString(),
@@ -3236,6 +3332,7 @@ async function processBatchUrlQaJob(jobId) {
     failureCount: job.failureCount,
     finishedAt: new Date().toISOString(),
   });
+  job = await throwIfBatchUrlQaCanceled(jobId);
   await upsertBatchUrlQaJob({
     ...job,
     updatedAt: new Date().toISOString(),
@@ -3264,6 +3361,7 @@ async function startBatchUrlQaJob(input = {}) {
     throw new Error("Pick a model before starting Batch URL QA.");
   }
   await getWritableWorkFolderHandle();
+  const uniqueFileName = await ensureUniqueBatchUrlQaFilename(input.fileName);
 
   const job = await upsertBatchUrlQaJob({
     id: createStableId("batch-url-qa"),
@@ -3274,7 +3372,7 @@ async function startBatchUrlQaJob(input = {}) {
     outputLanguage: String(input.outputLanguage || config.replyLanguage || "zh-TW").trim() || "zh-TW",
     extraPrompt: String(input.extraPrompt || "").trim(),
     qaPerUrl: normalizeBatchUrlQaCount(input.qaPerUrl),
-    fileName: normalizeBatchUrlQaFilename(input.fileName),
+    fileName: uniqueFileName,
     urls: parsed.urls,
     invalidUrls: parsed.invalid,
     truncated: parsed.truncated,
@@ -3288,6 +3386,9 @@ async function startBatchUrlQaJob(input = {}) {
   });
 
   processBatchUrlQaJob(job.id).catch(async (error) => {
+    if (isBatchUrlQaCanceledError(error)) {
+      return;
+    }
     await upsertBatchUrlQaJob({
       ...job,
       updatedAt: new Date().toISOString(),
@@ -3448,6 +3549,81 @@ function formatHttpError(status, responseText = "") {
 
   const compact = rawText.replace(/\s+/g, " ").trim();
   return `HTTP ${status}: ${compact}`;
+}
+
+function decodeHtmlEntities(value = "") {
+  return String(value || "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, codePoint) => {
+      const numeric = Number.parseInt(codePoint, 10);
+      return Number.isFinite(numeric) ? String.fromCharCode(numeric) : "";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hexValue) => {
+      const numeric = Number.parseInt(hexValue, 16);
+      return Number.isFinite(numeric) ? String.fromCharCode(numeric) : "";
+    });
+}
+
+function stripHtmlTags(value = "") {
+  return decodeHtmlEntities(String(value || "").replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractXmlTagContent(block, tagName) {
+  const pattern = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i");
+  const match = String(block || "").match(pattern);
+  return match ? stripHtmlTags(match[1]) : "";
+}
+
+async function searchWebResults({ query, limit = 5 } = {}) {
+  const normalizedQuery = String(query || "").trim();
+  const normalizedLimit = Math.max(1, Math.min(Number.parseInt(String(limit), 10) || 5, 8));
+
+  if (!normalizedQuery) {
+    throw new Error("Web search query is missing.");
+  }
+
+  const url = new URL("https://www.bing.com/search");
+  url.searchParams.set("format", "rss");
+  url.searchParams.set("q", normalizedQuery);
+  url.searchParams.set("count", String(normalizedLimit));
+  url.searchParams.set("setlang", "en-US");
+
+  const xml = await fetchText(url.toString(), {
+    headers: {
+      Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    },
+  });
+
+  const results = [...String(xml || "").matchAll(/<item\b[\s\S]*?<\/item>/gi)]
+    .slice(0, normalizedLimit)
+    .map((match) => {
+      const block = match[0] || "";
+      const title = extractXmlTagContent(block, "title");
+      const link = decodeHtmlEntities(extractXmlTagContent(block, "link"));
+      const snippet = extractXmlTagContent(block, "description");
+      if (!title || !link) {
+        return null;
+      }
+      return {
+        title,
+        url: link,
+        snippet,
+        source: "Bing",
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    query: normalizedQuery,
+    results,
+  };
 }
 
 function getGithubRequestHeaders(token, accept = "application/vnd.github+json") {
@@ -5238,6 +5414,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, tabs: await getBrowserTabContexts({ tabIds: message.tabIds || [], excludedTabId: sender?.tab?.id }) });
         return;
       }
+      case "web:search": {
+        sendResponse({ ok: true, ...(await searchWebResults(message || {})) });
+        return;
+      }
       case "ollama:open-in-page-copilot": {
         const tabId = sender?.tab?.id ?? message.tabId;
         sendResponse({ ok: true, ...(await openCopilotInTab(tabId)) });
@@ -5272,6 +5452,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "batch-url-qa:start-job": {
         sendResponse({ ok: true, job: await startBatchUrlQaJob(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "batch-url-qa:cancel-job": {
+        sendResponse({ ok: true, job: await cancelBatchUrlQaJob(String(message.jobId || "").trim()), status: await getWorkFolderStatus() });
         return;
       }
       case "work-folder:sync-push": {
