@@ -305,6 +305,7 @@ let batchUrlQaBuilderDraft = null;
 let batchUrlQaActiveJob = null;
 let batchUrlQaPollTimer = null;
 let batchUrlQaShouldFocusUrls = false;
+let batchUrlQaBuilderScrollTop = 0;
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
@@ -9469,6 +9470,10 @@ function renderShell() {
   const host = ensureHost();
   const existingPrompt = host.querySelector("[data-role='prompt']");
   const promptDraft = existingPrompt instanceof HTMLTextAreaElement ? existingPrompt.value : "";
+  const existingBatchUrlQaForm = host.querySelector(".ollama-quick-batch-url-qa-form");
+  if (existingBatchUrlQaForm instanceof HTMLElement) {
+    batchUrlQaBuilderScrollTop = existingBatchUrlQaForm.scrollTop;
+  }
   syncHostState(host);
   syncHostScale(host);
   currentPageCopilot = detectPageCopilot();
@@ -9754,6 +9759,12 @@ function renderShell() {
   }
 
   if (batchUrlQaBuilderOpen) {
+    const batchUrlQaForm = host.querySelector(".ollama-quick-batch-url-qa-form");
+    if (batchUrlQaForm instanceof HTMLElement) {
+      window.requestAnimationFrame(() => {
+        batchUrlQaForm.scrollTop = batchUrlQaBuilderScrollTop;
+      });
+    }
     const urlsField = host.querySelector('[data-role="batch-url-qa-urls"]');
     if (batchUrlQaShouldFocusUrls && urlsField instanceof HTMLTextAreaElement) {
       window.requestAnimationFrame(() => {
