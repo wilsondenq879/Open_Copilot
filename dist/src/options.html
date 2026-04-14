@@ -82,6 +82,11 @@
                   <span id="starterHoverTipsEnabledLabel">Enable starter hover tips</span>
                 </label>
                 <p id="starterHoverTipsEnabledHint" class="field-hint">Show a short description when you hover over a starter in the chat panel.</p>
+                <label class="checkbox-field">
+                  <input id="teamsInlineActionEnabled" type="checkbox" />
+                  <span id="teamsInlineActionEnabledLabel">Enable Teams Send to Open Copilot button</span>
+                </label>
+                <p id="teamsInlineActionEnabledHint" class="field-hint">Show a Send to Open Copilot button when you hover over a Teams message.</p>
               </div>
               <label class="field">
                 <span id="systemPromptLabel">System Prompt</span>
@@ -589,7 +594,7 @@ Time: triggerBody()['sentAt']</pre>
             <div class="starter-studio-library-head">
               <div>
                 <div id="batchUrlQaJobsTitle" class="starter-studio-title">Batch URL QA Jobs</div>
-                <p id="batchUrlQaJobsHint" class="field-hint">Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.</p>
+                <p id="batchUrlQaJobsHint" class="field-hint">Recent runs show progress, success counts, and the single JSONL output path inside the local work folder.</p>
               </div>
             </div>
             <div id="batchUrlQaJobsPreview" class="starter-preview-list empty-state">No Batch URL QA jobs yet.</div>
@@ -665,7 +670,7 @@ Time: triggerBody()['sentAt']</pre>
           <div>
             <div id="batchUrlQaLogsKicker" class="section-kicker">Flow Logs</div>
             <h3 id="batchUrlQaLogsTitle" class="starter-studio-title">Batch URL QA Logs</h3>
-            <p id="batchUrlQaJobsHintModal" class="field-hint">Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.</p>
+            <p id="batchUrlQaJobsHintModal" class="field-hint">Recent runs show progress, success counts, and the single JSONL output path inside the local work folder.</p>
           </div>
           <button id="batchUrlQaLogsClose" class="secondary-button" type="button">Close</button>
         </div>

@@ -303,6 +303,7 @@ let agentFlowBuilderDraft = null;
 let batchUrlQaBuilderOpen = false;
 let batchUrlQaBuilderDraft = null;
 let batchUrlQaActiveJob = null;
+let batchUrlQaWorkFolderStatus = null;
 let batchUrlQaPollTimer = null;
 let batchUrlQaShouldFocusUrls = false;
 let batchUrlQaBuilderScrollTop = 0;
@@ -2166,6 +2167,16 @@ function normalizeRuntimeError(error) {
     return new Error(tl("extensionReloadRequired"));
   }
   return new Error(message);
+}
+
+function getWorkFolderStatusMessage(status) {
+  if (!status?.configured) {
+    return tl("workFolderNotConfigured");
+  }
+  if (status.permission && status.permission !== "granted") {
+    return tl("workFolderPermissionMissing");
+  }
+  return "";
 }
 
 function getUiLanguage() {
@@ -10302,6 +10313,7 @@ async function loadBatchUrlQaActiveJob() {
   if (!result?.ok) {
     throw new Error(result?.error || "Failed to load batch URL QA jobs.");
   }
+  batchUrlQaWorkFolderStatus = result.status || null;
   const jobs = Array.isArray(result.jobs) ? result.jobs : [];
   const draft = ensureBatchUrlQaBuilderDraft();
   const targetJob = jobs.find((item) => item.id === batchUrlQaActiveJob?.id)
@@ -10331,6 +10343,16 @@ async function loadBatchUrlQaActiveJob() {
   renderShell();
 }
 
+async function loadBatchUrlQaWorkFolderStatus() {
+  const result = await runtimeMessage({ type: "ollama:get-work-folder-status" });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("workFolderNotConfigured"));
+  }
+  batchUrlQaWorkFolderStatus = result.status || null;
+  renderShell();
+  return batchUrlQaWorkFolderStatus;
+}
+
 function startBatchUrlQaPolling() {
   if (batchUrlQaPollTimer) {
     window.clearInterval(batchUrlQaPollTimer);
@@ -10351,6 +10373,8 @@ function renderBatchUrlQaBuilder() {
   const draft = ensureBatchUrlQaBuilderDraft();
   const activeJob = batchUrlQaActiveJob;
   const isRunning = activeJob?.status === "running" || activeJob?.status === "queued";
+  const workFolderMessage = getWorkFolderStatusMessage(batchUrlQaWorkFolderStatus);
+  const isStartDisabled = isRunning || Boolean(workFolderMessage);
   const isCancelDisabled = !isRunning;
   const stageText = getBatchUrlQaStageLabel(activeJob?.stage || "");
   const progressText = activeJob ? `${activeJob.progress || 0} / ${activeJob.total || 0}` : "0 / 0";
@@ -10371,6 +10395,12 @@ function renderBatchUrlQaBuilder() {
         </div>
         <div class="ollama-quick-custom-starter-form ollama-quick-batch-url-qa-form">
           <div class="ollama-quick-batch-url-qa-hint">${escapeHtml(tl("batchUrlQaHideHint"))}</div>
+          ${workFolderMessage ? `
+            <div class="ollama-quick-batch-url-qa-warning">
+              <div class="ollama-quick-batch-url-qa-warning-copy">${escapeHtml(workFolderMessage)}</div>
+              <button class="ollama-quick-secondary ollama-quick-batch-url-qa-warning-action" type="button" data-action="open-settings">${escapeHtml(tl("openSettings"))}</button>
+            </div>
+          ` : ""}
           <div class="ollama-quick-batch-url-qa-layout">
             <div class="ollama-quick-batch-url-qa-column is-urls">
               <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-surface is-urls-surface">
@@ -10407,7 +10437,7 @@ function renderBatchUrlQaBuilder() {
         <div class="ollama-quick-picker-footer">
           <button class="ollama-quick-secondary" type="button" data-action="close-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaClose"))}</button>
           <button class="ollama-quick-secondary" type="button" data-action="cancel-batch-url-qa-workflow" ${isCancelDisabled ? "disabled" : ""}>${escapeHtml(tl("batchUrlQaCancel"))}</button>
-          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="start-batch-url-qa-workflow" ${isRunning ? "disabled" : ""}>${escapeHtml(isRunning ? tl("batchUrlQaRunning") : tl("batchUrlQaStart"))}</button>
+          <button class="ollama-quick-primary ollama-quick-picker-add ${isRunning ? "is-running" : ""}" type="button" data-action="start-batch-url-qa-workflow" ${isStartDisabled ? "disabled" : ""}>${escapeHtml(isRunning ? tl("batchUrlQaRunning") : tl("batchUrlQaStart"))}</button>
         </div>
       </section>
     </div>
@@ -11786,6 +11816,7 @@ async function handleClick(event) {
     batchUrlQaBuilderOpen = true;
     batchUrlQaShouldFocusUrls = true;
     loadBatchUrlQaActiveJob().catch(() => {});
+    loadBatchUrlQaWorkFolderStatus().catch(() => {});
     renderShell();
     return;
   }
@@ -11801,6 +11832,12 @@ async function handleClick(event) {
       setStatus(tl("pickModelFirst"));
       return;
     }
+    const workFolderStatus = await loadBatchUrlQaWorkFolderStatus().catch(() => batchUrlQaWorkFolderStatus);
+    const workFolderMessage = getWorkFolderStatusMessage(workFolderStatus);
+    if (workFolderMessage) {
+      setStatus(workFolderMessage);
+      return;
+    }
     const result = await runtimeMessage({
       type: "batch-url-qa:start-job",
       urls: draft.urls,
@@ -11811,12 +11848,22 @@ async function handleClick(event) {
       model: executionModel,
     });
     if (!result?.ok) {
+      if (/Local work folder is not configured/i.test(String(result?.error || ""))) {
+        setStatus(tl("workFolderNotConfigured"));
+        return;
+      }
+      if (/Local work folder permission is unavailable|invalid/i.test(String(result?.error || ""))) {
+        setStatus(tl("workFolderPermissionMissing"));
+        return;
+      }
       setStatus(result?.error || tl("batchUrlQaStageFailed"));
       return;
     }
     batchUrlQaActiveJob = result.job || null;
+    batchUrlQaWorkFolderStatus = result.status || batchUrlQaWorkFolderStatus;
     setStatus(batchUrlQaActiveJob?.stageLabel || tl("batchUrlQaStageStarting"));
     startBatchUrlQaPolling();
+    loadBatchUrlQaActiveJob().catch(() => {});
     renderShell();
     return;
   }

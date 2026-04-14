@@ -145,6 +145,8 @@ const OPTION_I18N = {
     taskExtractionWindowDaysHint: "待辦抓取會根據目前可見的聊天內容整理，預設優先近 3 天，最多可調到 7 天。",
     starterHoverTipsEnabledLabel: "顯示 Starter 懸停提示",
     starterHoverTipsEnabledHint: "滑過聊天面板中的 starter 時，顯示這個 starter 會做什麼的簡短說明。",
+    teamsInlineActionEnabledLabel: "顯示 Teams 的 Send to Open Copilot 按鈕",
+    teamsInlineActionEnabledHint: "滑過 Teams 訊息時，顯示 Send to Open Copilot 快捷按鈕。",
     systemPromptLabel: "系統提示詞",
     multiPerspectiveProfilesLabel: "多視角角色",
     utilityTabExperience: "體驗",
@@ -386,6 +388,8 @@ const OPTION_I18N = {
     taskExtractionWindowDaysHint: "Task extraction uses visible chat content and prioritizes the last 3 days by default. You can increase the window up to 7 days.",
     starterHoverTipsEnabledLabel: "Show starter hover tips",
     starterHoverTipsEnabledHint: "Show a short description of what the starter does when you hover over it in the chat panel.",
+    teamsInlineActionEnabledLabel: "Show Teams Send to Open Copilot button",
+    teamsInlineActionEnabledHint: "Show a Send to Open Copilot shortcut button when you hover over a Teams message.",
     systemPromptLabel: "System Prompt",
     multiPerspectiveProfilesLabel: "Multi-View Profiles",
     utilityTabExperience: "Experience",
@@ -1696,11 +1700,11 @@ Object.assign(OPTION_I18N.en, {
   builtinFlowTemplatesEmpty: "No built-in flow templates yet.",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
-  batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.",
+  batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single JSONL output path inside the local work folder.",
   batchUrlQaLogsKicker: "Flow Logs",
   batchUrlQaLogsTitle: "Batch URL QA Logs",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Default built-in workflow: paste a URL list, read each page, generate grounded QA, write one Markdown file, and send a completion notification. This card is a read-only template and does not run jobs directly from settings.",
+  batchUrlQaTemplateHint: "Default built-in workflow: paste a URL list, read each page, generate grounded QA, write one JSONL file, and send a completion notification. This card is a read-only template and does not run jobs directly from settings.",
   batchUrlQaNoJobs: "No Batch URL QA jobs yet.",
   batchUrlQaStarted: "Batch URL QA started for {count} URL(s). Output file: {fileName}.",
   batchUrlQaModelMissing: "Select a model before starting Batch URL QA.",
@@ -1877,11 +1881,11 @@ Object.assign(OPTION_I18N["zh-CN"], {
   builtinFlowTemplatesEmpty: "目前还没有内建 Flow 模板。",
   batchUrlQaLogsButton: "日志",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
-  batchUrlQaJobsHint: "最近执行结果会显示进度、成功数量，以及本地工作文件夹中的单一 Markdown 输出路径。",
+  batchUrlQaJobsHint: "最近执行结果会显示进度、成功数量，以及本地工作文件夹中的单一 JSONL 输出路径。",
   batchUrlQaLogsKicker: "Flow 日志",
   batchUrlQaLogsTitle: "Batch URL QA 日志",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "内建默认 workflow：贴上一批网址后，逐页读取内容、生成 grounded QA、写入单一 Markdown 文件，并在完成后发送通知。这里是只读模板，不会直接在设置页执行。",
+  batchUrlQaTemplateHint: "内建默认 workflow：贴上一批网址后，逐页读取内容、生成 grounded QA、写入单一 JSONL 文件，并在完成后发送通知。这里是只读模板，不会直接在设置页执行。",
   batchUrlQaNoJobs: "目前还没有 Batch URL QA jobs。",
   batchUrlQaStarted: "已开始 Batch URL QA，共 {count} 个网址，输出文件：{fileName}。",
   batchUrlQaModelMissing: "开始 Batch URL QA 前，请先选择模型。",
@@ -1953,11 +1957,11 @@ Object.assign(OPTION_I18N.ja, {
   builtinFlowTemplatesEmpty: "まだ組み込み Flow テンプレートはありません。",
   batchUrlQaLogsButton: "ログ",
   batchUrlQaJobsTitle: "Batch URL QA ジョブ",
-  batchUrlQaJobsHint: "最近の実行結果として、進捗、成功数、ローカル作業フォルダー内の Markdown 出力先を表示します。",
+  batchUrlQaJobsHint: "最近の実行結果として、進捗、成功数、ローカル作業フォルダー内の JSONL 出力先を表示します。",
   batchUrlQaLogsKicker: "Flow ログ",
   batchUrlQaLogsTitle: "Batch URL QA ログ",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "組み込み既定 workflow。URL 一覧を貼り付けると各ページを読み取り、grounded QA を生成し、1 つの Markdown にまとめ、完了通知を送ります。ここでは読み取り専用テンプレートとして表示されます。",
+  batchUrlQaTemplateHint: "組み込み既定 workflow。URL 一覧を貼り付けると各ページを読み取り、grounded QA を生成し、1 つの JSONL にまとめ、完了通知を送ります。ここでは読み取り専用テンプレートとして表示されます。",
   batchUrlQaNoJobs: "まだ Batch URL QA ジョブはありません。",
   batchUrlQaStarted: "Batch URL QA を開始しました。URL 数: {count}、出力ファイル: {fileName}。",
   batchUrlQaModelMissing: "Batch URL QA を開始する前にモデルを選択してください。",
@@ -2029,11 +2033,11 @@ Object.assign(OPTION_I18N.ko, {
   builtinFlowTemplatesEmpty: "아직 내장 Flow 템플릿이 없습니다.",
   batchUrlQaLogsButton: "로그",
   batchUrlQaJobsTitle: "Batch URL QA 작업",
-  batchUrlQaJobsHint: "최근 실행 결과로 진행률, 성공 수, 로컬 작업 폴더 안의 단일 Markdown 출력 경로를 보여줍니다.",
+  batchUrlQaJobsHint: "최근 실행 결과로 진행률, 성공 수, 로컬 작업 폴더 안의 단일 JSONL 출력 경로를 보여줍니다.",
   batchUrlQaLogsKicker: "Flow 로그",
   batchUrlQaLogsTitle: "Batch URL QA 로그",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "기본 내장 workflow입니다. URL 목록을 붙여 넣으면 각 페이지를 읽고 grounded QA를 생성한 뒤 하나의 Markdown 파일로 저장하고 완료 알림을 보냅니다. 여기서는 읽기 전용 템플릿으로만 표시됩니다.",
+  batchUrlQaTemplateHint: "기본 내장 workflow입니다. URL 목록을 붙여 넣으면 각 페이지를 읽고 grounded QA를 생성한 뒤 하나의 JSONL 파일로 저장하고 완료 알림을 보냅니다. 여기서는 읽기 전용 템플릿으로만 표시됩니다.",
   batchUrlQaNoJobs: "아직 Batch URL QA 작업이 없습니다.",
   batchUrlQaStarted: "Batch URL QA를 시작했습니다. URL 수: {count}, 출력 파일: {fileName}.",
   batchUrlQaModelMissing: "Batch URL QA를 시작하기 전에 모델을 선택해 주세요.",
@@ -2105,11 +2109,11 @@ Object.assign(OPTION_I18N.es, {
   builtinFlowTemplatesEmpty: "Todavía no hay plantillas de Flow integradas.",
   batchUrlQaLogsButton: "Registros",
   batchUrlQaJobsTitle: "Trabajos de Batch URL QA",
-  batchUrlQaJobsHint: "Las ejecuciones recientes muestran progreso, éxitos y la ruta del archivo Markdown generado en la carpeta de trabajo local.",
+  batchUrlQaJobsHint: "Las ejecuciones recientes muestran progreso, éxitos y la ruta del archivo JSONL generado en la carpeta de trabajo local.",
   batchUrlQaLogsKicker: "Registros de flujo",
   batchUrlQaLogsTitle: "Registros de Batch URL QA",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Flujo integrado predeterminado: pega una lista de URLs, lee cada página, genera QA con base en evidencia, escribe un único archivo Markdown y envía una notificación al terminar. Esta tarjeta es solo una plantilla de lectura.",
+  batchUrlQaTemplateHint: "Flujo integrado predeterminado: pega una lista de URLs, lee cada página, genera QA con base en evidencia, escribe un único archivo JSONL y envía una notificación al terminar. Esta tarjeta es solo una plantilla de lectura.",
   batchUrlQaNoJobs: "Todavía no hay trabajos de Batch URL QA.",
   batchUrlQaStarted: "Se inició Batch URL QA para {count} URL(s). Archivo de salida: {fileName}.",
   batchUrlQaModelMissing: "Selecciona un modelo antes de iniciar Batch URL QA.",
@@ -2181,11 +2185,11 @@ Object.assign(OPTION_I18N.fr, {
   builtinFlowTemplatesEmpty: "Aucun modèle de Flow intégré pour le moment.",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaJobsTitle: "Tâches Batch URL QA",
-  batchUrlQaJobsHint: "Les exécutions récentes affichent la progression, le nombre de succès et le chemin du fichier Markdown généré dans le dossier de travail local.",
+  batchUrlQaJobsHint: "Les exécutions récentes affichent la progression, le nombre de succès et le chemin du fichier JSONL généré dans le dossier de travail local.",
   batchUrlQaLogsKicker: "Logs du flow",
   batchUrlQaLogsTitle: "Logs Batch URL QA",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Workflow intégré par défaut : collez une liste d’URL, lisez chaque page, générez un QA fondé sur les sources, créez un seul fichier Markdown, puis envoyez une notification de fin. Cette carte est un modèle en lecture seule.",
+  batchUrlQaTemplateHint: "Workflow intégré par défaut : collez une liste d’URL, lisez chaque page, générez un QA fondé sur les sources, créez un seul fichier JSONL, puis envoyez une notification de fin. Cette carte est un modèle en lecture seule.",
   batchUrlQaNoJobs: "Aucune tâche Batch URL QA pour le moment.",
   batchUrlQaStarted: "Batch URL QA démarré pour {count} URL(s). Fichier de sortie : {fileName}.",
   batchUrlQaModelMissing: "Sélectionnez un modèle avant de lancer Batch URL QA.",
@@ -2257,11 +2261,11 @@ Object.assign(OPTION_I18N.de, {
   builtinFlowTemplatesEmpty: "Noch keine eingebauten Flow-Vorlagen vorhanden.",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaJobsTitle: "Batch-URL-QA-Jobs",
-  batchUrlQaJobsHint: "Letzte Durchläufe zeigen Fortschritt, Erfolgszahlen und den Markdown-Ausgabepfad im lokalen Arbeitsordner.",
+  batchUrlQaJobsHint: "Letzte Durchläufe zeigen Fortschritt, Erfolgszahlen und den JSONL-Ausgabepfad im lokalen Arbeitsordner.",
   batchUrlQaLogsKicker: "Flow-Logs",
   batchUrlQaLogsTitle: "Batch-URL-QA-Logs",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Standard-Workflow: Eine URL-Liste einfügen, jede Seite lesen, quellenbasierte QA erzeugen, alles in eine Markdown-Datei schreiben und zum Schluss eine Benachrichtigung senden. Diese Karte ist nur eine schreibgeschützte Vorlage.",
+  batchUrlQaTemplateHint: "Standard-Workflow: Eine URL-Liste einfügen, jede Seite lesen, quellenbasierte QA erzeugen, alles in eine JSONL-Datei schreiben und zum Schluss eine Benachrichtigung senden. Diese Karte ist nur eine schreibgeschützte Vorlage.",
   batchUrlQaNoJobs: "Noch keine Batch-URL-QA-Jobs vorhanden.",
   batchUrlQaStarted: "Batch URL QA für {count} URL(s) gestartet. Ausgabedatei: {fileName}.",
   batchUrlQaModelMissing: "Wähle ein Modell aus, bevor du Batch URL QA startest.",
@@ -2333,11 +2337,11 @@ Object.assign(OPTION_I18N["pt-BR"], {
   builtinFlowTemplatesEmpty: "Ainda não há modelos de Flow embutidos.",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaJobsTitle: "Jobs de Batch URL QA",
-  batchUrlQaJobsHint: "As execuções recentes mostram progresso, sucessos e o caminho do arquivo Markdown gerado na pasta de trabalho local.",
+  batchUrlQaJobsHint: "As execuções recentes mostram progresso, sucessos e o caminho do arquivo JSONL gerado na pasta de trabalho local.",
   batchUrlQaLogsKicker: "Logs do flow",
   batchUrlQaLogsTitle: "Logs de Batch URL QA",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Workflow embutido padrão: cole uma lista de URLs, leia cada página, gere QA com base em evidências, grave um único arquivo Markdown e envie uma notificação ao terminar. Este card é apenas um modelo somente leitura.",
+  batchUrlQaTemplateHint: "Workflow embutido padrão: cole uma lista de URLs, leia cada página, gere QA com base em evidências, grave um único arquivo JSONL e envie uma notificação ao terminar. Este card é apenas um modelo somente leitura.",
   batchUrlQaNoJobs: "Ainda não há jobs de Batch URL QA.",
   batchUrlQaStarted: "Batch URL QA iniciado para {count} URL(s). Arquivo de saída: {fileName}.",
   batchUrlQaModelMissing: "Selecione um modelo antes de iniciar o Batch URL QA.",
@@ -2409,11 +2413,11 @@ Object.assign(OPTION_I18N.hi, {
   builtinFlowTemplatesEmpty: "अभी कोई बिल्ट-इन Flow टेम्पलेट नहीं है।",
   batchUrlQaLogsButton: "लॉग्स",
   batchUrlQaJobsTitle: "Batch URL QA jobs",
-  batchUrlQaJobsHint: "हाल की runs में प्रगति, सफल गिनती और लोकल वर्क फ़ोल्डर के भीतर Markdown आउटपुट पथ दिखता है।",
+  batchUrlQaJobsHint: "हाल की runs में प्रगति, सफल गिनती और लोकल वर्क फ़ोल्डर के भीतर JSONL आउटपुट पथ दिखता है।",
   batchUrlQaLogsKicker: "Flow लॉग्स",
   batchUrlQaLogsTitle: "Batch URL QA लॉग्स",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "डिफ़ॉल्ट बिल्ट-इन workflow: URL सूची पेस्ट करें, हर पेज पढ़ें, grounded QA बनाएं, एक Markdown फ़ाइल लिखें, और पूरा होने पर सूचना भेजें। यह कार्ड केवल पढ़ने योग्य टेम्पलेट है।",
+  batchUrlQaTemplateHint: "डिफ़ॉल्ट बिल्ट-इन workflow: URL सूची पेस्ट करें, हर पेज पढ़ें, grounded QA बनाएं, एक JSONL फ़ाइल लिखें, और पूरा होने पर सूचना भेजें। यह कार्ड केवल पढ़ने योग्य टेम्पलेट है।",
   batchUrlQaNoJobs: "अभी कोई Batch URL QA job नहीं है।",
   batchUrlQaStarted: "{count} URL के लिए Batch URL QA शुरू हुआ। आउटपुट फ़ाइल: {fileName}।",
   batchUrlQaModelMissing: "Batch URL QA शुरू करने से पहले मॉडल चुनें।",
@@ -2466,6 +2470,12 @@ const DEFAULT_SYSTEM_PROMPT_EN = [
   "If the page context is insufficient, say what is missing.",
   "When you mention a URL or file path, format it as a Markdown link.",
   "For external URLs, use [label](https://example.com). For repo or site-relative file paths, use [path](relative/or/absolute/path).",
+  "When helpful, suggest 1 to 3 concrete next-step options for the conversation.",
+  "Prefer this format:",
+  "If you need, I can help you:",
+  "1. ...",
+  "2. ...",
+  "3. ...",
 ].join("\n");
 const DEFAULT_MULTI_PERSPECTIVE_PROFILES_EN = [
   "Summarizer|Extract the key facts, context, and conclusion.",
@@ -2479,6 +2489,12 @@ const LOCALIZED_DEFAULT_SYSTEM_PROMPTS = {
     "如果頁面上下文不足，請明確指出還缺少什麼。",
     "當你提到 URL 或檔案路徑時，請使用 Markdown 連結格式。",
     "外部 URL 請使用 [label](https://example.com)；repo 或網站相對/絕對路徑請使用 [path](relative/or/absolute/path)。",
+    "同時你可以針對對談給出額外下一步建議。",
+    "建議格式如下：",
+    "如果你需要，我可以幫你：",
+    "1. ...",
+    "2. ...",
+    "3. ...",
   ].join("\n"),
   ja: [
     "あなたはユーザーのブラウザー内で動く Ollama クイックアシスタントです。",
@@ -2941,9 +2957,9 @@ Object.assign(OPTION_I18N["zh-TW"], {
   builtinFlowTemplatesHint: "這些預設 flow 是唯讀的。先複製成你的 flow，再自行調整步驟或 wording。",
   builtinFlowTemplatesEmpty: "目前還沒有內建 Flow 範本。",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "預設內建 workflow：貼上一批網址後，逐頁讀取內容、生成 grounded QA、寫入單一 Markdown 檔，並在完成後發送通知。這裡是只讀範本，不在設定頁直接執行。",
+  batchUrlQaTemplateHint: "預設內建 workflow：貼上一批網址後，逐頁讀取內容、生成 grounded QA、寫入單一 JSONL 檔，並在完成後發送通知。這裡是只讀範本，不在設定頁直接執行。",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
-  batchUrlQaJobsHint: "最近的執行會顯示進度、成功數量，以及寫入 work folder 的單一 Markdown 路徑。",
+  batchUrlQaJobsHint: "最近的執行會顯示進度、成功數量，以及寫入 work folder 的單一 JSONL 路徑。",
   batchUrlQaNoJobs: "目前還沒有 Batch URL QA jobs。",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaLogsKicker: "執行紀錄",
@@ -3008,9 +3024,9 @@ Object.assign(OPTION_I18N.en, {
   builtinFlowTemplatesHint: "These default flows are read-only. Duplicate one into your own flow before customizing steps or wording.",
   builtinFlowTemplatesEmpty: "No built-in flow templates yet.",
   batchUrlQaTemplateTitle: "Batch URL QA",
-  batchUrlQaTemplateHint: "Default built-in workflow: paste a URL list, read each page, generate grounded QA, write one Markdown file, and send a completion notification. This settings-page card is a read-only template, not a job runner.",
+  batchUrlQaTemplateHint: "Default built-in workflow: paste a URL list, read each page, generate grounded QA, write one JSONL file, and send a completion notification. This settings-page card is a read-only template, not a job runner.",
   batchUrlQaJobsTitle: "Batch URL QA Jobs",
-  batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single Markdown output path inside the local work folder.",
+  batchUrlQaJobsHint: "Recent runs show progress, success counts, and the single JSONL output path inside the local work folder.",
   batchUrlQaNoJobs: "No Batch URL QA jobs yet.",
   batchUrlQaLogsButton: "Logs",
   batchUrlQaLogsKicker: "Run Logs",
@@ -3277,6 +3293,8 @@ function applyTranslations() {
   document.getElementById("taskExtractionWindowDaysHint").textContent = t("taskExtractionWindowDaysHint");
   document.getElementById("starterHoverTipsEnabledLabel").textContent = t("starterHoverTipsEnabledLabel");
   document.getElementById("starterHoverTipsEnabledHint").textContent = t("starterHoverTipsEnabledHint");
+  document.getElementById("teamsInlineActionEnabledLabel").textContent = t("teamsInlineActionEnabledLabel");
+  document.getElementById("teamsInlineActionEnabledHint").textContent = t("teamsInlineActionEnabledHint");
   renderTaskExtractionWindowChoices();
   document.getElementById("systemPromptLabel").textContent = t("systemPromptLabel");
   document.getElementById("multiPerspectiveProfilesLabel").textContent = t("multiPerspectiveProfilesLabel");
@@ -4422,7 +4440,7 @@ function renderBatchUrlQaJobs() {
       <article class="batch-url-qa-job-card">
         <div class="batch-url-qa-job-head">
           <div>
-            <h3 class="batch-url-qa-job-title">${escapeHtml(job.fileName || "batch-url-qa.md")}</h3>
+            <h3 class="batch-url-qa-job-title">${escapeHtml(job.fileName || "batch-url-qa.jsonl")}</h3>
             <p class="batch-url-qa-job-note">${escapeHtml(job.createdAt ? new Date(job.createdAt).toLocaleString() : "")}</p>
           </div>
           <span class="batch-url-qa-job-chip">${escapeHtml(job.status || "queued")}</span>
@@ -4774,7 +4792,7 @@ function renderStarterModelRoutingSelects(models, config = {}) {
     select.value = normalizedSelectedValue;
   };
 
-  renderOptions(quickSelect, config.selectedModel || currentSelectedModel || "");
+  renderOptions(quickSelect, config.selectedModel || currentSelectedModel || "", { includeAuto: true });
   renderOptions(reasoningSelect, config.starterReasoningModel || "", { includeAuto: true });
   renderOptions(visionSelect, config.starterVisionModel || "", { includeAuto: true });
 }
@@ -5008,6 +5026,7 @@ async function loadConfig() {
     document.getElementById("settingsThemeToolbar").value = settingsTheme;
     document.getElementById("taskExtractionWindowDays").value = String(normalizeTaskExtractionWindowDays(result.config.taskExtractionWindowDays));
     document.getElementById("starterHoverTipsEnabled").checked = result.config.starterHoverTipsEnabled !== false;
+    document.getElementById("teamsInlineActionEnabled").checked = result.config.teamsInlineActionEnabled !== false;
     document.getElementById("systemPrompt").value = localizeDefaultText(
       result.config.systemPrompt,
       replyLanguage,
@@ -5079,6 +5098,7 @@ async function saveConfig() {
   const settingsTheme = normalizeSettingsTheme(document.getElementById("settingsThemeToolbar").value);
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
   const starterHoverTipsEnabled = document.getElementById("starterHoverTipsEnabled").checked;
+  const teamsInlineActionEnabled = document.getElementById("teamsInlineActionEnabled").checked;
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentUiLanguage = uiLanguage;
@@ -5125,6 +5145,7 @@ async function saveConfig() {
       settingsTheme,
       taskExtractionWindowDays,
       starterHoverTipsEnabled,
+      teamsInlineActionEnabled,
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,
@@ -5821,7 +5842,7 @@ if (batchUrlQaStartButton instanceof HTMLButtonElement) {
       const fileNameNode = document.getElementById("batchUrlQaFileName");
       const urls = urlsNode instanceof HTMLTextAreaElement ? urlsNode.value.trim() : "";
       const qaPerUrl = qaCountNode instanceof HTMLInputElement ? qaCountNode.value.trim() : "";
-      const fileName = fileNameNode instanceof HTMLInputElement ? (fileNameNode.value.trim() || "batch-url-qa.md") : "batch-url-qa.md";
+      const fileName = fileNameNode instanceof HTMLInputElement ? (fileNameNode.value.trim() || "batch-url-qa.jsonl") : "batch-url-qa.jsonl";
       if (!currentSelectedModel) {
         throw new Error(t("batchUrlQaModelMissing"));
       }
