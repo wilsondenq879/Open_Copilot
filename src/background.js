@@ -3551,6 +3551,12 @@ function formatHttpError(status, responseText = "") {
   return `HTTP ${status}: ${compact}`;
 }
 
+function formatOllamaPostForbiddenError(status, responseText = "") {
+  const compact = String(responseText || "").replace(/\s+/g, " ").trim();
+  const suffix = compact ? ` Server said: ${compact}` : "";
+  return `HTTP ${status}: Ollama model listing worked, but the remote server rejected the POST chat request.${suffix} This usually means the Ollama host, gateway, or reverse proxy allows GET /api/tags but blocks POST /api/chat or /api/generate. Check OLLAMA_ORIGINS on the Ollama machine and any proxy or firewall rules in front of port 11434.`;
+}
+
 function decodeHtmlEntities(value = "") {
   return String(value || "")
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
@@ -4156,6 +4162,28 @@ async function analyzeImageInTab(tabId, imageUrl) {
   });
 }
 
+async function captureVisibleTabImage(windowId) {
+  const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: "png" });
+  const normalized = String(dataUrl || "").trim();
+  if (!normalized || !normalized.startsWith("data:image/")) {
+    throw new Error("Failed to capture visible tab image.");
+  }
+
+  const commaIndex = normalized.indexOf(",");
+  if (commaIndex < 0) {
+    throw new Error("Captured image payload was invalid.");
+  }
+
+  const header = normalized.slice(0, commaIndex);
+  const base64 = normalized.slice(commaIndex + 1).trim();
+  const mimeMatch = header.match(/^data:(image\/[^;]+);base64$/i);
+  return {
+    name: `page-context-${Date.now()}.png`,
+    mimeType: mimeMatch?.[1] || "image/png",
+    base64,
+  };
+}
+
 async function pasteSelectionIntoCopilot(tabId, selectionText) {
   if (!Number.isFinite(Number(tabId))) {
     throw new Error("Missing tab id for selection paste.");
@@ -4341,6 +4369,130 @@ async function streamGenerateWithOllama(port, prompt, model) {
   });
 }
 
+function shouldFallbackOllamaChatToGenerate(status) {
+  return status === 403 || status === 404 || status === 405;
+}
+
+function buildOllamaGeneratePromptFromMessages(messages = []) {
+  return (Array.isArray(messages) ? messages : [])
+    .map((message) => {
+      const role = String(message?.role || "user").trim().toLowerCase();
+      const label = role === "system"
+        ? "System"
+        : role === "assistant"
+          ? "Assistant"
+          : "User";
+      const content = String(message?.content || "").trim();
+      return content ? `${label}:\n${content}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function getOllamaGenerateImagesFromMessages(messages = []) {
+  const userMessages = (Array.isArray(messages) ? messages : []).filter((message) => String(message?.role || "").trim().toLowerCase() === "user");
+  for (let index = userMessages.length - 1; index >= 0; index -= 1) {
+    const message = userMessages[index] || {};
+    const images = Array.isArray(message?.images)
+      ? message.images.filter((item) => typeof item === "string" && item.trim())
+      : [];
+    if (images.length) {
+      return images;
+    }
+  }
+  return [];
+}
+
+async function streamChatWithOllamaGenerateFallback(port, baseUrl, selectedModel, messages) {
+  const prompt = buildOllamaGeneratePromptFromMessages(messages);
+  if (!prompt) {
+    throw new Error("Ollama fallback request has no prompt content.");
+  }
+
+  const images = getOllamaGenerateImagesFromMessages(messages);
+  const response = await fetch(`${baseUrl}/api/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: selectedModel,
+      prompt,
+      images,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    if (response.status === 403) {
+      throw new Error(formatOllamaPostForbiddenError(response.status, text || response.statusText));
+    }
+    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  if (!tryPostPortMessage(port, {
+    type: "ollama:stream-start",
+    model: selectedModel,
+  })) {
+    return;
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      const json = JSON.parse(trimmed);
+      if (!tryPostPortMessage(port, {
+        type: "ollama:stream-chunk",
+        model: selectedModel,
+        response: json.response || "",
+        done: Boolean(json.done),
+      })) {
+        return;
+      }
+    }
+  }
+
+  const trailing = buffer.trim();
+  if (trailing) {
+    const json = JSON.parse(trailing);
+    if (!tryPostPortMessage(port, {
+      type: "ollama:stream-chunk",
+      model: selectedModel,
+      response: json.response || "",
+      done: Boolean(json.done),
+    })) {
+      return;
+    }
+  }
+
+  tryPostPortMessage(port, {
+    type: "ollama:stream-complete",
+    model: selectedModel,
+  });
+}
+
 async function streamChatWithOllama(port, messages, model) {
   const config = await getConfig();
   const baseUrl = normalizeBaseUrl(config.ollamaUrl);
@@ -4368,6 +4520,12 @@ async function streamChatWithOllama(port, messages, model) {
 
   if (!response.ok) {
     const text = await response.text();
+    if (shouldFallbackOllamaChatToGenerate(response.status)) {
+      return streamChatWithOllamaGenerateFallback(port, baseUrl, selectedModel, messages);
+    }
+    if (response.status === 403) {
+      throw new Error(formatOllamaPostForbiddenError(response.status, text || response.statusText));
+    }
     throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
   }
 
@@ -5412,6 +5570,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "browser:get-tab-contexts": {
         sendResponse({ ok: true, tabs: await getBrowserTabContexts({ tabIds: message.tabIds || [], excludedTabId: sender?.tab?.id }) });
+        return;
+      }
+      case "browser:capture-visible-tab-image": {
+        sendResponse({ ok: true, image: await captureVisibleTabImage(sender?.tab?.windowId) });
         return;
       }
       case "web:search": {

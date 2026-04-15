@@ -212,7 +212,7 @@
 .ollama-quick-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
 }
 
@@ -261,10 +261,31 @@
   flex: 0 0 auto;
 }
 
+.ollama-quick-header-actions .ollama-quick-icon-button {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+}
+
+.ollama-quick-header-actions .ollama-quick-icon-symbol {
+  width: 13px;
+  height: 13px;
+}
+
+.ollama-quick-icon-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
 .ollama-quick-icon-badge {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 4px;
+  right: 4px;
   width: 9px;
   height: 9px;
   border-radius: 999px;
@@ -272,6 +293,13 @@
   box-shadow:
     0 0 0 2px rgba(10, 18, 32, 0.92),
     0 0 12px rgba(82, 232, 126, 0.42);
+}
+
+.ollama-quick-icon-button.is-active {
+  border-color: rgba(121, 227, 255, 0.34);
+  background: rgba(58, 122, 168, 0.24);
+  color: #eef9ff;
+  box-shadow: inset 0 0 0 1px rgba(126, 233, 255, 0.08);
 }
 
 .ollama-quick-controls,
@@ -1549,6 +1577,15 @@
   border-color: rgba(56, 173, 226, 0.42);
   background: rgba(239, 248, 253, 0.72);
   box-shadow: 0 10px 20px rgba(53, 88, 119, 0.1);
+}
+
+#ollama-quick-chat-host[data-theme="light"] .ollama-quick-icon-button.is-active {
+  border-color: rgba(56, 173, 226, 0.4);
+  background: rgba(220, 241, 252, 0.9);
+  color: #13354f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 8px 18px rgba(53, 88, 119, 0.1);
 }
 
 #ollama-quick-chat-host[data-theme="light"] .ollama-quick-starter.is-suggested-followup {
@@ -2876,6 +2913,28 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+.ollama-quick-batch-url-qa-field-head > span {
+  color: rgba(218, 233, 255, 0.9);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ollama-quick-batch-url-qa-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ollama-quick-batch-url-qa-clear {
+  min-width: auto;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .ollama-quick-batch-url-qa-textarea {

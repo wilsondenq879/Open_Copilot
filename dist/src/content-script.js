@@ -15,6 +15,8 @@ const MIN_AGENT_FLOW_STEPS = 2;
 const MAX_AGENT_FLOW_STEPS = 5;
 const TASK_EXTRACTION_LIMIT = 8;
 const SHARE_TEXT_LIMIT = 4000;
+const OFFICE_SCREENSHOT_FALLBACK_TEXT_THRESHOLD = 500;
+const OFFICE_SCREENSHOT_FALLBACK_SELECTION_THRESHOLD = 160;
 const TASK_REMINDER_LEAD_TIME_MS = 30 * 60 * 1000;
 const TASK_RAIL_MIN_VIEWPORT_WIDTH_PX = 1100;
 const LAUNCHER_POSITION_KEY = "ollamaLauncherPosition";
@@ -22,7 +24,7 @@ const LAUNCHER_DRAG_THRESHOLD_PX = 6;
 const LAUNCHER_VIEWPORT_MARGIN_PX = 12;
 const LAUNCHER_DEFAULT_RIGHT_OFFSET_PX = 14;
 const LAUNCHER_DEFAULT_SIZE_PX = 38;
-const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 350;
+const FRAME_CONTEXT_REQUEST_TIMEOUT_MS = 1200;
 const FRAME_CONTEXT_MESSAGE_SOURCE = "edge-ai-chat-frame-context";
 const FRAME_CONTEXT_NONCE_BYTES = 16;
 const CONTEXT_TEXT_SELECTORS = [
@@ -177,16 +179,28 @@ const OFFICE_DOCUMENT_TEXT_SELECTORS = [
   "[role='document']",
   "[role='textbox']",
   "[contenteditable='true']",
+  "[contenteditable='plaintext-only']",
   "[data-automationid*='Content']",
   "[data-automationid*='content']",
   "[data-automationid*='Page']",
   "[data-automationid*='page']",
+  "[data-automationid*='Paragraph']",
+  "[data-automationid*='paragraph']",
+  "[data-automationid*='Text']",
+  "[data-automationid*='text']",
   "[aria-label*='Document']",
   "[aria-label*='document']",
   "[aria-label*='Page']",
   "[aria-label*='page']",
+  "[aria-label*='Paragraph']",
+  "[aria-label*='paragraph']",
+  "[aria-label*='Section']",
+  "[aria-label*='section']",
   ".CanvasZone",
   ".page",
+  ".CanvasComponent",
+  ".WordEditorCanvas",
+  ".DocumentCanvas",
 ];
 const OFFICE_CHROME_NOISE_PATTERNS = [
   /^file$/i,
@@ -213,6 +227,15 @@ const OFFICE_CHROME_NOISE_PATTERNS = [
   /^copilot$/i,
   /^activity$/i,
   /^more$/i,
+  /^edit a copy$/i,
+  /^accessibility mode$/i,
+  /^comments? pane$/i,
+  /^navigation pane$/i,
+  /^search$/i,
+  /^find$/i,
+  /^zoom$/i,
+  /^\d+%$/,
+  /^page \d+ of \d+$/i,
   /^檔案$/i,
   /^常用$/i,
   /^插入$/i,
@@ -223,6 +246,19 @@ const OFFICE_CHROME_NOISE_PATTERNS = [
   /^共用$/i,
   /^註解$/i,
   /^助理$/i,
+  /^編輯副本$/i,
+  /^協助工具模式$/i,
+  /^搜尋$/i,
+  /^尋找$/i,
+];
+const OFFICE_CONTENT_HINT_PATTERNS = [
+  /\bpage \d+ of \d+\b/i,
+  /\breleased?:\b/i,
+  /\bwc docket no\.\b/i,
+  /\bet docket no\.\b/i,
+  /\bea docket no\.\b/i,
+  /\bfederal communications commission\b/i,
+  /\bpublic notice\b/i,
 ];
 
 let currentConfig = null;
@@ -817,6 +853,12 @@ const CONTENT_I18N = {
     loadConfigFailed: "載入模型設定失敗。",
     fetchModelsFailed: "取得模型清單失敗。",
     openSettingsFailed: "開啟設定失敗。",
+    starterHoverTipsToggle: "切換 Starter 懸停提示",
+    teamsInlineActionToggle: "切換 Teams 快捷按鈕",
+    starterHoverTipsEnabledStatus: "已開啟 Starter 懸停提示。",
+    starterHoverTipsDisabledStatus: "已關閉 Starter 懸停提示。",
+    teamsInlineActionEnabledStatus: "已開啟 Teams Send to Open Copilot 快捷按鈕。",
+    teamsInlineActionDisabledStatus: "已關閉 Teams Send to Open Copilot 快捷按鈕。",
     loadChatFailed: "載入最近對談失敗。",
     noSavedChat: "目前沒有已儲存的對談。",
     latestChatLoaded: "已載入最近一次對談。",
@@ -1322,6 +1364,12 @@ const CONTENT_I18N = {
     loadConfigFailed: "Failed to load model config.",
     fetchModelsFailed: "Failed to fetch models.",
     openSettingsFailed: "Failed to open settings.",
+    starterHoverTipsToggle: "Toggle starter hover tips",
+    teamsInlineActionToggle: "Toggle Teams shortcut button",
+    starterHoverTipsEnabledStatus: "Starter hover tips enabled.",
+    starterHoverTipsDisabledStatus: "Starter hover tips disabled.",
+    teamsInlineActionEnabledStatus: "Teams Send to Open Copilot shortcut enabled.",
+    teamsInlineActionDisabledStatus: "Teams Send to Open Copilot shortcut disabled.",
     loadChatFailed: "Failed to load the latest chat.",
     noSavedChat: "No saved conversation is available yet.",
     latestChatLoaded: "Loaded the latest saved conversation.",
@@ -3241,25 +3289,166 @@ function isOfficeChromeNoiseText(text) {
   return normalized.length < 2;
 }
 
+function getOfficeCandidateText(node) {
+  if (!node) {
+    return "";
+  }
+
+  if (node instanceof Element) {
+    const preferred = normalizeExtractedText(node.innerText || node.textContent || "");
+    if (preferred) {
+      return preferred;
+    }
+
+    const fallback = normalizeExtractedText(
+      [
+        node.getAttribute("aria-label"),
+        node.getAttribute("aria-description"),
+        node.getAttribute("title"),
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+    if (fallback && !isOfficeChromeNoiseText(fallback)) {
+      return fallback;
+    }
+    return "";
+  }
+
+  return normalizeExtractedText(String(node.textContent || ""));
+}
+
+function getOfficeDocumentCandidateScore(node, text) {
+  const normalized = normalizeExtractedText(text);
+  if (!normalized || isOfficeChromeNoiseText(normalized)) {
+    return -1;
+  }
+
+  let score = Math.min(normalized.length, 2200);
+
+  if (normalized.length >= 140) {
+    score += 900;
+  }
+  if (normalized.split("\n").length >= 3) {
+    score += 280;
+  }
+  if (/[.:;,)][ \n]/.test(normalized)) {
+    score += 140;
+  }
+  if (OFFICE_CONTENT_HINT_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    score += 900;
+  }
+
+  if (node instanceof Element) {
+    const selectorBoosts = [
+      node.matches("[role='document']"),
+      node.matches("[data-automationid*='Page'], [data-automationid*='page']"),
+      node.matches("[data-automationid*='Paragraph'], [data-automationid*='paragraph']"),
+      node.matches("[contenteditable='true'], [contenteditable='plaintext-only']"),
+    ].filter(Boolean).length;
+    score += selectorBoosts * 250;
+
+    const rect = typeof node.getBoundingClientRect === "function" ? node.getBoundingClientRect() : null;
+    if (rect) {
+      if (rect.width >= Math.min(window.innerWidth * 0.4, 540)) {
+        score += 220;
+      }
+      if (rect.height >= 120) {
+        score += 180;
+      }
+      const centerX = rect.left + rect.width / 2;
+      const centerDistance = Math.abs(centerX - window.innerWidth / 2);
+      if (centerDistance <= window.innerWidth * 0.2) {
+        score += 220;
+      }
+      if (rect.top >= 40 && rect.top <= window.innerHeight * 0.9) {
+        score += 120;
+      }
+    }
+
+    const chromeWords = normalizeExtractedText(
+      [
+        node.getAttribute("role"),
+        node.getAttribute("aria-label"),
+        node.getAttribute("data-automationid"),
+        node.getAttribute("class"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+    ).toLowerCase();
+    if (/(toolbar|ribbon|menubar|sidebar|comment|navigation|launcher|panel)/.test(chromeWords)) {
+      score -= 900;
+    }
+  }
+
+  return score;
+}
+
 function collectOfficeDocumentTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
   const blocks = [];
   const seen = new Set();
 
-  queryAllIncludingShadow(doc, OFFICE_DOCUMENT_TEXT_SELECTORS, maxBlocks * 4)
-    .map((node) => getNodeVisibleText(node))
+  const candidateEntries = [];
+  const candidateSeen = new Set();
+  const addCandidate = (node, maxLength = 2800) => {
+    const text = getOfficeCandidateText(node);
+    if (!text) {
+      return;
+    }
+    const dedupeKey = text.toLowerCase();
+    if (candidateSeen.has(dedupeKey)) {
+      return;
+    }
+    candidateSeen.add(dedupeKey);
+    candidateEntries.push({
+      text: maxLength ? text.slice(0, maxLength) : text,
+      score: getOfficeDocumentCandidateScore(node, text),
+    });
+  };
+
+  queryAllIncludingShadow(doc, OFFICE_DOCUMENT_TEXT_SELECTORS, maxBlocks * 8).forEach((node) => {
+    addCandidate(node, 3200);
+  });
+
+  queryAllIncludingShadow(
+    doc,
+    [
+      "[role='document'] p",
+      "[role='document'] span",
+      "[role='document'] div",
+      "[contenteditable='true'] p",
+      "[contenteditable='true'] span",
+      "[contenteditable='true'] div",
+      "[data-automationid*='Page'] p",
+      "[data-automationid*='page'] p",
+      "[data-automationid*='Paragraph']",
+      "[data-automationid*='paragraph']",
+    ],
+    maxBlocks * 12
+  ).forEach((node) => {
+    addCandidate(node, 1800);
+  });
+
+  collectVisibleTextNodesIncludingShadow(doc, maxBlocks * 24)
+    .filter((text) => !isOfficeChromeNoiseText(text))
     .forEach((text) => {
-      if (!text || isOfficeChromeNoiseText(text)) {
+      const dedupeKey = text.toLowerCase();
+      if (candidateSeen.has(dedupeKey)) {
         return;
       }
-      appendUniqueTextBlock(blocks, seen, text, 2800);
+      candidateSeen.add(dedupeKey);
+      candidateEntries.push({
+        text: text.slice(0, 1200),
+        score: getOfficeDocumentCandidateScore(null, text),
+      });
     });
 
-  collectVisibleTextNodesIncludingShadow(doc, maxBlocks * 20)
-    .filter((text) => !isOfficeChromeNoiseText(text))
-    .sort((left, right) => right.length - left.length)
+  candidateEntries
+    .filter((entry) => entry.score >= 0)
+    .sort((left, right) => right.score - left.score)
     .slice(0, maxBlocks * 4)
-    .forEach((text) => {
-      appendUniqueTextBlock(blocks, seen, text, 1200);
+    .forEach((entry) => {
+      appendUniqueTextBlock(blocks, seen, entry.text, 3200);
     });
 
   return blocks.slice(0, maxBlocks);
@@ -4586,9 +4775,13 @@ function getProviderModelStatusText() {
   const model = getConfiguredProviderModel();
 
   if (provider === "ollama") {
-    return model
-      ? (getModelSelectionMode() === "auto" ? getAutoModelStatusText() : tl("usingModel", { model }))
-      : tl("pickModelToStart");
+    if (getModelSelectionMode() === "auto") {
+      const autoStatus = getAutoModelStatusText();
+      return autoStatus === tl("modelAutoSelected") && !getAvailableModelNames().length
+        ? tl("pickModelToStart")
+        : autoStatus;
+    }
+    return model ? tl("usingModel", { model }) : tl("pickModelToStart");
   }
 
   if (currentConfig?.replyLanguage === "zh-TW") {
@@ -4792,7 +4985,7 @@ function starterNeedsReasoningModel(starter, pageCopilot = currentPageCopilot) {
   return isGithubReasoningStarterCandidate(starter, pageCopilot);
 }
 
-function taskNeedsVisionModel(userMessage = "", starter = null) {
+function taskNeedsVisionModel(userMessage = "", starter = null, options = {}) {
   const visionModel = getStarterVisionModel({ preferReasoning: taskNeedsVisionReasoning(userMessage, starter) });
   if (!isAutoModelSelectionEnabled() || !visionModel) {
     return false;
@@ -4807,8 +5000,9 @@ function taskNeedsVisionModel(userMessage = "", starter = null) {
   }
 
   const starterId = String(starter?.id || "").trim().replace(/^builtin:/, "");
+  const hasImageAttachments = options.hasImageAttachments === true || (options.hasImageAttachments !== false && attachedImages.length > 0);
 
-  if (attachedImages.length) {
+  if (hasImageAttachments) {
     return true;
   }
 
@@ -4851,7 +5045,7 @@ function starterShouldPreferReasoningOverVision(starter, pageCopilot = currentPa
   return !STARTER_VISION_BUILTIN_KEY_SET.has(starterId);
 }
 
-function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {}) {
+function resolveExecutionModelForTask({ starter = null, userMessage = "", hasImageAttachments } = {}) {
   const quickModel = getDefaultQuickReplyModel();
   const preferVisionReasoning = taskNeedsVisionReasoning(userMessage, starter);
   const visionModel = getStarterVisionModel({ preferReasoning: preferVisionReasoning });
@@ -4868,7 +5062,7 @@ function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {})
     };
   }
 
-  if (taskNeedsVisionModel(userMessage, starter) && visionModel) {
+  if (taskNeedsVisionModel(userMessage, starter, { hasImageAttachments }) && visionModel) {
     return {
       kind: "vision",
       model: visionModel,
@@ -4895,6 +5089,11 @@ function resolveExecutionModelForTask({ starter = null, userMessage = "" } = {})
     reasoningModel,
     visionModel,
   };
+}
+
+function resolveUsableModelForTask({ starter = null, userMessage = "", modelOverride = "", preferredModel = "", hasImageAttachments } = {}) {
+  const resolved = resolveExecutionModelForTask({ starter, userMessage, hasImageAttachments });
+  return String(modelOverride || preferredModel || resolved.model || resolved.quickModel || getDefaultQuickReplyModel()).trim();
 }
 
 function resolveStarterExecutionPlan(starter, preferredModel = "") {
@@ -6986,13 +7185,119 @@ function normalizeQuickFollowupLabel(rawLabel) {
     .trim();
 }
 
+const QUICK_FOLLOWUP_INTRO_PATTERNS = [
+  /^(?:你)?如果你(?:想|要|希望)/i,
+  /^(?:您)?如果您(?:想|要|希望)/i,
+  /^(?:你)?如果需要/i,
+  /^(?:您)?如果您需要/i,
+  /^若你想/i,
+  /^若需要/i,
+  /要的話/i,
+  /需要的話/i,
+  /我也可以/i,
+  /我還可以/i,
+  /我可以再/i,
+  /我可以幫你/i,
+  /我幫您/i,
+  /^例如[:：]/i,
+  /^for example[:：]/i,
+  /^if you (?:want|need)/i,
+  /^if you'd like/i,
+  /^if needed/i,
+  /^if helpful/i,
+  /^i can also/i,
+  /^i can help/i,
+  /^i can turn this into/i,
+  /^i can also turn this/i,
+  /^if you want help/i,
+  /^if you need help/i,
+  /^if you'd like help/i,
+  /^(?:もし)?必要(?:であれば|なら|でしたら|に応じて)/i,
+  /^もしよければ/i,
+  /^ご希望であれば/i,
+  /^例えば[:：]/i,
+  /^たとえば[:：]/i,
+  /^以下もできます/i,
+  /^次のこともできます/i,
+  /^원하시면/i,
+  /^필요하시면/i,
+  /^도움이 필요하시면/i,
+  /^예를 들어[:：]/i,
+  /^제가 .*도와드릴 수/i,
+  /^다음도 도와드릴 수/i,
+  /^si (?:quieres|quiere|quieren|lo deseas|lo necesita(?:s)?|necesitas|necesita)/i,
+  /^si te sirve/i,
+  /^también puedo/i,
+  /^puedo ayudarte/i,
+  /^por ejemplo[:：]/i,
+  /^si (?:vous voulez|tu veux|besoin|cela peut aider)/i,
+  /^je peux aussi/i,
+  /^je peux vous aider/i,
+  /^par exemple[:：]/i,
+  /^(?:wenn du möchtest|wenn sie möchten|falls nötig|wenn es hilfreich ist)/i,
+  /^ich kann auch/i,
+  /^ich kann dir helfen/i,
+  /^zum beispiel[:：]/i,
+  /^(?:se quiser|se você quiser|se precisar|se for útil)/i,
+  /^tamb[eé]m posso/i,
+  /^posso ajudar/i,
+  /^por exemplo[:：]/i,
+  /^(?:अगर आप चाहें|अगर आपको ज़रूरत हो|ज़रूरत हो तो)/i,
+  /^मैं (?:भी )?मदद कर सकता/i,
+  /^उदाहरण[:：]/i,
+];
+
+const QUICK_FOLLOWUP_LEAD_PATTERNS = [
+  /^(?:我可以(?:再)?|我也可以|我還可以|如果你需要(?:的話)?|如果你想(?:要)?|如果您需要(?:的話)?|如果您想(?:要)?|若你需要|若你想(?:要)?|也可以|還可以|例如[:：])\s*/i,
+  /^(?:if you (?:want|need)|if you'd like|if needed|if helpful|for example[:：])[\s,:-]*/i,
+  /^(?:i can also|i can help|i can turn this into|i can also turn this into|i can rewrite this as|i can convert this into|i can make this into)\s*/i,
+  /^(?:必要(?:であれば|なら|でしたら|に応じて)|もしよければ|ご希望であれば|例えば[:：]|たとえば[:：])\s*/i,
+  /^(?:以下もできます|次のこともできます|私(?:が|も)?(?:対応|お手伝い)?できます)\s*/i,
+  /^(?:원하시면|필요하시면|도움이 필요하시면|예를 들어[:：])\s*/i,
+  /^(?:제가 .*도와드릴 수 있어요|제가 .*도와드릴 수 있습니다|다음도 도와드릴 수 있어요)\s*/i,
+  /^(?:si (?:quieres|quiere|quieren|lo deseas|lo necesita(?:s)?|necesitas|necesita)|si te sirve|por ejemplo[:：])\s*/i,
+  /^(?:también puedo|puedo ayudarte(?: a)?|puedo ayudarle(?: a)?|puedo convertir esto en|puedo reescribir esto como)\s*/i,
+  /^(?:si (?:vous voulez|tu veux|besoin|cela peut aider)|par exemple[:：])\s*/i,
+  /^(?:je peux aussi|je peux vous aider(?: à)?|je peux transformer cela en|je peux réécrire cela en)\s*/i,
+  /^(?:wenn du möchtest|wenn sie möchten|falls nötig|wenn es hilfreich ist|zum beispiel[:：])\s*/i,
+  /^(?:ich kann auch|ich kann dir helfen|ich kann das in .* umwandeln)\s*/i,
+  /^(?:se quiser|se você quiser|se precisar|se for útil|por exemplo[:：])\s*/i,
+  /^(?:tamb[eé]m posso|posso ajudar(?: a)?|posso transformar isso em|posso reescrever isso como)\s*/i,
+  /^(?:अगर आप चाहें|अगर आपको ज़रूरत हो|ज़रूरत हो तो|उदाहरण[:：])\s*/i,
+  /^(?:मैं (?:भी )?मदद कर सकता(?: हूँ)?|मैं इसे .* में बदल सकता(?: हूँ)?)\s*/i,
+];
+
+const QUICK_FOLLOWUP_SINGLE_ACTION_PATTERNS = [
+  /(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/i,
+  /(?:turn this into|also turn this into|rewrite this as|convert this into|make this into|help with|help you with|help you turn this into)(.+)$/i,
+  /(?:これを|内容を)?(?:変換して|まとめて|書き換えて|整理して)(.+)$/i,
+  /(?:이것을|내용을)?(?:바꿔서|정리해서|다듬어서|변환해서)(.+)$/i,
+  /(?:convertir esto en|reescribir esto como|convertirlo en|ayudarte con)(.+)$/i,
+  /(?:transformer cela en|réécrire cela en|vous aider à)(.+)$/i,
+  /(?:das in|daraus)(.+?)(?:umwandeln|umschreiben)$/i,
+  /(?:transformar isso em|reescrever isso como|ajudar com)(.+)$/i,
+  /(?:इसे|इसको)?(?:बदलकर|लिखकर|सजाकर)(.+)$/i,
+];
+
+function matchesQuickFollowupPattern(value, patterns) {
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function stripQuickFollowupLead(value) {
+  let nextValue = String(value || "").trim();
+  QUICK_FOLLOWUP_LEAD_PATTERNS.forEach((pattern) => {
+    nextValue = nextValue.replace(pattern, "").trim();
+  });
+  return nextValue;
+}
+
 function isLikelyQuickFollowupIntro(line) {
   const value = String(line || "").trim();
   if (!value) {
     return false;
   }
 
-  return /^(?:你)?如果你(?:想|要|希望)|^(?:您)?如果您(?:想|要|希望)|^(?:你)?如果需要|^(?:您)?如果您需要|^若你想|^若需要|要的話|需要的話|我也可以|我還可以|我可以再|我可以幫你|我幫您|例如[:：]|for example[:：]|If you want|If you'd like|If needed|If helpful|I can also|I can help|I can turn this into|I can also turn this/i.test(value);
+  return matchesQuickFollowupPattern(value, QUICK_FOLLOWUP_INTRO_PATTERNS);
 }
 
 function isLikelyQuickFollowupLine(line) {
@@ -7025,7 +7330,19 @@ function isEnumeratedFollowupQuestionLine(line) {
   if (value.length > 140) {
     return false;
   }
-  return /[?？]$/.test(raw) || /(?:是否|需不需要|要不要|希望我|需要我|provide|summarize|convert|rewrite|整理|彙整|總結|轉換|輸出)/i.test(value);
+  return /[?？]$/.test(raw) || /(?:是否|需不需要|要不要|希望我|需要我|provide|summarize|convert|rewrite|organize|draft|outline|整理|彙整|總結|轉換|輸出|まとめ|整理|変換|정리|변환|요약|resumir|convertir|reescribir|résumer|réécrire|umwandeln|umschreiben|transformar|reescrever|सारांश|बदल)/i.test(value);
+}
+
+function isEnumeratedFollowupActionLine(line) {
+  const raw = String(line || "").trim();
+  const value = normalizeQuickFollowupLabel(raw);
+  if (!/^\d+\.\s+/.test(raw) || !value) {
+    return false;
+  }
+  if (value.length > 180) {
+    return false;
+  }
+  return /^(?:find|get|search|summarize|review|check|compare|map|build|draft|write|extract|organize|convert|rewrite|translate|explain|analyze|identify|list|look up|prepare|outline|整理|彙整|總結|搜尋|查找|查詢|改寫|轉成|輸出|撰寫|比較|檢查|建立|分析|說明|找出|まとめ|検索|調べ|要約|整理|変換|作成|比較|確認|설명|분석|정리|요약|검색|비교|확인|resumir|buscar|explicar|analizar|comparar|organizar|convertir|résumer|chercher|expliquer|analyser|comparer|organiser|zusammenfassen|suchen|erklären|analysieren|vergleichen|organisieren|resumir|buscar|explicar|analisar|comparar|organizar|सारांश|खोज|समझा|विश्लेषण|तुलना|सूची)/i.test(value);
 }
 
 function extractQuickFollowupActionFromLine(line) {
@@ -7034,9 +7351,8 @@ function extractQuickFollowupActionFromLine(line) {
     return "";
   }
 
-  value = value
-    .replace(/^(?:我可以(?:再)?|我也可以|我還可以|如果你需要(?:的話)?|如果你想(?:要)?|如果您需要(?:的話)?|如果您想(?:要)?|若你需要|若你想(?:要)?|也可以|還可以|例如[:：])\s*/i, "")
-    .replace(/^(?:幫你|替你|直接幫你|先幫你|再幫你|幫您|替您|直接幫您|先幫您|再幫您)\s*/i, "")
+  value = stripQuickFollowupLead(value)
+    .replace(/^(?:幫你|替你|直接幫你|先幫你|再幫你|幫您|替您|直接幫您|先幫您|再幫您|help you(?: with)?|assist you(?: with)?|ayudarte(?: con)?|vous aider(?: à)?|dir helfen(?: bei)?|ajudar(?: com)?|도와드릴게요|도와드릴 수 있어요|お手伝いできます|मदद कर सकता(?: हूँ)?|मदद करने में)\s*/i, "")
     .replace(/^(?:把|將)\s*/i, (match) => match)
     .trim();
 
@@ -7073,8 +7389,10 @@ function extractSingleLineQuickFollowup(line) {
   if (quotedMatch) {
     candidate = `${quotedMatch[1]}${quotedMatch[2] || ""}`;
   } else {
-    const actionMatch = value.match(/(?:整理成|整理為|改成|改寫成|寫成|做成|變成|轉成|再整理成|再改成|再做成)(.+)$/);
-    candidate = actionMatch ? actionMatch[1] : "";
+    const actionMatch = QUICK_FOLLOWUP_SINGLE_ACTION_PATTERNS
+      .map((pattern) => value.match(pattern))
+      .find(Boolean);
+    candidate = actionMatch ? actionMatch[1] : stripQuickFollowupLead(value);
   }
 
   candidate = extractQuickFollowupActionFromLine(candidate);
@@ -7112,13 +7430,13 @@ function extractMessageQuickFollowups(content) {
 
   let actions = [];
   const introLine = String(lines[introIndex] || "").trim();
-  const explicitOfferList = /^(?:你)?如果你(?:想|要|希望)|^(?:您)?如果您(?:想|要|希望)|^(?:你)?如果需要|^(?:您)?如果您需要|^若你想|^若需要|^我可以幫你|^我幫您|例如[:：]/i.test(introLine);
+  const explicitOfferList = isLikelyQuickFollowupIntro(introLine);
   if (actionLines.length >= 2 && actionLines.length <= 5) {
     if (!explicitOfferList && actionLines.some((line) => !/^[-*•]\s+/.test(line) && !/^\d+\.\s+/.test(line) && !/^(?:幫你|替你|把|將|改成|整理成|精簡成|轉成)/.test(normalizeQuickFollowupLabel(line)))) {
       return { body: normalized.trim(), actions: [] };
     }
 
-    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line) && !(explicitOfferList && isEnumeratedFollowupQuestionLine(line)))) {
+    if (actionLines.some((line) => !isLikelyQuickFollowupLine(line) && !(explicitOfferList && (isEnumeratedFollowupQuestionLine(line) || isEnumeratedFollowupActionLine(line))))) {
       return { body: normalized.trim(), actions: [] };
     }
 
@@ -8723,6 +9041,42 @@ function createImageAttachmentFromPayload(payload = {}) {
   };
 }
 
+async function maybeCreateOfficeScreenshotFallbackAttachment(existingImageAttachments = []) {
+  if (Array.isArray(existingImageAttachments) && existingImageAttachments.length) {
+    return null;
+  }
+  if (!shouldIncludePageContext()) {
+    return null;
+  }
+
+  const context = await getAggregatedPageContext();
+  const officeSignals = detectDocumentWorkspaceSignals({
+    hostname: window.location.hostname.toLowerCase(),
+    pathname: window.location.pathname.toLowerCase(),
+    title: document.title || "",
+    sampleText: `${context?.headings || ""}\n${context?.pageText || ""}`.slice(0, 4000),
+  });
+  if (!(officeSignals.matchesHost || officeSignals.matchesPath || officeSignals.teamsEmbeddedOffice || officeSignals.hasOfficeFileChrome)) {
+    return null;
+  }
+
+  const pageTextLength = normalizeExtractedText(context?.pageText || "").length;
+  const selectionLength = normalizeExtractedText(context?.selection || "").length;
+  if (pageTextLength >= OFFICE_SCREENSHOT_FALLBACK_TEXT_THRESHOLD || selectionLength >= OFFICE_SCREENSHOT_FALLBACK_SELECTION_THRESHOLD) {
+    return null;
+  }
+
+  const result = await runtimeMessage({ type: "browser:capture-visible-tab-image" });
+  if (!result?.ok || !result.image?.base64) {
+    return null;
+  }
+
+  return createImageAttachmentFromPayload({
+    ...result.image,
+    name: result.image.name || "office-page-context.png",
+  });
+}
+
 function appendTextToPrompt(text) {
   const normalized = String(text || "").trim();
   if (!normalized) {
@@ -9075,7 +9429,7 @@ async function buildTaskExtractionPrompt() {
 }
 
 async function extractTaskCandidatesFromChat() {
-  const executionModel = getDefaultQuickReplyModel();
+  const executionModel = resolveUsableModelForTask({ userMessage: tl("extractingChatTasks") });
   if (!executionModel) {
     setStatus(tl("taskExtractModelRequired"));
     return;
@@ -9503,6 +9857,7 @@ function renderShell() {
     ? activeStarterEntries
     : activeStarterEntries.filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
+  const teamsInlineActionEnabled = currentConfig?.teamsInlineActionEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
   const modelSelectionMode = getModelSelectionMode();
   const provider = getDefaultProvider();
@@ -9544,6 +9899,26 @@ function renderShell() {
               aria-pressed="${canDetachTaskRail ? String(showDetachedTaskRail) : "false"}"
             >☰${canExtractTaskCandidates ? `<span class="ollama-quick-icon-badge" aria-hidden="true"></span>` : ""}</button>
           ` : ""}
+          <button
+            class="ollama-quick-icon-button ollama-quick-header-utility ${starterHoverTipsEnabled ? "is-active" : ""}"
+            type="button"
+            data-action="toggle-starter-hover-tips"
+            title="${escapeHtml(tl("starterHoverTipsToggle"))}"
+            aria-label="${escapeHtml(tl("starterHoverTipsToggle"))}"
+            aria-pressed="${String(starterHoverTipsEnabled)}"
+          >
+            <span class="ollama-quick-icon-glyph" aria-hidden="true">✦</span>
+          </button>
+          <button
+            class="ollama-quick-icon-button ollama-quick-header-utility ${teamsInlineActionEnabled ? "is-active" : ""}"
+            type="button"
+            data-action="toggle-teams-inline-action"
+            title="${escapeHtml(tl("teamsInlineActionToggle"))}"
+            aria-label="${escapeHtml(tl("teamsInlineActionToggle"))}"
+            aria-pressed="${String(teamsInlineActionEnabled)}"
+          >
+            <span class="ollama-quick-icon-glyph" aria-hidden="true">T</span>
+          </button>
           <button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-chat" title="${escapeHtml(tl("clearChat"))}" aria-label="${escapeHtml(tl("clearChat"))}">
             <svg class="ollama-quick-icon-symbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M9 4h6" />
@@ -10766,7 +11141,11 @@ async function runAgentFlow(starter, modelOverride = "") {
     return;
   }
 
-  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({
+    starter,
+    userMessage: tl("agentFlowUserMessage", { name: starter.label }),
+    modelOverride,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -10992,7 +11371,7 @@ async function runMultiPerspectiveAnalysis(userMessage, modelOverride = "") {
   }
 
   const promptText = userMessage || tl("perspectiveInputFallback");
-  const effectiveModel = String(modelOverride || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({ userMessage: promptText, modelOverride });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -11056,7 +11435,12 @@ async function startStarterExecution(plan, modelOverride = "", executionOptions 
     return;
   }
 
-  const effectiveModel = String(modelOverride || plan.suggestedModel || getDefaultQuickReplyModel()).trim();
+  const effectiveModel = resolveUsableModelForTask({
+    starter: plan.starter,
+    userMessage: plan.starter?.prompt || "",
+    modelOverride,
+    preferredModel: plan.suggestedModel,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return;
@@ -11079,6 +11463,28 @@ async function startStarterExecution(plan, modelOverride = "", executionOptions 
         : tl("starterRouteResolved", { route: getRouteLabel(plan.routeKind), model: effectiveModel })
   );
   await sendCurrentPrompt({ ...executionOptions, modelOverride: effectiveModel, starterPlan: plan });
+}
+
+async function toggleQuickConfigFlag(configKey, enabledStatusKey, disabledStatusKey) {
+  const nextValue = !(currentConfig?.[configKey] !== false);
+  const result = await runtimeMessage({ type: "ollama:set-config", config: { [configKey]: nextValue } });
+  if (!result?.ok) {
+    setStatus(result?.error || tl("loadConfigFailed"));
+    return;
+  }
+
+  currentConfig = {
+    ...(currentConfig || {}),
+    ...(result.config || {}),
+    [configKey]: nextValue,
+  };
+
+  if (configKey === "teamsInlineActionEnabled") {
+    syncTeamsInlineFeatureState();
+  }
+
+  renderShell();
+  setStatus(tl(nextValue ? enabledStatusKey : disabledStatusKey));
 }
 
 async function handleClick(event) {
@@ -11115,6 +11521,16 @@ async function handleClick(event) {
   if (action === "toggle-maximize") {
     togglePanelMaximize();
     renderShell();
+    return;
+  }
+
+  if (action === "toggle-starter-hover-tips") {
+    await toggleQuickConfigFlag("starterHoverTipsEnabled", "starterHoverTipsEnabledStatus", "starterHoverTipsDisabledStatus");
+    return;
+  }
+
+  if (action === "toggle-teams-inline-action") {
+    await toggleQuickConfigFlag("teamsInlineActionEnabled", "teamsInlineActionEnabledStatus", "teamsInlineActionDisabledStatus");
     return;
   }
 
@@ -11827,7 +12243,7 @@ async function handleClick(event) {
       setStatus(tl("batchUrlQaNeedUrls"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const executionModel = resolveUsableModelForTask({ userMessage: draft.extraPrompt || tl("starter_batchUrlQaWorkflow") });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -11967,7 +12383,7 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderFillMore"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const executionModel = resolveUsableModelForTask({ userMessage });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -12017,7 +12433,11 @@ async function handleClick(event) {
       setStatus(tl("customStarterBuilderNeedDiscussion"));
       return;
     }
-    const executionModel = getDefaultQuickReplyModel();
+    const discussionContext = customStarterBuilderConversation
+      .map((item) => String(item?.content || "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+    const executionModel = resolveUsableModelForTask({ userMessage: discussionContext || tl("customStarterBuilderTitle") });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -12684,7 +13104,7 @@ async function sendCurrentPrompt(options = {}) {
   const starterPlan = options.starterPlan || pendingStarterExecution || null;
   const pendingStarter = starterPlan?.starter || null;
   const hasUserMessageOverride = Object.prototype.hasOwnProperty.call(options, "userMessageOverride");
-  const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
+  let imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
   const documentAttachments = Array.isArray(options.documentAttachments) ? options.documentAttachments : attachedDocuments;
   const typedUserMessage = promptNode.value.trim();
   const starterPrompt = String(pendingStarter?.prompt || "").trim();
@@ -12699,8 +13119,21 @@ async function sendCurrentPrompt(options = {}) {
     return false;
   }
 
-  const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage });
-  const effectiveModel = String(options.modelOverride || starterPlan?.suggestedModel || autoRoute.model || getDefaultQuickReplyModel()).trim();
+  if (!Array.isArray(options.imageAttachments)) {
+    const officeScreenshotFallback = await maybeCreateOfficeScreenshotFallbackAttachment(imageAttachments);
+    if (officeScreenshotFallback) {
+      imageAttachments = [...imageAttachments, officeScreenshotFallback];
+    }
+  }
+
+  const autoRoute = resolveExecutionModelForTask({ starter: pendingStarter, userMessage, hasImageAttachments: imageAttachments.length > 0 });
+  const effectiveModel = resolveUsableModelForTask({
+    starter: pendingStarter,
+    userMessage,
+    modelOverride: options.modelOverride,
+    preferredModel: starterPlan?.suggestedModel,
+    hasImageAttachments: imageAttachments.length > 0,
+  });
   if (!effectiveModel) {
     setStatus(tl("pickModelFirst"));
     return false;
@@ -12714,7 +13147,7 @@ async function sendCurrentPrompt(options = {}) {
   clearPendingStarterExecution();
   setStatus(
     getModelSelectionMode() === "auto"
-      ? getAutoModelStatusText({ starter: pendingStarter, userMessage })
+      ? getAutoModelStatusText({ starter: pendingStarter, userMessage, hasImageAttachments: imageAttachments.length > 0 })
       : tl("preparingRequest", { model: effectiveModel })
   );
   const displayMessage = String(options.displayMessageOverride || (hasUserMessageOverride ? "" : typedUserMessage) || pendingStarter?.label || (documentAttachments.length ? tl("analyzeTextFile") : tl("analyzeImage"))).trim();
