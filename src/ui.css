@@ -1352,6 +1352,35 @@ body[data-theme="light"] .notification-code-hint {
   background: rgba(6, 17, 31, 0.46);
 }
 
+.tools-panel-shell {
+  gap: 18px;
+}
+
+.tools-card-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px);
+  gap: 16px;
+}
+
+.tool-card {
+  align-content: start;
+}
+
+.tools-embed-shell {
+  padding: 18px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 22px;
+  background: rgba(6, 17, 31, 0.46);
+}
+
+.tools-embed-frame {
+  width: 100%;
+  min-height: 980px;
+  border: 1px solid rgba(104, 187, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(3, 10, 19, 0.92);
+}
+
 .starter-studio-head,
 .starter-studio-library-head {
   display: flex;
@@ -2086,6 +2115,7 @@ body[data-theme="light"] .starter-detail-meta-value {
   .split-fields,
   .behavior-grid,
   .starter-studio-shell,
+  .tools-card-grid,
   .starter-detail-grid,
   .starter-flow-editor-layout {
     grid-template-columns: 1fr;

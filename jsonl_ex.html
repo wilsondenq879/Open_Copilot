@@ -3,23 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JSONL 解析工具</title>
+  <title>JSONL QA 編修器</title>
   <style>
     :root {
-      --bg: linear-gradient(135deg, #f4efe6 0%, #dfe9f3 100%);
-      --panel: rgba(255, 255, 255, 0.88);
-      --panel-strong: rgba(255, 255, 255, 0.96);
-      --text: #1f2a37;
-      --muted: #5b6777;
-      --line: rgba(31, 42, 55, 0.12);
-      --accent: #c96f3b;
-      --accent-deep: #8f4d25;
-      --good: #1f7a4d;
-      --bad: #b63f34;
-      --shadow: 0 20px 40px rgba(31, 42, 55, 0.12);
-      --radius: 20px;
+      --bg: linear-gradient(180deg, #07111f 0%, #030711 100%);
+      --panel: rgba(8, 18, 31, 0.88);
+      --panel-strong: rgba(10, 22, 37, 0.96);
+      --text: #e8f4ff;
+      --muted: rgba(190, 220, 242, 0.72);
+      --line: rgba(104, 187, 255, 0.14);
+      --accent: #42cfff;
+      --accent-soft: rgba(66, 207, 255, 0.12);
+      --good: #46d79b;
+      --bad: #ff8f9f;
+      --warn: #ffcf70;
+      --shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+      --radius: 22px;
       --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-      --sans: "Segoe UI", "Noto Sans TC", sans-serif;
+      --sans: "Avenir Next", "Segoe UI", "Noto Sans TC", sans-serif;
     }
 
     * {
@@ -34,11 +35,18 @@
       background: var(--bg);
     }
 
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
     .page {
-      width: min(1200px, calc(100% - 32px));
-      margin: 32px auto;
+      width: min(1380px, calc(100% - 32px));
+      margin: 24px auto 40px;
       display: grid;
-      gap: 20px;
+      gap: 18px;
     }
 
     .hero,
@@ -59,50 +67,62 @@
     .hero::after {
       content: "";
       position: absolute;
-      inset: auto -60px -60px auto;
+      right: -50px;
+      bottom: -50px;
       width: 180px;
       height: 180px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(201, 111, 59, 0.25) 0%, rgba(201, 111, 59, 0) 70%);
+      background: radial-gradient(circle, rgba(66, 207, 255, 0.22) 0%, rgba(66, 207, 255, 0) 70%);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
     }
 
     h1 {
-      margin: 0 0 8px;
-      font-size: clamp(28px, 4vw, 44px);
+      font-size: clamp(30px, 4vw, 46px);
       line-height: 1.05;
       letter-spacing: -0.03em;
+      margin-bottom: 10px;
     }
 
     .subtitle {
-      margin: 0;
-      max-width: 760px;
+      max-width: 920px;
       color: var(--muted);
+      line-height: 1.7;
       font-size: 16px;
-      line-height: 1.6;
     }
 
-    .upload-grid {
+    .top-grid {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 20px;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 18px;
     }
 
     .panel {
       padding: 22px;
     }
 
+    .section-title {
+      font-size: 18px;
+      margin-bottom: 14px;
+    }
+
     .dropzone {
-      border: 2px dashed rgba(201, 111, 59, 0.35);
+      border: 2px dashed rgba(178, 95, 43, 0.34);
       border-radius: 18px;
-      padding: 28px;
-      background: rgba(255, 255, 255, 0.45);
-      transition: 0.2s ease;
+      padding: 26px;
+      background: rgba(255, 255, 255, 0.03);
       text-align: center;
+      transition: 0.2s ease;
     }
 
     .dropzone.dragover {
       border-color: var(--accent);
-      background: rgba(201, 111, 59, 0.08);
+      background: rgba(66, 207, 255, 0.08);
       transform: translateY(-2px);
     }
 
@@ -114,14 +134,33 @@
 
     .hint {
       color: var(--muted);
-      line-height: 1.6;
+      line-height: 1.65;
     }
 
-    .controls {
+    .controls,
+    .toolbar,
+    .inline-actions,
+    .summary,
+    .status-row,
+    .provider-grid,
+    .meta {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
+    }
+
+    .controls,
+    .toolbar,
+    .status-row {
       align-items: center;
+    }
+
+    .toolbar {
+      justify-content: space-between;
+    }
+
+    .controls {
+      justify-content: center;
       margin-top: 18px;
     }
 
@@ -129,21 +168,26 @@
     .file-label {
       border: 0;
       border-radius: 999px;
-      padding: 12px 18px;
-      font: inherit;
+      padding: 11px 17px;
       cursor: pointer;
-      transition: 0.2s ease;
+      transition: 0.18s ease;
     }
 
-    .file-label,
-    .primary {
+    .primary,
+    .file-label {
       background: var(--accent);
       color: #fff;
     }
 
     .secondary {
-      background: rgba(31, 42, 55, 0.08);
+      background: rgba(255, 255, 255, 0.06);
       color: var(--text);
+    }
+
+    .ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(66, 207, 255, 0.26);
     }
 
     button:hover,
@@ -152,8 +196,61 @@
       filter: brightness(1.02);
     }
 
+    button:disabled {
+      cursor: wait;
+      opacity: 0.6;
+      transform: none;
+    }
+
     input[type="file"] {
       display: none;
+    }
+
+    .search {
+      width: min(420px, 100%);
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .ai-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 12px 14px;
+      color: var(--text);
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 88px;
+      line-height: 1.65;
+    }
+
+    .span-2 {
+      grid-column: span 2;
     }
 
     .meta {
@@ -164,7 +261,7 @@
     .meta-row {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       padding-bottom: 10px;
       border-bottom: 1px solid var(--line);
       color: var(--muted);
@@ -181,14 +278,36 @@
       text-align: right;
     }
 
+    .ai-summary-card {
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .ai-summary-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .ai-summary-value {
+      color: var(--text);
+      font-weight: 700;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
     .summary {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
     }
 
     .stat {
-      padding: 18px;
+      padding: 16px 18px;
       border-radius: 18px;
       background: var(--panel-strong);
       border: 1px solid var(--line);
@@ -201,7 +320,7 @@
     }
 
     .stat-value {
-      font-size: clamp(24px, 4vw, 34px);
+      font-size: clamp(22px, 3vw, 32px);
       font-weight: 800;
       letter-spacing: -0.03em;
     }
@@ -214,46 +333,62 @@
       color: var(--bad);
     }
 
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
+    .warn {
+      color: var(--warn);
     }
 
-    .search {
-      width: min(420px, 100%);
-      padding: 12px 16px;
+    .status-text {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-pill {
+      padding: 7px 12px;
       border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.86);
-      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(31, 42, 55, 0.08);
+    }
+
+    .status-dirty {
+      background: rgba(155, 106, 18, 0.12);
+      color: var(--warn);
+    }
+
+    .status-saved {
+      background: rgba(23, 114, 74, 0.12);
+      color: var(--good);
+    }
+
+    .status-ai {
+      background: rgba(178, 95, 43, 0.12);
+      color: var(--accent);
     }
 
     .viewer {
       display: grid;
-      gap: 14px;
+      gap: 16px;
       margin-top: 18px;
     }
 
     .record,
-    .error-card {
+    .error-card,
+    .empty {
+      border-radius: 20px;
       border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow: hidden;
       background: var(--panel-strong);
+      overflow: hidden;
     }
 
     .record summary,
     .error-card summary {
       list-style: none;
       cursor: pointer;
-      padding: 16px 18px;
+      padding: 18px 20px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
       gap: 16px;
+      align-items: flex-start;
     }
 
     .record summary::-webkit-details-marker,
@@ -262,77 +397,187 @@
     }
 
     .record-title {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
       min-width: 0;
+      display: grid;
+      gap: 6px;
     }
 
     .record-title strong {
       font-size: 16px;
     }
 
-    .record-title span {
+    .record-preview {
       color: var(--muted);
-      font-size: 13px;
-      white-space: nowrap;
+      line-height: 1.55;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 100%;
+      white-space: nowrap;
     }
 
     .badge {
+      padding: 7px 12px;
       border-radius: 999px;
-      padding: 6px 10px;
       font-size: 12px;
       font-weight: 700;
       white-space: nowrap;
     }
 
     .badge-ok {
-      background: rgba(31, 122, 77, 0.12);
+      background: rgba(23, 114, 74, 0.12);
       color: var(--good);
     }
 
     .badge-err {
-      background: rgba(182, 63, 52, 0.12);
+      background: rgba(178, 59, 50, 0.12);
       color: var(--bad);
     }
 
-    pre {
-      margin: 0;
-      padding: 18px;
-      overflow: auto;
+    .badge-dirty {
+      background: rgba(155, 106, 18, 0.12);
+      color: var(--warn);
+    }
+
+    .record-body {
+      padding: 20px;
       border-top: 1px solid var(--line);
-      background: #17202a;
-      color: #edf2f7;
+      display: grid;
+      gap: 18px;
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .editor-card,
+    .source-card,
+    .raw-card {
+      padding: 18px;
+      border: 1px solid rgba(31, 42, 55, 0.08);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(12, 28, 46, 0.98), rgba(8, 20, 33, 0.92));
+    }
+
+    .editor-card h3,
+    .source-card h3,
+    .raw-card h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .editor-card textarea,
+    .editor-card input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 14px;
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .editor-card textarea {
+      min-height: 180px;
+      resize: vertical;
+    }
+
+    .aliases-help {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+
+    .inline-actions {
+      margin-top: 12px;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .source-content {
+      color: var(--text);
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
       font-size: 13px;
-      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .chip strong {
+      margin-right: 6px;
+    }
+
+    .raw-preview,
+    .error-preview {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
       font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.65;
+      color: #edf2f7;
+      background: #18212c;
+      border-radius: 16px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .error-preview {
+      color: #ffd8d4;
+      background: #41201d;
     }
 
     .empty {
+      padding: 36px 20px;
       text-align: center;
       color: var(--muted);
-      padding: 36px 20px;
-      border: 1px dashed var(--line);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.52);
+      background: rgba(255, 255, 255, 0.03);
+      border-style: dashed;
     }
 
-    .section-title {
-      margin: 0 0 14px;
-      font-size: 18px;
-    }
-
-    @media (max-width: 860px) {
-      .upload-grid,
-      .summary {
+    @media (max-width: 1080px) {
+      .top-grid,
+      .summary,
+      .editor-grid,
+      .source-grid,
+      .ai-summary-grid {
         grid-template-columns: 1fr;
       }
 
-      .toolbar {
-        align-items: stretch;
+      .span-2 {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        width: min(100% - 20px, 100%);
+        margin: 14px auto 24px;
+      }
+
+      .record summary {
+        flex-direction: column;
       }
 
       .search {
@@ -344,35 +589,55 @@
 <body>
   <main class="page">
     <section class="hero">
-      <h1>JSONL 讀取與解析工具</h1>
+      <h1>JSONL QA 編修器</h1>
       <p class="subtitle">
-        上傳 `.jsonl` 檔後，頁面會逐行解析 JSON、統計成功與失敗筆數，並把每一筆內容展開給你看。
-        這個工具完全在瀏覽器本機執行，不會把檔案送出去。
+        這個頁面會把 JSONL 逐行讀成可編輯卡片，讓你直接修改 `canonical_question`、`question_aliases`、`answers`。
+        AI 協助會直接沿用 Open Copilot Settings 裡的預設 provider；所有編輯都會自動暫存，最後再一鍵寫回 `.jsonl`。
       </p>
     </section>
 
-    <section class="upload-grid">
+    <section class="top-grid">
       <div class="panel">
+        <h2 class="section-title">檔案操作</h2>
         <div id="dropzone" class="dropzone">
-          <strong>把 JSONL 檔拖進來</strong>
-          <div class="hint">或按下面按鈕選檔。每一行都會獨立解析，空白行會自動略過。</div>
+          <strong>拖進 JSONL 檔，或直接從瀏覽器開啟</strong>
+          <div class="hint">想真正寫回原檔時，建議用「開啟 JSONL 檔」按鈕，瀏覽器才會保留可寫入權限。</div>
           <div class="controls">
+            <button id="openPickerButton" class="primary" type="button">開啟 JSONL 檔</button>
             <label class="file-label" for="fileInput">選擇 JSONL 檔</label>
             <input id="fileInput" type="file" accept=".jsonl,.txt,application/json">
             <button id="sampleButton" class="secondary" type="button">載入範例資料</button>
+            <button id="writeButton" class="ghost" type="button">寫入 JSONL</button>
+            <button id="downloadButton" class="secondary" type="button">下載副本</button>
             <button id="clearButton" class="secondary" type="button">清空畫面</button>
           </div>
         </div>
       </div>
 
       <div class="panel">
-        <h2 class="section-title">檔案資訊</h2>
-        <div class="meta">
-          <div class="meta-row"><span>目前檔名</span><span id="fileName" class="value">尚未載入</span></div>
-          <div class="meta-row"><span>檔案大小</span><span id="fileSize" class="value">-</span></div>
-          <div class="meta-row"><span>總行數</span><span id="totalLines" class="value">0</span></div>
-          <div class="meta-row"><span>解析時間</span><span id="parseTime" class="value">-</span></div>
+        <div class="toolbar">
+          <h2 class="section-title">AI 協助</h2>
+          <button id="reloadProviderButton" class="secondary" type="button">重新讀取 Open Copilot 設定</button>
         </div>
+        <div class="ai-summary-grid">
+          <div class="ai-summary-card">
+            <div class="ai-summary-label">Default Provider</div>
+            <div id="providerSummary" class="ai-summary-value">尚未讀取</div>
+          </div>
+          <div class="ai-summary-card">
+            <div class="ai-summary-label">Model / Deployment</div>
+            <div id="modelSummary" class="ai-summary-value">尚未讀取</div>
+          </div>
+          <div class="ai-summary-card">
+            <div class="ai-summary-label">Endpoint</div>
+            <div id="endpointSummary" class="ai-summary-value">尚未讀取</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top: 14px;">
+          <label for="systemPromptInput">AI 修改指示</label>
+          <textarea id="systemPromptInput" placeholder="例如：請保留原意、用簡潔自然中文改寫問題別名，答案不要擴寫太多。"></textarea>
+        </div>
+        <p class="hint" style="margin-top: 12px;">這個工具會直接使用 Open Copilot Settings 裡的預設 AI provider，不需要在這裡重填 model 或 API 設定。</p>
       </div>
     </section>
 
@@ -390,6 +655,10 @@
         <div id="blankCount" class="stat-value">0</div>
       </div>
       <div class="stat">
+        <div class="stat-label">已編輯筆數</div>
+        <div id="dirtyCount" class="stat-value warn">0</div>
+      </div>
+      <div class="stat">
         <div class="stat-label">頂層欄位 Keys</div>
         <div id="keyCount" class="stat-value">0</div>
       </div>
@@ -397,244 +666,25 @@
 
     <section class="panel">
       <div class="toolbar">
-        <h2 class="section-title">解析結果</h2>
-        <input id="searchInput" class="search" type="search" placeholder="搜尋內容、key 或值">
+        <h2 class="section-title">目前檔案</h2>
+        <input id="searchInput" class="search" type="search" placeholder="搜尋 question、aliases、answers、source">
+      </div>
+      <div class="meta">
+        <div class="meta-row"><span>目前檔名</span><span id="fileName" class="value">尚未載入</span></div>
+        <div class="meta-row"><span>檔案大小</span><span id="fileSize" class="value">-</span></div>
+        <div class="meta-row"><span>總行數</span><span id="totalLines" class="value">0</span></div>
+        <div class="meta-row"><span>解析時間</span><span id="parseTime" class="value">-</span></div>
+      </div>
+      <div class="status-row" style="margin-top: 14px;">
+        <span id="draftStatus" class="status-pill status-saved">暫存已同步</span>
+        <span id="writeStatus" class="status-text">尚未寫入檔案</span>
       </div>
       <div id="viewer" class="viewer">
-        <div class="empty">上傳檔案後，這裡會顯示逐筆解析結果。</div>
+        <div class="empty">載入 JSONL 後，這裡會顯示可編輯的 QA 卡片。</div>
       </div>
     </section>
   </main>
 
-  <script>
-    const elements = {
-      dropzone: document.getElementById("dropzone"),
-      fileInput: document.getElementById("fileInput"),
-      sampleButton: document.getElementById("sampleButton"),
-      clearButton: document.getElementById("clearButton"),
-      fileName: document.getElementById("fileName"),
-      fileSize: document.getElementById("fileSize"),
-      totalLines: document.getElementById("totalLines"),
-      parseTime: document.getElementById("parseTime"),
-      validCount: document.getElementById("validCount"),
-      errorCount: document.getElementById("errorCount"),
-      blankCount: document.getElementById("blankCount"),
-      keyCount: document.getElementById("keyCount"),
-      searchInput: document.getElementById("searchInput"),
-      viewer: document.getElementById("viewer")
-    };
-
-    let currentRecords = [];
-    let currentErrors = [];
-
-    const sampleJsonl = [
-      JSON.stringify({ id: 1, title: "Open Copilot", tags: ["extension", "ai"], published: true }),
-      JSON.stringify({ id: 2, title: "README Parser", owner: { name: "Wilson", team: "Docs" } }),
-      "{ invalid json line",
-      "",
-      JSON.stringify({ id: 3, title: "Batch QA", score: 98.5, url: "https://example.com" })
-    ].join("\n");
-
-    function formatBytes(bytes) {
-      if (!Number.isFinite(bytes) || bytes <= 0) return "-";
-      const units = ["B", "KB", "MB", "GB"];
-      let size = bytes;
-      let unit = 0;
-      while (size >= 1024 && unit < units.length - 1) {
-        size /= 1024;
-        unit += 1;
-      }
-      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
-
-    function getPreview(record) {
-      if (record && typeof record === "object" && !Array.isArray(record)) {
-        const entries = Object.entries(record).slice(0, 3);
-        if (entries.length) {
-          return entries.map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`).join(" | ");
-        }
-      }
-      return JSON.stringify(record);
-    }
-
-    function parseJsonl(text) {
-      const start = performance.now();
-      const lines = text.replace(/\r\n/g, "\n").split("\n");
-      const records = [];
-      const errors = [];
-      const keys = new Set();
-      let blanks = 0;
-
-      lines.forEach((line, index) => {
-        if (!line.trim()) {
-          blanks += 1;
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            Object.keys(parsed).forEach((key) => keys.add(key));
-          }
-          records.push({
-            lineNumber: index + 1,
-            value: parsed,
-            preview: getPreview(parsed),
-            searchText: JSON.stringify(parsed).toLowerCase()
-          });
-        } catch (error) {
-          errors.push({
-            lineNumber: index + 1,
-            line,
-            message: error.message
-          });
-        }
-      });
-
-      return {
-        records,
-        errors,
-        blanks,
-        keyCount: keys.size,
-        totalLines: lines.length,
-        parseMs: Math.round(performance.now() - start)
-      };
-    }
-
-    function renderResults() {
-      const keyword = elements.searchInput.value.trim().toLowerCase();
-      const filteredRecords = keyword
-        ? currentRecords.filter((item) =>
-            item.searchText.includes(keyword) ||
-            item.preview.toLowerCase().includes(keyword) ||
-            `line ${item.lineNumber}`.includes(keyword)
-          )
-        : currentRecords;
-
-      const filteredErrors = keyword
-        ? currentErrors.filter((item) =>
-            item.message.toLowerCase().includes(keyword) ||
-            item.line.toLowerCase().includes(keyword) ||
-            `line ${item.lineNumber}`.includes(keyword)
-          )
-        : currentErrors;
-
-      if (!filteredRecords.length && !filteredErrors.length) {
-        elements.viewer.innerHTML = `<div class="empty">查不到符合 "${escapeHtml(keyword)}" 的內容。</div>`;
-        return;
-      }
-
-      const recordHtml = filteredRecords.map((item) => `
-        <details class="record">
-          <summary>
-            <div class="record-title">
-              <strong>第 ${item.lineNumber} 行</strong>
-              <span>${escapeHtml(item.preview)}</span>
-            </div>
-            <span class="badge badge-ok">JSON OK</span>
-          </summary>
-          <pre>${escapeHtml(JSON.stringify(item.value, null, 2))}</pre>
-        </details>
-      `).join("");
-
-      const errorHtml = filteredErrors.map((item) => `
-        <details class="error-card">
-          <summary>
-            <div class="record-title">
-              <strong>第 ${item.lineNumber} 行解析失敗</strong>
-              <span>${escapeHtml(item.message)}</span>
-            </div>
-            <span class="badge badge-err">JSON ERROR</span>
-          </summary>
-          <pre>${escapeHtml(item.line)}</pre>
-        </details>
-      `).join("");
-
-      elements.viewer.innerHTML = recordHtml + errorHtml;
-    }
-
-    function updateSummary(meta) {
-      elements.totalLines.textContent = String(meta.totalLines);
-      elements.parseTime.textContent = `${meta.parseMs} ms`;
-      elements.validCount.textContent = String(meta.records.length);
-      elements.errorCount.textContent = String(meta.errors.length);
-      elements.blankCount.textContent = String(meta.blanks);
-      elements.keyCount.textContent = String(meta.keyCount);
-    }
-
-    function clearAll() {
-      currentRecords = [];
-      currentErrors = [];
-      elements.fileInput.value = "";
-      elements.searchInput.value = "";
-      elements.fileName.textContent = "尚未載入";
-      elements.fileSize.textContent = "-";
-      elements.totalLines.textContent = "0";
-      elements.parseTime.textContent = "-";
-      elements.validCount.textContent = "0";
-      elements.errorCount.textContent = "0";
-      elements.blankCount.textContent = "0";
-      elements.keyCount.textContent = "0";
-      elements.viewer.innerHTML = '<div class="empty">上傳檔案後，這裡會顯示逐筆解析結果。</div>';
-    }
-
-    function loadText(text, sourceName = "未命名資料", sourceSize = text.length) {
-      const result = parseJsonl(text);
-      currentRecords = result.records;
-      currentErrors = result.errors;
-      elements.fileName.textContent = sourceName;
-      elements.fileSize.textContent = formatBytes(sourceSize);
-      updateSummary(result);
-      renderResults();
-    }
-
-    async function handleFile(file) {
-      const text = await file.text();
-      loadText(text, file.name, file.size);
-    }
-
-    elements.fileInput.addEventListener("change", async (event) => {
-      const [file] = event.target.files || [];
-      if (file) {
-        await handleFile(file);
-      }
-    });
-
-    ["dragenter", "dragover"].forEach((eventName) => {
-      elements.dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        elements.dropzone.classList.add("dragover");
-      });
-    });
-
-    ["dragleave", "drop"].forEach((eventName) => {
-      elements.dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        elements.dropzone.classList.remove("dragover");
-      });
-    });
-
-    elements.dropzone.addEventListener("drop", async (event) => {
-      const [file] = event.dataTransfer.files || [];
-      if (file) {
-        await handleFile(file);
-      }
-    });
-
-    elements.searchInput.addEventListener("input", renderResults);
-    elements.clearButton.addEventListener("click", clearAll);
-    elements.sampleButton.addEventListener("click", () => loadText(sampleJsonl, "sample.jsonl", sampleJsonl.length));
-
-    clearAll();
-  </script>
+  <script src="jsonl_ex.js"></script>
 </body>
 </html>

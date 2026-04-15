@@ -2829,7 +2829,7 @@ function normalizeBatchUrlQaJob(job = {}) {
     status,
     model: normalizeTaskText(job.model || "", 200),
     outputLanguage: normalizeTaskText(job.outputLanguage || "", 40) || "zh-TW",
-    extraPrompt: normalizeTaskText(job.extraPrompt || "", 3000),
+    prompt: normalizeTaskText(job.prompt || job.extraPrompt || "", 16000),
     qaPerUrl: normalizeBatchUrlQaCount(job.qaPerUrl),
     fileName: normalizeBatchUrlQaFilename(job.fileName),
     urls: parsed.urls,
@@ -2947,6 +2947,46 @@ function extractJsonObjectFromText(value) {
   throw new Error("Model did not return JSON.");
 }
 
+function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {}) {
+  const resolvedCount = Math.max(1, Math.min(8, Number(qaPerUrl) || 8));
+  const resolvedLanguage = String(outputLanguage || "zh-TW").trim() || "zh-TW";
+  return [
+    "You are creating grounded FAQ training data from a single webpage.",
+    "Return one JSON object only.",
+    `Generate exactly ${resolvedCount} FAQ items from the provided page.`,
+    `Write every question variant and answer in this language: ${resolvedLanguage}.`,
+    "Rules:",
+    "1. Use only the provided webpage content for all questions, answers, and evidence.",
+    "2. Do not use outside knowledge.",
+    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
+    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
+    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
+    "6. Prefer standalone questions that still make sense outside the original page.",
+    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
+    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
+    "12. Evidence must be a short supporting passage copied from the provided page text.",
+    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
+    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
+    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
+    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
+    "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones.",
+    "",
+    "URL: {{url}}",
+    "Title: {{title}}",
+    "Meta description: {{metaDescription}}",
+    "Headings: {{headings}}",
+    "",
+    "EXISTING QA PAIRS TO AVOID",
+    "{{existingPairsSection}}",
+    "",
+    "PAGE TEXT",
+    "{{pageText}}",
+  ].join("\n");
+}
+
 function extractBatchUrlQaPairsFromPayload(payload) {
   const normalizedPayload = payload && typeof payload === "object" ? payload : {};
   if (Array.isArray(payload)) {
@@ -2979,7 +3019,7 @@ function buildBatchUrlQaPrompt({
   pageText,
   qaPerUrl,
   outputLanguage,
-  extraPrompt,
+  prompt,
   existingPairs = [],
 }) {
   const trimmedText = String(pageText || "").trim().slice(0, 12000);
@@ -2989,42 +3029,19 @@ function buildBatchUrlQaPrompt({
       .map((pair, index) => `${index + 1}. Topic: ${pair.topic || "-"}\nQuestions: ${(pair.questions || []).join(" | ")}\nAnswer: ${pair.answer}`)
       .join("\n")
     : "";
-  return [
-    "You are creating grounded FAQ training data from a single webpage.",
-    "Return one JSON object only.",
-    `Generate exactly ${remainingCount} FAQ items from the provided page.`,
-    `Write every question variant and answer in this language: ${outputLanguage || "zh-TW"}.`,
-    "Rules:",
-    "1. Use only the provided webpage content for all questions, answers, and evidence.",
-    "2. Do not use outside knowledge.",
-    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
-    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
-    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
-    "6. Prefer standalone questions that still make sense outside the original page.",
-    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
-    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
-    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
-    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
-    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
-    "12. Evidence must be a short supporting passage copied from the provided page text.",
-    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
-    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
-    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
-    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
-    existingSummary ? "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones." : "",
-    extraPrompt ? `18. Additional task instructions: ${extraPrompt}` : "",
-    "",
-    `URL: ${url}`,
-    title ? `Title: ${title}` : "",
-    metaDescription ? `Meta description: ${metaDescription}` : "",
-    headings ? `Headings: ${headings}` : "",
-    existingSummary ? "" : "",
-    existingSummary ? "EXISTING QA PAIRS TO AVOID" : "",
-    existingSummary || "",
-    "",
-    "PAGE TEXT",
-    trimmedText || "(empty)",
-  ].filter(Boolean).join("\n");
+  const template = String(prompt || "").trim() || buildDefaultBatchUrlQaPromptTemplate({
+    qaPerUrl: remainingCount,
+    outputLanguage,
+  });
+  return template
+    .replaceAll("{{qaPerUrl}}", String(remainingCount))
+    .replaceAll("{{outputLanguage}}", String(outputLanguage || "zh-TW"))
+    .replaceAll("{{url}}", String(url || ""))
+    .replaceAll("{{title}}", String(title || ""))
+    .replaceAll("{{metaDescription}}", String(metaDescription || ""))
+    .replaceAll("{{headings}}", String(headings || ""))
+    .replaceAll("{{existingPairsSection}}", existingSummary)
+    .replaceAll("{{pageText}}", trimmedText || "(empty)");
 }
 
 async function waitForTabCompletion(tabId, timeoutMs = 30000) {
@@ -3179,7 +3196,7 @@ function buildBatchUrlQaJsonl(results = []) {
   return entries.length ? `${entries.join("\n")}\n` : "";
 }
 
-async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
+async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, prompt }) {
   const targetCount = estimateBatchUrlQaTargetCount(pageText, headings, qaPerUrl);
   let collectedPairs = [];
   const maxAttempts = 3;
@@ -3194,7 +3211,7 @@ async function generateQaPairsForPage({ url, title, metaDescription, headings, p
         pageText,
         qaPerUrl: targetCount - collectedPairs.length,
         outputLanguage,
-        extraPrompt,
+        prompt,
         existingPairs: collectedPairs,
       }),
       model,
@@ -3274,7 +3291,7 @@ async function processBatchUrlQaJob(jobId) {
         qaPerUrl: job.qaPerUrl,
         model: job.model,
         outputLanguage: job.outputLanguage,
-        extraPrompt: job.extraPrompt,
+        prompt: job.prompt,
       });
       await throwIfBatchUrlQaCanceled(jobId);
       result = normalizeBatchUrlQaResult({
@@ -3370,7 +3387,10 @@ async function startBatchUrlQaJob(input = {}) {
     status: "queued",
     model: selectedModel,
     outputLanguage: String(input.outputLanguage || config.replyLanguage || "zh-TW").trim() || "zh-TW",
-    extraPrompt: String(input.extraPrompt || "").trim(),
+    prompt: String(input.prompt || input.extraPrompt || "").trim() || buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: input.qaPerUrl,
+      outputLanguage: input.outputLanguage || config.replyLanguage || "zh-TW",
+    }),
     qaPerUrl: normalizeBatchUrlQaCount(input.qaPerUrl),
     fileName: uniqueFileName,
     urls: parsed.urls,

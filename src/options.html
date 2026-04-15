@@ -45,6 +45,7 @@
         <button id="tabNotifications" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="notificationTabPanel" data-settings-view="notifications">Notifications</button>
         <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
         <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
+        <button id="tabTools" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="toolsTabPanel" data-settings-view="tools">Tools</button>
       </div>
 
       <section class="settings-tab-panels">
@@ -365,6 +366,37 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             </div>
           </div>
         </article>
+        </section>
+      </section>
+
+      <section id="toolsTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+          <article class="setting-card starter-library-panel tools-panel-shell">
+            <div class="starter-library-hero">
+              <div class="starter-library-copy">
+                <span id="toolsLibraryKicker" class="section-kicker">Tools</span>
+                <h3 id="toolsLibraryTitle">Built-in Tools</h3>
+                <p id="toolsLibraryDescription">Open utility pages directly inside Open Copilot so they run from the extension origin instead of `file://`.</p>
+              </div>
+            </div>
+
+            <div class="tools-card-grid">
+              <section class="starter-studio-intake tool-card">
+                <div class="starter-studio-head">
+                  <div>
+                    <span id="jsonlToolKicker" class="section-kicker">JSONL</span>
+                    <h3 id="jsonlToolTitle" class="starter-studio-title">JSONL QA Editor</h3>
+                  </div>
+                  <span id="jsonlToolTag" class="section-tag">Extension Tool</span>
+                </div>
+                <p id="jsonlToolDescription" class="field-hint">Edit `canonical_question`, `question_aliases`, and `answers`, use Azure OpenAI or Ollama for help, auto-save drafts, then write back to JSONL.</p>
+                <div class="actions settings-inline-actions">
+                  <button id="openJsonlToolButton" class="primary-button" type="button">Open Tool In New Tab</button>
+                </div>
+                <p id="jsonlToolHint" class="field-hint">This opens as an extension page, so it avoids the usual `file://` fetch restrictions and can reuse your saved Open Copilot provider settings.</p>
+              </section>
+            </div>
+          </article>
         </section>
       </section>
 

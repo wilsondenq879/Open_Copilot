@@ -343,6 +343,7 @@ let batchUrlQaWorkFolderStatus = null;
 let batchUrlQaPollTimer = null;
 let batchUrlQaShouldFocusUrls = false;
 let batchUrlQaBuilderScrollTop = 0;
+let batchUrlQaFocusedField = null;
 let extractedTaskCandidates = [];
 let savedTaskReminders = [];
 let isExtractingTasks = false;
@@ -1035,8 +1036,8 @@ const CONTENT_I18N = {
     batchUrlQaCountLabel: "每頁 FAQ 上限",
     batchUrlQaLanguageLabel: "輸出語言",
     batchUrlQaFileLabel: "輸出檔名",
-    batchUrlQaExtraPromptLabel: "額外指示",
-    batchUrlQaExtraPromptPlaceholder: "例如：問題請偏向使用者常見 FAQ，答案若有操作流程請保留完整步驟。",
+    batchUrlQaPromptLabel: "Prompt",
+    batchUrlQaPromptPlaceholder: "這裡會預先帶入目前 QA 生成用的 prompt，你可以直接修改。",
     batchUrlQaSettingsTitle: "任務設定",
     batchUrlQaStatusTitle: "執行狀態",
     batchUrlQaStart: "開始執行",
@@ -1528,8 +1529,8 @@ const CONTENT_I18N = {
     batchUrlQaCountLabel: "FAQ Cap Per Page",
     batchUrlQaLanguageLabel: "Output Language",
     batchUrlQaFileLabel: "Output File",
-    batchUrlQaExtraPromptLabel: "Extra Instructions",
-    batchUrlQaExtraPromptPlaceholder: "For example: favor common FAQ wording, and preserve full step-by-step answers when the source is procedural.",
+    batchUrlQaPromptLabel: "Prompt",
+    batchUrlQaPromptPlaceholder: "The current QA generation prompt is prefilled here so you can edit it before running.",
     batchUrlQaSettingsTitle: "Workflow Settings",
     batchUrlQaStatusTitle: "Run Status",
     batchUrlQaStart: "Start Workflow",
@@ -6320,13 +6321,55 @@ function createDefaultAgentFlowBuilderDraft() {
   };
 }
 
+function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {}) {
+  const resolvedCount = Math.max(1, Math.min(8, Number(qaPerUrl) || 8));
+  const resolvedLanguage = String(outputLanguage || getReplyLanguage() || "zh-TW").trim() || "zh-TW";
+  return [
+    "You are creating grounded FAQ training data from a single webpage.",
+    "Return one JSON object only.",
+    `Generate exactly ${resolvedCount} FAQ items from the provided page.`,
+    `Write every question variant and answer in this language: ${resolvedLanguage}.`,
+    "Rules:",
+    "1. Use only the provided webpage content for all questions, answers, and evidence.",
+    "2. Do not use outside knowledge.",
+    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
+    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
+    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
+    "6. Prefer standalone questions that still make sense outside the original page.",
+    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
+    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
+    "12. Evidence must be a short supporting passage copied from the provided page text.",
+    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
+    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
+    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
+    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
+    "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones.",
+    "",
+    "URL: {{url}}",
+    "Title: {{title}}",
+    "Meta description: {{metaDescription}}",
+    "Headings: {{headings}}",
+    "",
+    "EXISTING QA PAIRS TO AVOID",
+    "{{existingPairsSection}}",
+    "",
+    "PAGE TEXT",
+    "{{pageText}}",
+  ].join("\n");
+}
+
 function createDefaultBatchUrlQaBuilderDraft() {
+  const outputLanguage = getReplyLanguage();
+  const qaPerUrl = "8";
   return {
     urls: "",
-    qaPerUrl: "8",
-    outputLanguage: getReplyLanguage(),
+    qaPerUrl,
+    outputLanguage,
     fileName: `batch-url-qa-${Date.now()}.jsonl`,
-    extraPrompt: "",
+    prompt: buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage }),
   };
 }
 
@@ -6368,7 +6411,54 @@ function ensureBatchUrlQaBuilderDraft() {
   if (!batchUrlQaBuilderDraft || typeof batchUrlQaBuilderDraft !== "object") {
     batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
   }
+  if (!String(batchUrlQaBuilderDraft.prompt || "").trim()) {
+    batchUrlQaBuilderDraft.prompt = buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: batchUrlQaBuilderDraft.qaPerUrl,
+      outputLanguage: batchUrlQaBuilderDraft.outputLanguage,
+    });
+  }
   return batchUrlQaBuilderDraft;
+}
+
+function captureBatchUrlQaFocusState(host) {
+  const activeElement = document.activeElement;
+  if (!(activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement || activeElement instanceof HTMLSelectElement)) {
+    return null;
+  }
+  if (!host.contains(activeElement)) {
+    return null;
+  }
+  const role = String(activeElement.dataset.role || "").trim();
+  if (!role.startsWith("batch-url-qa-")) {
+    return null;
+  }
+  return {
+    role,
+    selectionStart: typeof activeElement.selectionStart === "number" ? activeElement.selectionStart : null,
+    selectionEnd: typeof activeElement.selectionEnd === "number" ? activeElement.selectionEnd : null,
+  };
+}
+
+function restoreBatchUrlQaFocusState(host, focusState) {
+  if (!focusState?.role) {
+    return false;
+  }
+  const target = host.querySelector(`[data-role="${focusState.role}"]`);
+  if (!(target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+    return false;
+  }
+  window.requestAnimationFrame(() => {
+    target.focus();
+    if ((target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement)
+      && typeof focusState.selectionStart === "number"
+      && typeof focusState.selectionEnd === "number") {
+      const max = target.value.length;
+      const start = Math.max(0, Math.min(focusState.selectionStart, max));
+      const end = Math.max(0, Math.min(focusState.selectionEnd, max));
+      target.setSelectionRange(start, end);
+    }
+  });
+  return true;
 }
 
 function normalizeAgentFlowOutputStepIds(value, steps = []) {
@@ -9838,6 +9928,7 @@ function renderShell() {
   const existingPrompt = host.querySelector("[data-role='prompt']");
   const promptDraft = existingPrompt instanceof HTMLTextAreaElement ? existingPrompt.value : "";
   const existingBatchUrlQaForm = host.querySelector(".ollama-quick-batch-url-qa-form");
+  batchUrlQaFocusedField = captureBatchUrlQaFocusState(host);
   if (existingBatchUrlQaForm instanceof HTMLElement) {
     batchUrlQaBuilderScrollTop = existingBatchUrlQaForm.scrollTop;
   }
@@ -10159,6 +10250,8 @@ function renderShell() {
         urlsField.focus();
       });
       batchUrlQaShouldFocusUrls = false;
+    } else if (batchUrlQaFocusedField) {
+      restoreBatchUrlQaFocusState(host, batchUrlQaFocusedField);
     }
   }
 
@@ -10806,8 +10899,8 @@ function renderBatchUrlQaBuilder() {
                   <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="text" data-role="batch-url-qa-file" value="${escapeHtml(draft.fileName)}" />
                 </label>
                 <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-extra-prompt">
-                  <span>${escapeHtml(tl("batchUrlQaExtraPromptLabel"))}</span>
-                  <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-extra-prompt" data-role="batch-url-qa-extra-prompt" placeholder="${escapeHtml(tl("batchUrlQaExtraPromptPlaceholder"))}">${escapeHtml(draft.extraPrompt || "")}</textarea>
+                  <span>${escapeHtml(tl("batchUrlQaPromptLabel"))}</span>
+                  <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-extra-prompt" data-role="batch-url-qa-prompt" placeholder="${escapeHtml(tl("batchUrlQaPromptPlaceholder"))}">${escapeHtml(draft.prompt || "")}</textarea>
                 </label>
               </div>
             </div>
@@ -12150,7 +12243,6 @@ async function handleClick(event) {
       if (!batchUrlQaBuilderDraft) {
         resetBatchUrlQaBuilderState();
       }
-      startBatchUrlQaPolling();
       loadBatchUrlQaActiveJob().catch(() => {});
       renderShell();
       return;
@@ -12259,7 +12351,7 @@ async function handleClick(event) {
       setStatus(tl("batchUrlQaNeedUrls"));
       return;
     }
-    const executionModel = resolveUsableModelForTask({ userMessage: draft.extraPrompt || tl("starter_batchUrlQaWorkflow") });
+    const executionModel = resolveUsableModelForTask({ userMessage: draft.prompt || tl("starter_batchUrlQaWorkflow") });
     if (!executionModel) {
       setStatus(tl("pickModelFirst"));
       return;
@@ -12275,7 +12367,7 @@ async function handleClick(event) {
       urls: draft.urls,
       qaPerUrl: draft.qaPerUrl,
       fileName: draft.fileName,
-      extraPrompt: draft.extraPrompt || "",
+      prompt: draft.prompt || "",
       outputLanguage: draft.outputLanguage,
       model: executionModel,
     });
@@ -12891,7 +12983,18 @@ async function handleChange(event) {
   }
 
   if (target instanceof HTMLSelectElement && target.dataset.role === "batch-url-qa-language") {
-    ensureBatchUrlQaBuilderDraft().outputLanguage = target.value || getReplyLanguage();
+    const draft = ensureBatchUrlQaBuilderDraft();
+    const previousTemplate = buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: draft.qaPerUrl,
+      outputLanguage: draft.outputLanguage,
+    });
+    draft.outputLanguage = target.value || getReplyLanguage();
+    if (!String(draft.prompt || "").trim() || draft.prompt === previousTemplate) {
+      draft.prompt = buildDefaultBatchUrlQaPromptTemplate({
+        qaPerUrl: draft.qaPerUrl,
+        outputLanguage: draft.outputLanguage,
+      });
+    }
     renderShell();
   }
 }
@@ -12919,10 +13022,22 @@ function handleInput(event) {
   }
 
   if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-count") {
+    const draft = ensureBatchUrlQaBuilderDraft();
+    const previousTemplate = buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: draft.qaPerUrl,
+      outputLanguage: draft.outputLanguage,
+    });
     const parsed = Number.parseInt(target.value, 10);
     const normalized = Number.isFinite(parsed) ? String(Math.min(8, Math.max(2, parsed))) : "8";
     target.value = normalized;
-    ensureBatchUrlQaBuilderDraft().qaPerUrl = normalized;
+    draft.qaPerUrl = normalized;
+    if (!String(draft.prompt || "").trim() || draft.prompt === previousTemplate) {
+      draft.prompt = buildDefaultBatchUrlQaPromptTemplate({
+        qaPerUrl: draft.qaPerUrl,
+        outputLanguage: draft.outputLanguage,
+      });
+      renderShell();
+    }
     return;
   }
 
@@ -12931,8 +13046,8 @@ function handleInput(event) {
     return;
   }
 
-  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-extra-prompt") {
-    ensureBatchUrlQaBuilderDraft().extraPrompt = target.value;
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-prompt") {
+    ensureBatchUrlQaBuilderDraft().prompt = target.value;
     return;
   }
 

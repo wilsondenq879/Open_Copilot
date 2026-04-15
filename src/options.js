@@ -2929,8 +2929,18 @@ Object.assign(OPTION_I18N["zh-TW"], {
   utilityTabGeneral: "General",
   utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "通知",
-  utilityTabStarterLibrary: "Starter",
-  utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabStarterLibrary: "Starter",
+    utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabTools: "工具",
+    toolsLibraryKicker: "工具",
+    toolsLibraryTitle: "內建工具",
+    toolsLibraryDescription: "直接在 Open Copilot 裡打開工具頁，改用 extension origin 執行，避免 `file://` 的限制。",
+    jsonlToolKicker: "JSONL",
+    jsonlToolTitle: "JSONL QA 編輯工具",
+    jsonlToolTag: "Extension Tool",
+    jsonlToolDescription: "編輯 `canonical_question`、`question_aliases`、`answers`，可用 Azure OpenAI 或 Ollama 協助整理，並支援暫存與寫回 JSONL。",
+    jsonlToolOpen: "在新分頁開啟工具",
+    jsonlToolHint: "這會以 extension 頁面開啟，可避開常見的 `file://` fetch 限制，並沿用 Open Copilot 已儲存的 provider 設定。",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "這裡會列出所有內建與自訂 skill。內建 skill 也會顯示，但不能刪除。",
   flowsPageTitle: "Agent Flows",
@@ -2996,8 +3006,18 @@ Object.assign(OPTION_I18N.en, {
   utilityTabGeneral: "General",
   utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "Notifications",
-  utilityTabStarterLibrary: "Starter",
-  utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabStarterLibrary: "Starter",
+    utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabTools: "Tools",
+    toolsLibraryKicker: "Tools",
+    toolsLibraryTitle: "Built-in Tools",
+    toolsLibraryDescription: "Open utility pages directly inside Open Copilot so they run from the extension origin instead of `file://`.",
+    jsonlToolKicker: "JSONL",
+    jsonlToolTitle: "JSONL QA Editor",
+    jsonlToolTag: "Extension Tool",
+    jsonlToolDescription: "Edit `canonical_question`, `question_aliases`, and `answers`, use Azure OpenAI or Ollama for help, auto-save drafts, then write back to JSONL.",
+    jsonlToolOpen: "Open Tool In New Tab",
+    jsonlToolHint: "This opens as an extension page, which avoids the usual `file://` fetch restrictions and reuses your saved Open Copilot provider settings.",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "Browse every built-in and custom skill here. Built-in skills are visible too, but cannot be deleted.",
   flowsPageTitle: "Agent Flows",
@@ -3318,6 +3338,25 @@ function applyTranslations() {
   document.getElementById("tabNotifications").textContent = t("utilityTabNotifications");
   document.getElementById("tabStarterLibrary").textContent = t("utilityTabStarterLibrary");
   document.getElementById("tabAgentFlowLibrary").textContent = t("utilityTabAgentFlowLibrary");
+  document.getElementById("tabTools").textContent = t("utilityTabTools");
+  const toolsLibraryKicker = document.getElementById("toolsLibraryKicker");
+  if (toolsLibraryKicker) toolsLibraryKicker.textContent = t("toolsLibraryKicker");
+  const toolsLibraryTitle = document.getElementById("toolsLibraryTitle");
+  if (toolsLibraryTitle) toolsLibraryTitle.textContent = t("toolsLibraryTitle");
+  const toolsLibraryDescription = document.getElementById("toolsLibraryDescription");
+  if (toolsLibraryDescription) toolsLibraryDescription.textContent = t("toolsLibraryDescription");
+  const jsonlToolKicker = document.getElementById("jsonlToolKicker");
+  if (jsonlToolKicker) jsonlToolKicker.textContent = t("jsonlToolKicker");
+  const jsonlToolTitle = document.getElementById("jsonlToolTitle");
+  if (jsonlToolTitle) jsonlToolTitle.textContent = t("jsonlToolTitle");
+  const jsonlToolTag = document.getElementById("jsonlToolTag");
+  if (jsonlToolTag) jsonlToolTag.textContent = t("jsonlToolTag");
+  const jsonlToolDescription = document.getElementById("jsonlToolDescription");
+  if (jsonlToolDescription) jsonlToolDescription.textContent = t("jsonlToolDescription");
+  const openJsonlToolButton = document.getElementById("openJsonlToolButton");
+  if (openJsonlToolButton) openJsonlToolButton.textContent = t("jsonlToolOpen");
+  const jsonlToolHint = document.getElementById("jsonlToolHint");
+  if (jsonlToolHint) jsonlToolHint.textContent = t("jsonlToolHint");
   document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
   const agentFlowLibraryTitle = document.getElementById("agentFlowLibraryTitle");
   if (agentFlowLibraryTitle) agentFlowLibraryTitle.textContent = t("agentFlowLibraryTitle");
@@ -4311,13 +4350,14 @@ function buildDuplicatedBuiltinStarter(starter) {
 }
 
 function setActiveSettingsView(view) {
-  activeSettingsView = ["general", "provider", "notifications", "skills", "flows"].includes(view) ? view : "general";
+  activeSettingsView = ["general", "provider", "notifications", "skills", "flows", "tools"].includes(view) ? view : "general";
   const viewMap = {
     general: "generalTabPanel",
     provider: "aiProviderTabPanel",
     notifications: "notificationTabPanel",
     skills: "starterTabPanel",
     flows: "flowTabPanel",
+    tools: "toolsTabPanel",
   };
 
   Object.entries(viewMap).forEach(([key, id]) => {
@@ -4396,6 +4436,10 @@ function renderCustomStartersPreview() {
         .join("");
     }
   }
+}
+
+function getJsonlToolUrl() {
+  return chrome.runtime.getURL("jsonl_ex.html");
 }
 
 function setBatchUrlQaStatus(message, isError = false) {
@@ -5526,6 +5570,13 @@ document.querySelectorAll("[data-settings-view]").forEach((button) => {
     setActiveSettingsView(button.dataset.settingsView || "general");
   });
 });
+
+const openJsonlToolButton = document.getElementById("openJsonlToolButton");
+if (openJsonlToolButton) {
+  openJsonlToolButton.addEventListener("click", () => {
+    window.open(getJsonlToolUrl(), "_blank", "noopener,noreferrer");
+  });
+}
 
 document.getElementById("starterAiEditorClose").addEventListener("click", () => {
   closeStarterAiEditor();
