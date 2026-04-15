@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base QA Tester</title>
+  <style>
+    :root {
+      --bg: linear-gradient(180deg, #f4efe7 0%, #efe6d8 100%);
+      --bg-overlay-top: rgba(228, 174, 129, 0.34);
+      --bg-overlay-bottom: rgba(166, 84, 42, 0.12);
+      --panel: rgba(255, 251, 245, 0.92);
+      --panel-strong: rgba(255, 248, 238, 0.98);
+      --line: rgba(134, 91, 48, 0.16);
+      --text: #1b1917;
+      --muted: #6d655d;
+      --accent: #b35c2e;
+      --accent-strong: #8d4621;
+      --accent-soft: rgba(179, 92, 46, 0.1);
+      --good: #1f8d62;
+      --warn: #ad7b1c;
+      --bad: #bf4055;
+      --shadow: 0 24px 48px rgba(77, 48, 24, 0.12);
+      --field-bg: rgba(255, 255, 255, 0.72);
+      --field-border: rgba(134, 91, 48, 0.16);
+      --field-text: #1b1917;
+      --field-placeholder: rgba(109, 101, 93, 0.72);
+      --readonly-bg: rgba(243, 238, 231, 0.95);
+      --readonly-border: rgba(134, 91, 48, 0.12);
+      --readonly-text: #736a61;
+      --surface-soft: rgba(255, 255, 255, 0.58);
+      --surface-strong: rgba(255, 255, 255, 0.62);
+      --radius: 24px;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: "Avenir Next", "Segoe UI", "Noto Sans TC", sans-serif;
+    }
+
+    body[data-theme="dark"] {
+      --bg: linear-gradient(180deg, #0a1420 0%, #071018 100%);
+      --bg-overlay-top: rgba(84, 169, 255, 0.14);
+      --bg-overlay-bottom: rgba(29, 96, 159, 0.16);
+      --panel: rgba(10, 20, 30, 0.9);
+      --panel-strong: rgba(12, 24, 36, 0.96);
+      --line: rgba(124, 174, 218, 0.16);
+      --text: #edf5fb;
+      --muted: #99aebe;
+      --accent: #4ec2ff;
+      --accent-strong: #8ad6ff;
+      --accent-soft: rgba(78, 194, 255, 0.14);
+      --good: #5ad8a2;
+      --warn: #f0c96a;
+      --bad: #ff8997;
+      --shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+      --field-bg: rgba(11, 26, 39, 0.96);
+      --field-border: rgba(104, 177, 231, 0.34);
+      --field-text: #edf5fb;
+      --field-placeholder: rgba(153, 174, 190, 0.72);
+      --readonly-bg: rgba(54, 67, 81, 0.96);
+      --readonly-border: rgba(122, 145, 164, 0.28);
+      --readonly-text: #b9c9d6;
+      --surface-soft: rgba(20, 34, 48, 0.78);
+      --surface-strong: rgba(18, 31, 45, 0.9);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, var(--bg-overlay-top), transparent 34%),
+        radial-gradient(circle at bottom right, var(--bg-overlay-bottom), transparent 28%),
+        var(--bg);
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      width: min(1460px, calc(100% - 32px));
+      margin: 24px auto 40px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 28px;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -48px;
+      top: -48px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(179, 92, 46, 0.18) 0%, rgba(179, 92, 46, 0) 72%);
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    pre {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(30px, 3.8vw, 48px);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      max-width: 980px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .hero-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .chip {
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: color-mix(in srgb, var(--panel) 78%, white 22%);
+      border: 1px solid rgba(179, 92, 46, 0.14);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .theme-picker {
+      width: min(220px, 100%);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 0.86fr 1.14fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 22px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 18px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field,
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field span,
+    .inline-label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid var(--field-border);
+      background: var(--field-bg);
+      color: var(--field-text);
+      padding: 13px 14px;
+      outline: none;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--field-placeholder);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 140px;
+      line-height: 1.6;
+    }
+
+    textarea.code {
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+
+    textarea.is-readonly,
+    input[readonly],
+    textarea[readonly] {
+      background: var(--readonly-bg);
+      border-color: var(--readonly-border);
+      color: var(--readonly-text);
+      cursor: default;
+    }
+
+    .actions,
+    .inline-actions,
+    .status-row,
+    .stat-grid,
+    .query-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .actions,
+    .status-row {
+      align-items: center;
+    }
+
+    button,
+    .file-label {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      cursor: pointer;
+      transition: transform 0.16s ease, filter 0.16s ease;
+    }
+
+    button:hover,
+    .file-label:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.02);
+    }
+
+    button:disabled {
+      opacity: 0.58;
+      cursor: wait;
+      transform: none;
+    }
+
+    .primary,
+    .file-label {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .secondary {
+      background: rgba(255, 255, 255, 0.66);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .ghost {
+      background: transparent;
+      color: var(--accent-strong);
+      border: 1px solid rgba(179, 92, 46, 0.22);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .hint {
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .status {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    .status.good { color: var(--good); }
+    .status.warn { color: var(--warn); }
+    .status.bad { color: var(--bad); }
+
+    .result-card,
+    .chunk-card,
+    .case-card {
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .result-header,
+    .chunk-header,
+    .case-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .answer,
+    .judge,
+    .chunk-body,
+    .case-body {
+      white-space: pre-wrap;
+      line-height: 1.7;
+    }
+
+    .chunk-list,
+    .case-list,
+    .summary-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    .summary-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .summary-item {
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 2px 0;
+    }
+
+    @media (max-width: 1120px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .field-grid,
+      .stat-grid,
+      .summary-list {
+        grid-template-columns: 1fr;
+      }
+
+      .page {
+        width: min(100% - 20px, 1460px);
+        margin-top: 10px;
+      }
+
+      .hero,
+      .panel {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <label class="field theme-picker">
+        <span class="inline-label">Theme</span>
+        <select id="themeToggle">
+          <option value="system">Follow System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
+    <section class="hero">
+      <h1>Knowledge Base QA Tester</h1>
+      <p class="subtitle">這是一個獨立測試頁，不會動到 `jsonl_ex.html`。你可以把知識庫內容貼進來或匯入檔案，回答模型會同步 Open Copilot 目前的預設 AI provider，embedding 也會同步 Settings 裡設定的預設 embedding provider，直接檢查你的知識庫設計、chunk 切法、top-k 與回答品質。</p>
+      <div class="hero-grid">
+        <div class="chip">Default Provider + Default Embeddings</div>
+        <div class="chip">單題測試與批次測試</div>
+        <div class="chip">顯示命中 chunk 與相似度</div>
+        <div class="chip">可沿用 Open Copilot 設定</div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <section class="panel">
+        <h2 class="section-title">Provider 與索引設定</h2>
+        <div class="summary-list">
+          <div class="summary-item">
+            <strong>回答 Provider</strong>
+            <span id="providerSummary">尚未讀取</span>
+          </div>
+          <div class="summary-item">
+            <strong>回答模型</strong>
+            <span id="modelSummary">尚未讀取</span>
+          </div>
+          <div class="summary-item">
+            <strong>Embedding Provider</strong>
+            <span id="embeddingProviderSummary">尚未讀取</span>
+          </div>
+          <div class="summary-item">
+            <strong>Embedding Model</strong>
+            <span id="embeddingModelSummary">尚未讀取</span>
+          </div>
+        </div>
+        <div class="field-grid">
+          <label class="field" style="grid-column: 1 / -1;">
+            <span>索引來源</span>
+            <input id="embeddingInfo" type="text" value="Embeddings 會直接沿用 Settings 裡的預設 embedding provider 與模型。" readonly>
+          </label>
+          <label class="field">
+            <span>Top K</span>
+            <input id="topK" type="number" min="1" max="12" step="1" value="4">
+          </label>
+          <label class="field">
+            <span>Temperature</span>
+            <input id="temperature" type="number" min="0" max="1" step="0.1" value="0.2">
+          </label>
+          <label class="field">
+            <span>Chunk Size</span>
+            <input id="chunkSize" type="number" min="300" max="4000" step="50" value="900">
+          </label>
+          <label class="field">
+            <span>Chunk Overlap</span>
+            <input id="chunkOverlap" type="number" min="0" max="1200" step="20" value="180">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="loadOpenCopilotButton" class="secondary" type="button">讀取 Open Copilot 設定</button>
+          <button id="saveConfigButton" class="ghost" type="button">儲存本頁設定</button>
+        </div>
+        <div id="configStatus" class="status">尚未載入設定。</div>
+
+        <div class="divider"></div>
+
+        <h2 class="section-title">知識檔案</h2>
+        <div class="actions">
+          <label class="file-label" for="knowledgeFile">匯入知識檔案</label>
+          <input id="knowledgeFile" type="file" accept=".txt,.md,.markdown,.json,.jsonl,.csv" multiple>
+          <button id="clearKnowledgeButton" class="ghost" type="button">清空知識內容</button>
+        </div>
+        <div id="knowledgeInput" class="status">尚未匯入知識檔案。</div>
+        <p class="hint">可以一次匯入多個 `.txt`、`.md`、`.json`、`.jsonl`、`.csv` 檔。這個頁面會保留來源檔名、先切成 chunk，再送到你設定好的預設 embedding provider 建向量，所以原始段落越清楚，檢索通常越穩。</p>
+
+        <div class="actions">
+          <button id="buildIndexButton" class="primary" type="button">建立 Embedding 索引</button>
+        </div>
+        <div id="indexStatus" class="status">還沒有建立索引。</div>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-label">Chunks</div>
+            <div id="chunkCount" class="stat-value">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Vectors</div>
+            <div id="vectorCount" class="stat-value">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">來源長度</div>
+            <div id="sourceLength" class="stat-value">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">最後索引時間</div>
+            <div id="lastIndexedAt" class="stat-value mono">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">問答測試</h2>
+        <label class="field">
+          <span class="inline-label">Prompt 編輯</span>
+          <select id="promptEditToggle">
+            <option value="locked">鎖定</option>
+            <option value="editable">允許修改</option>
+          </select>
+        </label>
+        <label class="stack">
+          <span class="inline-label">Chat System Prompt</span>
+          <textarea id="chatSystemPromptInput" placeholder="控制回答模型如何根據 chunks 回答。" readonly></textarea>
+        </label>
+        <label class="stack">
+          <span class="inline-label">Judge System Prompt</span>
+          <textarea id="judgeSystemPromptInput" placeholder="控制 AI Judge 如何判斷回答品質與 grounded 程度。" readonly></textarea>
+        </label>
+        <label class="stack">
+          <span class="inline-label">測試問題</span>
+          <textarea id="questionInput" placeholder="例如：如果客戶忘記密碼，系統支援哪些登入恢復方式？"></textarea>
+        </label>
+        <label class="stack">
+          <span class="inline-label">預期答案或檢核標準（可選）</span>
+          <textarea id="expectedAnswerInput" placeholder="例如：至少要提到 Email OTP、管理員重設、失敗次數限制。"></textarea>
+        </label>
+        <div class="query-actions">
+          <button id="runQuestionButton" class="primary" type="button">測單題</button>
+          <button id="judgeOnlyButton" class="secondary" type="button">只重跑評分</button>
+        </div>
+        <div id="questionStatus" class="status">等你輸入問題。</div>
+
+        <div class="summary-list">
+          <div class="summary-item">
+            <strong>目前回答</strong>
+            <span id="answerMeta">尚未執行</span>
+          </div>
+          <div class="summary-item">
+            <strong>評分結果</strong>
+            <span id="judgeMeta">尚未評分</span>
+          </div>
+        </div>
+
+        <article class="result-card">
+          <div class="result-header">
+            <h3>模型回答</h3>
+            <span id="answerBadge" class="badge">No Answer</span>
+          </div>
+          <div id="answerOutput" class="answer">尚未執行。</div>
+        </article>
+
+        <article class="result-card">
+          <div class="result-header">
+            <h3>AI Judge</h3>
+            <span id="judgeBadge" class="badge">No Score</span>
+          </div>
+          <div id="judgeOutput" class="judge">如果你有填「預期答案」，系統會請模型判斷回答是否 grounded、是否有答到重點。</div>
+        </article>
+
+        <article class="result-card">
+          <div class="result-header">
+            <h3>命中 Chunks</h3>
+            <span id="retrievalBadge" class="badge">Top K 未執行</span>
+          </div>
+          <div id="retrievalResults" class="chunk-list"></div>
+        </article>
+
+        <div class="divider"></div>
+
+        <h2 class="section-title">批次題目測試</h2>
+        <label class="stack">
+          <span class="inline-label">Test Cases JSONL</span>
+          <textarea id="casesInput" class="code" placeholder='每行一題，例如：
+{"question":"退款流程多久內可申請？","expected_answer":"需在 7 天內申請，且商品未使用。"}
+{"question":"忘記密碼怎麼辦？","expected_keywords":["Email OTP","管理員重設"]}'></textarea>
+        </label>
+        <div class="actions">
+          <button id="sampleCasesButton" class="secondary" type="button">載入範例題目</button>
+          <button id="runBatchButton" class="primary" type="button">跑批次測試</button>
+        </div>
+        <div id="batchStatus" class="status">尚未跑批次。</div>
+        <div id="batchResults" class="case-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="knowledge_base_tester.js"></script>
+</body>
+</html>

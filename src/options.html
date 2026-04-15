@@ -42,6 +42,7 @@
       <div class="utility-tabs settings-page-tabs" role="tablist" aria-label="Settings sections">
         <button id="tabGeneral" class="utility-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="generalTabPanel" data-settings-view="general">General</button>
         <button id="tabAiProvider" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="aiProviderTabPanel" data-settings-view="provider">AI Provider</button>
+        <button id="tabEmbeddingProvider" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="embeddingProviderTabPanel" data-settings-view="embedding">Embedding</button>
         <button id="tabNotifications" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="notificationTabPanel" data-settings-view="notifications">Notifications</button>
         <button id="tabStarterLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="starterTabPanel" data-settings-view="skills">Starter</button>
         <button id="tabAgentFlowLibrary" class="utility-tab" type="button" role="tab" aria-selected="false" aria-controls="flowTabPanel" data-settings-view="flows">Agent Flow</button>
@@ -369,6 +370,124 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
         </section>
       </section>
 
+      <section id="embeddingProviderTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
+        <section class="settings-layout">
+        <article class="setting-card provider-priority-card">
+          <div class="setting-card-head">
+            <div>
+              <span id="embeddingKicker" class="section-kicker">Embeddings</span>
+              <h2 id="embeddingSectionTitle">Embedding Providers</h2>
+            </div>
+            <span id="embeddingSectionTag" class="section-tag">Vector Setup</span>
+          </div>
+          <div class="split-fields settings-compact-fields">
+            <label class="field">
+              <span id="defaultEmbeddingProviderLabel">Default Embedding Provider</span>
+              <select id="defaultEmbeddingProvider">
+                <option value="ollama">Ollama</option>
+                <option value="lmStudio">LM Studio</option>
+                <option value="gemini">Gemini</option>
+                <option value="azureOpenAi">Azure OpenAI</option>
+              </select>
+            </label>
+          </div>
+          <p id="embeddingHint" class="field-hint">Choose which embedding provider knowledge-base and retrieval tools should use by default.</p>
+        </article>
+
+        <div class="provider-support-grid">
+          <div class="provider-support-card">
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span class="section-kicker">Local</span>
+                <h2 id="embeddingOllamaTitle">Ollama Embeddings</h2>
+              </div>
+              <span class="section-tag">/api/embed</span>
+            </div>
+            <label class="field">
+              <span id="ollamaEmbeddingUrlLabel">Ollama Embedding URL</span>
+              <input id="ollamaEmbeddingUrl" type="url" placeholder="http://127.0.0.1:11434" />
+            </label>
+            <label class="field">
+              <span id="ollamaEmbeddingModelLabel">Ollama Embedding Model</span>
+              <input id="ollamaEmbeddingModel" type="text" placeholder="embeddinggemma" />
+            </label>
+          </div>
+
+          <div class="provider-support-card">
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span class="section-kicker">Bridge</span>
+                <h2 id="embeddingLmStudioTitle">LM Studio Embeddings</h2>
+              </div>
+              <span class="section-tag">/v1/embeddings</span>
+            </div>
+            <label class="field">
+              <span id="lmStudioEmbeddingUrlLabel">LM Studio Embedding URL</span>
+              <input id="lmStudioEmbeddingUrl" type="url" placeholder="http://127.0.0.1:1234" />
+            </label>
+            <div class="split-fields">
+              <label class="field">
+                <span id="lmStudioEmbeddingModelLabel">LM Studio Embedding Model</span>
+                <input id="lmStudioEmbeddingModel" type="text" placeholder="nomic-ai/nomic-embed-text-v1.5" />
+              </label>
+              <label class="field">
+                <span id="lmStudioEmbeddingApiKeyLabel">Embedding API Key</span>
+                <input id="lmStudioEmbeddingApiKey" type="text" placeholder="lm-studio" />
+              </label>
+            </div>
+          </div>
+
+          <div class="provider-support-card">
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span class="section-kicker">Cloud</span>
+                <h2 id="embeddingGeminiTitle">Gemini Embeddings</h2>
+              </div>
+              <span class="section-tag">Google AI</span>
+            </div>
+            <div class="split-fields">
+              <label class="field">
+                <span id="geminiEmbeddingModelLabel">Gemini Embedding Model</span>
+                <input id="geminiEmbeddingModel" type="text" placeholder="gemini-embedding-001" />
+              </label>
+              <label class="field">
+                <span id="geminiEmbeddingApiKeyLabel">Embedding API Key</span>
+                <input id="geminiEmbeddingApiKey" type="password" placeholder="AIza..." />
+              </label>
+            </div>
+          </div>
+
+          <div class="provider-support-card">
+            <div class="setting-card-head provider-panel-head">
+              <div>
+                <span class="section-kicker">Enterprise</span>
+                <h2 id="embeddingAzureTitle">Azure OpenAI Embeddings</h2>
+              </div>
+              <span class="section-tag">Vector Setup</span>
+            </div>
+            <label class="field">
+              <span id="azureEmbeddingEndpointLabel">Azure Embedding Endpoint</span>
+              <input id="azureOpenAiEmbeddingEndpoint" type="url" placeholder="https://your-resource.openai.azure.com" />
+            </label>
+            <div class="split-fields">
+              <label class="field">
+                <span id="azureEmbeddingDeploymentLabel">Azure Embedding Deployment</span>
+                <input id="azureOpenAiEmbeddingDeployment" type="text" placeholder="text-embedding-3-small" />
+              </label>
+              <label class="field">
+                <span id="azureEmbeddingApiVersionLabel">Embedding API Version</span>
+                <input id="azureOpenAiEmbeddingApiVersion" type="text" placeholder="2024-10-21" />
+              </label>
+            </div>
+            <label class="field">
+              <span id="azureEmbeddingApiKeyLabel">Embedding API Key</span>
+              <input id="azureOpenAiEmbeddingApiKey" type="password" placeholder="Azure API key" />
+            </label>
+          </div>
+        </div>
+        </section>
+      </section>
+
       <section id="toolsTabPanel" class="settings-tab-panel" role="tabpanel" hidden>
         <section class="settings-layout">
           <article class="setting-card starter-library-panel tools-panel-shell">
@@ -394,6 +513,21 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
                   <button id="openJsonlToolButton" class="primary-button" type="button">Open Tool In New Tab</button>
                 </div>
                 <p id="jsonlToolHint" class="field-hint">This opens as an extension page, so it avoids the usual `file://` fetch restrictions and can reuse your saved Open Copilot provider settings.</p>
+              </section>
+
+              <section class="starter-studio-intake tool-card">
+                <div class="starter-studio-head">
+                  <div>
+                    <span class="section-kicker">Knowledge Base</span>
+                    <h3 class="starter-studio-title">QA Tester</h3>
+                  </div>
+                  <span class="section-tag">Extension Tool</span>
+                </div>
+                <p class="field-hint">Test your knowledge base with the default chat provider plus the default embedding provider, inspect the top chunks, and run single or batch QA checks without using the JSONL editor page.</p>
+                <div class="actions settings-inline-actions">
+                  <button id="openKnowledgeBaseTesterButton" class="primary-button" type="button">Open KB Tester In New Tab</button>
+                </div>
+                <p class="field-hint">Use this page when you want to validate chunking, top-k retrieval, answer grounding, and expected-answer coverage for your KB design.</p>
               </section>
             </div>
           </article>

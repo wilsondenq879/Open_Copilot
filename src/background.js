@@ -34,13 +34,15 @@ const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
 const MAX_BATCH_URL_QA_ITEMS = 100;
 const DEFAULT_BATCH_URL_QA_COUNT = 5;
 const LOCAL_SECRET_CONFIG_KEY = "providerSecretConfig";
-const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
-const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey"];
+const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "geminiEmbeddingApiKey", "azureOpenAiApiKey", "azureOpenAiEmbeddingApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
+const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey", "lmStudioEmbeddingApiKey"];
 
 const DEFAULT_SECRET_CONFIG = {
   githubApiKey: "",
   geminiApiKey: "",
+  geminiEmbeddingApiKey: "",
   azureOpenAiApiKey: "",
+  azureOpenAiEmbeddingApiKey: "",
   telegramBotToken: "",
   lineChannelAccessToken: "",
   teamsWebhookUrl: "",
@@ -50,14 +52,24 @@ const DEFAULT_SECRET_CONFIG = {
 
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
+  ollamaEmbeddingUrl: "http://127.0.0.1:11434",
+  ollamaEmbeddingModel: "",
   lmStudioUrl: "http://127.0.0.1:1234",
+  lmStudioEmbeddingUrl: "http://127.0.0.1:1234",
   lmStudioModel: "",
+  lmStudioEmbeddingModel: "",
   lmStudioApiKey: "lm-studio",
+  lmStudioEmbeddingApiKey: "lm-studio",
   geminiModel: "gemini-2.5-flash",
+  geminiEmbeddingModel: "gemini-embedding-001",
   azureOpenAiEndpoint: "",
+  azureOpenAiEmbeddingEndpoint: "",
   azureOpenAiDeployment: "",
+  azureOpenAiEmbeddingDeployment: "",
   azureOpenAiApiVersion: "2024-10-21",
+  azureOpenAiEmbeddingApiVersion: "2024-10-21",
   defaultProvider: "ollama",
+  defaultEmbeddingProvider: "ollama",
   selectedModel: "",
   modelSelectionMode: "auto",
   starterModelRoutingEnabled: true,

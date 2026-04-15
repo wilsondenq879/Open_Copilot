@@ -199,6 +199,11 @@ The settings page currently covers:
 - Multi-Perspective Profiles
 - Custom Starters
 
+The Tools tab also includes standalone utility pages:
+
+- `JSONL QA Editor` for editing FAQ-style JSONL records
+- `Knowledge Base QA Tester` for testing chunking, embeddings retrieval, and answer quality against your own KB content with Azure OpenAI
+
 Custom starters are especially important here: they let you package a prompt, output style, and usage scope into something reusable instead of rewriting the same instructions every time.
 
 The extension also supports task extraction. It can scan recent visible chat content, pull out likely to-dos or follow-ups, and keep them as reminder candidates with a configurable extraction window.
