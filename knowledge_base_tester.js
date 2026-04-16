@@ -119,6 +119,7 @@ const elements = {
   promptEditToggle: document.getElementById("promptEditToggle"),
   chatSystemPromptInput: document.getElementById("chatSystemPromptInput"),
   judgeSystemPromptInput: document.getElementById("judgeSystemPromptInput"),
+  testPromptInput: document.getElementById("testPromptInput"),
   questionInput: document.getElementById("questionInput"),
   expectedAnswerInput: document.getElementById("expectedAnswerInput"),
   runQuestionButton: document.getElementById("runQuestionButton"),
@@ -259,7 +260,8 @@ function saveLocalState() {
   localStorage.setItem(STORAGE_KEYS.prompts, JSON.stringify({
     promptEditMode: elements.promptEditToggle.value,
     chatSystemPrompt: elements.chatSystemPromptInput.value,
-    judgeSystemPrompt: elements.judgeSystemPromptInput.value
+    judgeSystemPrompt: elements.judgeSystemPromptInput.value,
+    testPrompt: elements.testPromptInput.value
   }));
   advisorState.draft = elements.advisorInput.value;
   localStorage.setItem(STORAGE_KEYS.advisor, JSON.stringify(advisorState));
@@ -275,6 +277,7 @@ function loadLocalState() {
   elements.promptEditToggle.value = prompts?.promptEditMode === "editable" ? "editable" : "locked";
   elements.chatSystemPromptInput.value = String(prompts?.chatSystemPrompt || "").trim() || DEFAULT_CHAT_SYSTEM_PROMPT;
   elements.judgeSystemPromptInput.value = String(prompts?.judgeSystemPrompt || "").trim() || DEFAULT_JUDGE_SYSTEM_PROMPT;
+  elements.testPromptInput.value = String(prompts?.testPrompt || "");
   const savedAdvisor = safeJsonParse(localStorage.getItem(STORAGE_KEYS.advisor) || "", null);
   advisorState = {
     collapsed: Boolean(savedAdvisor?.collapsed),
@@ -568,7 +571,9 @@ function buildAdvisorContext() {
   parts.push(`目前 chunk 數量: ${chunkIndex.length}`);
 
   const question = elements.questionInput.value.trim();
+  const testPrompt = elements.testPromptInput.value.trim();
   const expectedAnswer = elements.expectedAnswerInput.value.trim();
+  if (testPrompt) parts.push(`本次單題測試 Prompt: ${testPrompt}`);
   if (question) parts.push(`目前測試問題: ${question}`);
   if (expectedAnswer) parts.push(`目前預期答案或檢核標準: ${expectedAnswer}`);
   if (lastAnswerRun?.answer) parts.push(`最近一次模型回答: ${lastAnswerRun.answer}`);
@@ -1142,7 +1147,7 @@ async function createEmbeddings(inputs, config, onProgress) {
   return results;
 }
 
-async function generateAnswer(question, contextChunks, config) {
+async function generateAnswer(question, contextChunks, config, testPrompt = "") {
   if (!getConfiguredModel(openCopilotConfig)) {
     throw new Error("Open Copilot 預設 provider 尚未設定可用模型。");
   }
@@ -1152,13 +1157,16 @@ async function generateAnswer(question, contextChunks, config) {
     .join("\n\n");
 
   const systemPrompt = elements.chatSystemPromptInput.value.trim() || DEFAULT_CHAT_SYSTEM_PROMPT;
+  const perTestPrompt = String(testPrompt || "").trim();
 
   const userPrompt = [
+    perTestPrompt ? `本次測試補充要求：\n${perTestPrompt}` : "",
+    perTestPrompt ? "" : "",
     `問題：${question}`,
     "",
     "可用知識片段：",
     contextText || "沒有找到任何可用片段。"
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   return runDefaultProviderPrompt(`${systemPrompt}\n\n${userPrompt}`, config.temperature);
 }
@@ -1374,6 +1382,7 @@ function explainAzureError(error) {
 async function runSingleQuestion({ judgeOnly = false } = {}) {
   const config = getConfig();
   const question = elements.questionInput.value.trim();
+  const testPrompt = elements.testPromptInput.value.trim();
   const expectedAnswer = elements.expectedAnswerInput.value.trim();
   if (!question) {
     setStatus(elements.questionStatus, "請先輸入測試問題。", "warn");
@@ -1391,15 +1400,15 @@ async function runSingleQuestion({ judgeOnly = false } = {}) {
       renderRetrievedChunks(retrieval);
 
       setStatus(elements.questionStatus, "正在根據檢索結果生成回答...", "warn");
-      answer = await generateAnswer(question, retrieval, config);
+      answer = await generateAnswer(question, retrieval, config, testPrompt);
       renderAnswer(answer);
-      lastAnswerRun = { question, expectedAnswer, retrieval, answer };
+      lastAnswerRun = { question, testPrompt, expectedAnswer, retrieval, answer };
     }
 
     setStatus(elements.questionStatus, "正在執行 AI Judge...", "warn");
     const judge = await judgeAnswer(question, expectedAnswer, answer, retrieval, config);
     renderJudge(judge);
-    lastAnswerRun = { question, expectedAnswer, retrieval, answer, judge };
+    lastAnswerRun = { question, testPrompt, expectedAnswer, retrieval, answer, judge };
     setStatus(elements.questionStatus, "單題測試完成。你可以看回答、評分與命中 chunks 是否一致。", "good");
   } catch (error) {
     setStatus(elements.questionStatus, explainAzureError(error), "bad");
@@ -1445,6 +1454,7 @@ function renderBatchResults(results) {
 
 async function runBatch() {
   const config = getConfig();
+  const testPrompt = elements.testPromptInput.value.trim();
   const cases = parseCases(elements.casesInput.value);
   if (!cases.length) {
     setStatus(elements.batchStatus, "請先提供至少一筆測試題目。", "warn");
@@ -1459,7 +1469,7 @@ async function runBatch() {
       const item = cases[i];
       setStatus(elements.batchStatus, `正在跑批次測試 ${i + 1}/${cases.length}：${item.question}`, "warn");
       const retrieval = await retrieveRelevantChunks(item.question, config);
-      const answer = await generateAnswer(item.question, retrieval, config);
+      const answer = await generateAnswer(item.question, retrieval, config, testPrompt);
       const judge = await judgeAnswer(item.question, item.expectedAnswer, answer, retrieval, config);
       results.push({
         question: item.question,
@@ -1637,6 +1647,7 @@ elements.promptEditToggle.addEventListener("change", () => {
   elements.questionInput,
   elements.expectedAnswerInput,
   elements.casesInput,
+  elements.testPromptInput,
   elements.chatSystemPromptInput,
   elements.judgeSystemPromptInput
 ].forEach((node) => {
