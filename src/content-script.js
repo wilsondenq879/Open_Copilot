@@ -273,7 +273,6 @@ let attachedDocuments = [];
 let isDragActive = false;
 let pendingMessageRenderFrame = 0;
 let pendingSessionSaveTimer = 0;
-let areStartersExpanded = false;
 let starterSearch = "";
 let highlightedStarterId = "";
 let isPanelOpen = false;
@@ -9707,12 +9706,8 @@ function renderMessages() {
   }
 
   const starters = ensureHost().querySelector(".ollama-quick-starters-panel");
-  const startersToggle = ensureHost().querySelector("[data-action='toggle-starters']");
   if (starters) {
     starters.classList.remove("is-hidden");
-  }
-  if (startersToggle instanceof HTMLButtonElement) {
-    startersToggle.hidden = false;
   }
 
   const perspectivePanel = renderPerspectivePanel(latestPerspectiveRun);
@@ -9840,6 +9835,40 @@ function renderMessages() {
   list.scrollTop = list.scrollHeight;
 }
 
+function updateStarterRailState() {
+  const host = ensureHost();
+  const rail = host.querySelector("[data-role='starters-rail']");
+  const list = host.querySelector(".ollama-quick-starters");
+  if (!(rail instanceof HTMLElement) || !(list instanceof HTMLElement)) {
+    return;
+  }
+
+  const isScrollable = list.scrollWidth - list.clientWidth > 12;
+  const atStart = list.scrollLeft <= 8;
+  const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 8;
+
+  rail.classList.toggle("is-scrollable", isScrollable);
+  rail.classList.toggle("is-at-start", atStart);
+  rail.classList.toggle("is-at-end", atEnd || !isScrollable);
+}
+
+function bindStarterRailInteractions() {
+  const host = ensureHost();
+  const rail = host.querySelector("[data-role='starters-rail']");
+  const list = host.querySelector(".ollama-quick-starters");
+  if (!(rail instanceof HTMLElement) || !(list instanceof HTMLElement)) {
+    return;
+  }
+
+  list.onscroll = () => {
+    updateStarterRailState();
+  };
+
+  window.requestAnimationFrame(() => {
+    updateStarterRailState();
+  });
+}
+
 function renderSentMessageAttachments(attachments = {}) {
   const images = Array.isArray(attachments?.images) ? attachments.images : [];
   const documents = Array.isArray(attachments?.documents) ? attachments.documents : [];
@@ -9935,7 +9964,7 @@ function renderShell() {
   syncHostState(host);
   syncHostScale(host);
   currentPageCopilot = detectPageCopilot();
-  const startersExpanded = areStartersExpanded || isPanelMaximized;
+  const startersExpanded = isPanelMaximized;
   const showGithubIncludePanel = isGithubAdapterActive(currentPageCopilot);
   const showTaskInbox = isTaskInboxVisible(currentPageCopilot);
   const canDetachTaskRail = showTaskInbox && isPanelMaximized && window.innerWidth >= TASK_RAIL_MIN_VIEWPORT_WIDTH_PX;
@@ -10100,11 +10129,6 @@ function renderShell() {
             ${attachedBrowserTabs.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-browser-tabs" aria-label="${escapeHtml(tl("clearBrowserTabs"))}" title="${escapeHtml(tl("clearBrowserTabs"))}">×</button>` : ""}
           </div>
           <div class="ollama-quick-include-panel">
-            <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="search-web">${escapeHtml(attachedWebSearchResults.length ? tl("changeWebSearch") : tl("searchWeb"))}</button>
-            <div class="ollama-quick-include-summary">${getWebSearchSummary()}</div>
-            ${attachedWebSearchResults.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-web-search" aria-label="${escapeHtml(tl("clearWebSearch"))}" title="${escapeHtml(tl("clearWebSearch"))}">×</button>` : ""}
-          </div>
-          <div class="ollama-quick-include-panel">
             <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
             <input hidden class="ollama-quick-local-document-input" type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="local-document-upload" multiple />
             <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
@@ -10132,41 +10156,48 @@ function renderShell() {
                   </span>
                 </div>
               </div>
-              ${isPanelMaximized ? "" : `<button class="ollama-quick-starters-toggle" type="button" data-action="toggle-starters" aria-expanded="${startersExpanded ? "true" : "false"}">${escapeHtml(startersExpanded ? tl("collapseStarters") : tl("expandStarters"))}</button>`}
             </div>
             ${isPanelMaximized ? `<input class="ollama-quick-starter-search" type="text" data-role="starter-search" value="${escapeHtml(starterSearch)}" aria-label="${escapeHtml(tl("searchStarters"))}" title="${escapeHtml(tl("searchStarters"))}" />` : ""}
-            <div class="ollama-quick-starters">
-            ${visibleStarterEntries.map((starter) => {
-              const hoverTip = starterHoverTipsEnabled ? buildStarterHoverTip(starter, currentPageCopilot) : "";
-              const title = hoverTip ? ` title="${escapeHtml(hoverTip)}"` : "";
-              const hoverTipAttr = hoverTip ? ` data-hover-tip="${escapeHtml(hoverTip)}"` : "";
-              const classNames = [
-                "ollama-quick-starter",
-                starter.isRecommended ? "is-recommended" : "",
-                starter.isSuggestedFollowup ? "is-suggested-followup" : "",
-                starter.isCustomStarter ? "is-custom" : "",
-                starter.isCustomStarterBuilder ? "is-custom-builder" : "",
-                starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
-                starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
-                starter.isAgentFlow ? "is-agent-flow" : "",
-                starter.id === highlightedStarterId ? "is-highlighted" : "",
-              ].filter(Boolean).join(" ");
-              const prefix = starter.isRecommended
-                ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
-                : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder
-                  ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
-                : starter.isCustomStarter || starter.isCustomStarterBuilder
-                  ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
-                  : "";
-              const suffix = starter.isSuggestedFollowup
-                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">${escapeHtml(tl("suggestedStarterBadge"))}</span>`
-                : starter.isAgentFlow
-                ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
-                : starter.isCustomStarter && !starter.isCustomStarterBuilder
-                  ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
-                  : "";
-              return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}${hoverTipAttr}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
-            }).join("")}
+            <div class="ollama-quick-starters-rail" data-role="starters-rail">
+              <div class="ollama-quick-starters-scroll-hint" aria-hidden="true">
+                <span class="ollama-quick-starters-scroll-icon">›</span>
+              </div>
+              <button class="ollama-quick-starters-scroll-button" type="button" data-action="scroll-starters-forward" aria-label="Scroll starters" title="Scroll starters">
+                <span aria-hidden="true">›</span>
+              </button>
+              <div class="ollama-quick-starters">
+              ${visibleStarterEntries.map((starter) => {
+                const hoverTip = starterHoverTipsEnabled ? buildStarterHoverTip(starter, currentPageCopilot) : "";
+                const title = hoverTip ? ` title="${escapeHtml(hoverTip)}"` : "";
+                const hoverTipAttr = hoverTip ? ` data-hover-tip="${escapeHtml(hoverTip)}"` : "";
+                const classNames = [
+                  "ollama-quick-starter",
+                  starter.isRecommended ? "is-recommended" : "",
+                  starter.isSuggestedFollowup ? "is-suggested-followup" : "",
+                  starter.isCustomStarter ? "is-custom" : "",
+                  starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+                  starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
+                  starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
+                  starter.isAgentFlow ? "is-agent-flow" : "",
+                  starter.id === highlightedStarterId ? "is-highlighted" : "",
+                ].filter(Boolean).join(" ");
+                const prefix = starter.isRecommended
+                  ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
+                  : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder
+                    ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
+                  : starter.isCustomStarter || starter.isCustomStarterBuilder
+                    ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
+                    : "";
+                const suffix = starter.isSuggestedFollowup
+                  ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">${escapeHtml(tl("suggestedStarterBadge"))}</span>`
+                  : starter.isAgentFlow
+                  ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Flow</span>`
+                  : starter.isCustomStarter && !starter.isCustomStarterBuilder
+                    ? `<span class="ollama-quick-starter-custom-tag" aria-hidden="true">Custom</span>`
+                    : "";
+                return `<button class="${classNames}" type="button" data-action="use-starter" data-starter-id="${escapeHtml(starter.id)}"${title}${hoverTipAttr}>${prefix}<span>${escapeHtml(starter.label)}</span>${suffix}</button>`;
+              }).join("")}
+              </div>
             </div>
           </div>
         </aside>
@@ -10195,6 +10226,7 @@ function renderShell() {
   host.ondrop = handleDrop;
   bindLauncherInteractions(host);
   updateLauncherPlacement(host);
+  bindStarterRailInteractions();
   renderMessages();
   renderAttachments();
   setDragState(isDragActive);
@@ -11224,7 +11256,6 @@ async function saveAgentFlowStarterFromDraft() {
   ]);
 
   highlightedStarterId = `custom:${flowId}`;
-  areStartersExpanded = true;
   return flowId;
 }
 
@@ -11910,9 +11941,17 @@ async function handleClick(event) {
     return;
   }
 
-  if (action === "toggle-starters") {
-    areStartersExpanded = !areStartersExpanded;
-    renderShell();
+  if (action === "scroll-starters-forward") {
+    const list = ensureHost().querySelector(".ollama-quick-starters");
+    if (list instanceof HTMLElement) {
+      list.scrollBy({
+        left: Math.max(220, Math.round(list.clientWidth * 0.72)),
+        behavior: "smooth",
+      });
+      window.requestAnimationFrame(() => {
+        updateStarterRailState();
+      });
+    }
     return;
   }
 
