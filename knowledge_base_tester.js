@@ -3,7 +3,8 @@ const STORAGE_KEYS = {
   config: "kb_qa_tester_config_v1",
   knowledge: "kb_qa_tester_knowledge_v1",
   cases: "kb_qa_tester_cases_v1",
-  prompts: "kb_qa_tester_prompts_v1"
+  prompts: "kb_qa_tester_prompts_v1",
+  advisor: "kb_qa_tester_advisor_v1"
 };
 
 const DEFAULT_CHAT_SYSTEM_PROMPT = [
@@ -52,6 +53,10 @@ const DEFAULT_CONFIG = {
   chunkSize: 900,
   chunkOverlap: 180
 };
+
+const WORK_FOLDER_INDEX_PATH = "dataset";
+const WORK_FOLDER_INDEX_FILE = "knowledge-base-qa-index.json";
+const RUNTIME_TRANSFER_CHUNK_SIZE = 1024 * 1024 * 2;
 
 const SAMPLE_KNOWLEDGE = `# 帳號與登入說明
 
@@ -104,6 +109,8 @@ const elements = {
   knowledgeFile: document.getElementById("knowledgeFile"),
   clearKnowledgeButton: document.getElementById("clearKnowledgeButton"),
   buildIndexButton: document.getElementById("buildIndexButton"),
+  loadSavedIndexButton: document.getElementById("loadSavedIndexButton"),
+  saveIndexToFolderButton: document.getElementById("saveIndexToFolderButton"),
   indexStatus: document.getElementById("indexStatus"),
   chunkCount: document.getElementById("chunkCount"),
   vectorCount: document.getElementById("vectorCount"),
@@ -129,14 +136,35 @@ const elements = {
   sampleCasesButton: document.getElementById("sampleCasesButton"),
   runBatchButton: document.getElementById("runBatchButton"),
   batchStatus: document.getElementById("batchStatus"),
-  batchResults: document.getElementById("batchResults")
+  batchResults: document.getElementById("batchResults"),
+  advisorShell: document.getElementById("advisorShell"),
+  advisorProviderHint: document.getElementById("advisorProviderHint"),
+  advisorToggleButton: document.getElementById("advisorToggleButton"),
+  advisorClearButton: document.getElementById("advisorClearButton"),
+  advisorChatLog: document.getElementById("advisorChatLog"),
+  advisorUseQuestionButton: document.getElementById("advisorUseQuestionButton"),
+  advisorUseAnswerButton: document.getElementById("advisorUseAnswerButton"),
+  advisorUseJudgeButton: document.getElementById("advisorUseJudgeButton"),
+  advisorInput: document.getElementById("advisorInput"),
+  advisorSendButton: document.getElementById("advisorSendButton"),
+  advisorStatus: document.getElementById("advisorStatus")
 };
 
 let chunkIndex = [];
+let chunkIndexTimestamp = "";
 let lastAnswerRun = null;
 let openCopilotConfig = { ...OPEN_COPILOT_DEFAULT_CONFIG };
 let importedKnowledgeFiles = [];
 let themeMediaQuery = null;
+let advisorState = {
+  collapsed: false,
+  messages: [],
+  draft: ""
+};
+
+function isExtensionRuntimeAvailable() {
+  return Boolean(globalThis.chrome?.runtime?.sendMessage);
+}
 
 function normalizeBaseUrl(url) {
   return String(url || "").trim().replace(/\/+$/, "");
@@ -202,6 +230,9 @@ function updateProviderSummary() {
   elements.modelSummary.textContent = getConfiguredModel(openCopilotConfig) || "尚未設定";
   elements.embeddingProviderSummary.textContent = getProviderLabel(openCopilotConfig.defaultEmbeddingProvider);
   elements.embeddingModelSummary.textContent = getConfiguredEmbeddingModel(openCopilotConfig) || "尚未設定";
+  const providerLabel = getProviderLabel(openCopilotConfig.defaultProvider);
+  const modelLabel = getConfiguredModel(openCopilotConfig) || "尚未設定模型";
+  elements.advisorProviderHint.textContent = `${providerLabel} / ${modelLabel}`;
 }
 
 function getConfig() {
@@ -230,6 +261,8 @@ function saveLocalState() {
     chatSystemPrompt: elements.chatSystemPromptInput.value,
     judgeSystemPrompt: elements.judgeSystemPromptInput.value
   }));
+  advisorState.draft = elements.advisorInput.value;
+  localStorage.setItem(STORAGE_KEYS.advisor, JSON.stringify(advisorState));
 }
 
 function loadLocalState() {
@@ -242,6 +275,12 @@ function loadLocalState() {
   elements.promptEditToggle.value = prompts?.promptEditMode === "editable" ? "editable" : "locked";
   elements.chatSystemPromptInput.value = String(prompts?.chatSystemPrompt || "").trim() || DEFAULT_CHAT_SYSTEM_PROMPT;
   elements.judgeSystemPromptInput.value = String(prompts?.judgeSystemPrompt || "").trim() || DEFAULT_JUDGE_SYSTEM_PROMPT;
+  const savedAdvisor = safeJsonParse(localStorage.getItem(STORAGE_KEYS.advisor) || "", null);
+  advisorState = {
+    collapsed: Boolean(savedAdvisor?.collapsed),
+    messages: Array.isArray(savedAdvisor?.messages) ? savedAdvisor.messages.slice(-24) : [],
+    draft: String(savedAdvisor?.draft || "")
+  };
   updatePromptEditState();
 }
 
@@ -290,13 +329,299 @@ function updateIndexStats() {
   elements.sourceLength.textContent = importedKnowledgeFiles.length
     ? `${totalLength} / ${importedKnowledgeFiles.length} files`
     : "0";
-  elements.lastIndexedAt.textContent = chunkIndex.length ? formatTimestamp() : "-";
+  elements.lastIndexedAt.textContent = chunkIndex.length
+    ? (chunkIndexTimestamp ? formatTimestamp(new Date(chunkIndexTimestamp)) : formatTimestamp())
+    : "-";
+}
+
+function hashString(value) {
+  const text = String(value || "");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function buildIndexCacheKey(documents = importedKnowledgeFiles, config = getConfig(), providerConfig = openCopilotConfig) {
+  const provider = String(providerConfig.defaultEmbeddingProvider || "ollama").trim() || "ollama";
+  const embeddingModel = getConfiguredEmbeddingModel(providerConfig) || "";
+  const sourceSignature = (Array.isArray(documents) ? documents : [])
+    .map((doc) => `${doc.fileName}:${doc.text.length}:${hashString(doc.text)}`)
+    .join("|");
+  return [
+    provider,
+    embeddingModel,
+    config.chunkSize,
+    config.chunkOverlap,
+    hashString(sourceSignature)
+  ].join("::");
+}
+
+function buildPersistedIndexPayload() {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    cacheKey: buildIndexCacheKey(),
+    config: getConfig(),
+    provider: String(openCopilotConfig.defaultEmbeddingProvider || "ollama").trim() || "ollama",
+    embeddingModel: getConfiguredEmbeddingModel(openCopilotConfig) || "",
+    importedKnowledgeFiles,
+    chunkIndex
+  };
+}
+
+async function sendRuntimeMessage(message) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(message, resolve);
+  });
+}
+
+async function saveIndexToWorkFolder() {
+  if (!chunkIndex.length) {
+    throw new Error("目前還沒有索引可儲存。請先建立 Embedding 索引。");
+  }
+  if (!isExtensionRuntimeAvailable()) {
+    throw new Error("這個頁面目前不在 extension 環境中，無法寫入 Work Folder。");
+  }
+
+  const text = JSON.stringify(buildPersistedIndexPayload());
+  const begin = await sendRuntimeMessage({
+    type: "work-folder:begin-write-json-session",
+    path: WORK_FOLDER_INDEX_PATH,
+    fileName: WORK_FOLDER_INDEX_FILE
+  });
+  if (!begin?.ok || !begin?.session?.sessionId) {
+    throw new Error(begin?.error || "儲存索引到 Work Folder 失敗。");
+  }
+
+  const sessionId = begin.session.sessionId;
+  for (let offset = 0; offset < text.length; offset += RUNTIME_TRANSFER_CHUNK_SIZE) {
+    const chunk = text.slice(offset, offset + RUNTIME_TRANSFER_CHUNK_SIZE);
+    const append = await sendRuntimeMessage({
+      type: "work-folder:append-write-json-session",
+      sessionId,
+      chunk
+    });
+    if (!append?.ok) {
+      throw new Error(append?.error || "儲存索引到 Work Folder 失敗。");
+    }
+  }
+
+  const finish = await sendRuntimeMessage({
+    type: "work-folder:finish-write-json-session",
+    sessionId
+  });
+  if (!finish?.ok) {
+    throw new Error(finish?.error || "儲存索引到 Work Folder 失敗。");
+  }
+  return finish.session;
+}
+
+async function loadSavedIndexFromWorkFolder({ silent = false } = {}) {
+  if (!isExtensionRuntimeAvailable()) {
+    if (!silent) {
+      throw new Error("這個頁面目前不在 extension 環境中，無法讀取 Work Folder。");
+    }
+    return false;
+  }
+
+  const begin = await sendRuntimeMessage({
+    type: "work-folder:begin-read-json-session",
+    path: WORK_FOLDER_INDEX_PATH,
+    fileName: WORK_FOLDER_INDEX_FILE
+  });
+
+  if (!begin?.ok || !begin?.session?.sessionId) {
+    if (silent) return false;
+    throw new Error(begin?.error || "讀取已存索引失敗。");
+  }
+
+  const sessionId = begin.session.sessionId;
+  const size = Math.max(0, Number(begin.session.size) || 0);
+  let text = "";
+  for (let offset = 0; offset < size; offset += RUNTIME_TRANSFER_CHUNK_SIZE) {
+    const chunkResult = await sendRuntimeMessage({
+      type: "work-folder:read-json-session-chunk",
+      sessionId,
+      offset,
+      length: RUNTIME_TRANSFER_CHUNK_SIZE
+    });
+    if (!chunkResult?.ok) {
+      if (silent) return false;
+      throw new Error(chunkResult?.error || "讀取已存索引失敗。");
+    }
+    text += String(chunkResult?.session?.chunk || "");
+  }
+  await sendRuntimeMessage({
+    type: "work-folder:finish-read-json-session",
+    sessionId
+  });
+
+  const payload = safeJsonParse(text, null);
+  if (!payload || !Array.isArray(payload.chunkIndex)) {
+    if (silent) return false;
+    throw new Error("Work Folder 裡的索引檔格式不正確。");
+  }
+
+  const expectedCacheKey = buildIndexCacheKey(importedKnowledgeFiles, getConfig(), openCopilotConfig);
+  const payloadCacheKey = String(payload.cacheKey || "").trim();
+  const payloadKnowledge = Array.isArray(payload.importedKnowledgeFiles) ? payload.importedKnowledgeFiles : [];
+
+  if (!importedKnowledgeFiles.length && payloadKnowledge.length) {
+    importedKnowledgeFiles = payloadKnowledge;
+    renderKnowledgePreview();
+  }
+
+  const activeDocs = importedKnowledgeFiles.length ? importedKnowledgeFiles : payloadKnowledge;
+  const activeCacheKey = buildIndexCacheKey(activeDocs, getConfig(), openCopilotConfig);
+  if (payloadCacheKey && payloadCacheKey !== activeCacheKey) {
+    if (silent) return false;
+    throw new Error("已存索引和目前知識內容、chunk 設定或 embedding 模型不一致，為避免答錯，這次沒有自動載入。");
+  }
+
+  chunkIndex = payload.chunkIndex;
+  chunkIndexTimestamp = String(payload.savedAt || "").trim();
+  updateIndexStats();
+  renderRetrievedChunks([]);
+  renderAnswer("");
+  renderJudge(null);
+  saveLocalState();
+  if (!silent) {
+    setStatus(elements.indexStatus, `已從 Work Folder 載入索引，共 ${chunkIndex.length} 個 chunks。`, "good");
+  }
+  return true;
 }
 
 function setBusy(buttons, isBusy) {
   buttons.forEach((button) => {
     if (button) button.disabled = isBusy;
   });
+}
+
+function renderAdvisorMessages() {
+  if (!advisorState.messages.length) {
+    elements.advisorChatLog.innerHTML = '<div class="advisor-empty">這裡適合快速問 AI：「這題怎麼改 prompt 比較穩？」「依目前回答來看，chunk overlap 要不要調整？」</div>';
+    return;
+  }
+
+  elements.advisorChatLog.innerHTML = advisorState.messages.map((message) => `
+    <article class="advisor-message" data-role="${escapeHtml(message.role)}">
+      <div class="advisor-message-header">
+        <strong>${message.role === "user" ? "你" : "AI 顧問"}</strong>
+        <span>${escapeHtml(message.timestamp || "")}</span>
+      </div>
+      <div class="advisor-message-body">${escapeHtml(message.content)}</div>
+    </article>
+  `).join("");
+  elements.advisorChatLog.scrollTop = elements.advisorChatLog.scrollHeight;
+}
+
+function renderAdvisorShell() {
+  elements.advisorShell.classList.toggle("is-collapsed", advisorState.collapsed);
+  elements.advisorToggleButton.title = advisorState.collapsed ? "展開視窗" : "收合視窗";
+  elements.advisorToggleButton.setAttribute("aria-label", advisorState.collapsed ? "展開視窗" : "收合視窗");
+  elements.advisorToggleButton.innerHTML = advisorState.collapsed
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"></path></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10l6 6 6-6"></path></svg>`;
+}
+
+function pushAdvisorMessage(role, content) {
+  const trimmed = String(content || "").trim();
+  if (!trimmed) return;
+  advisorState.messages.push({
+    role,
+    content: trimmed,
+    timestamp: formatTimestamp()
+  });
+  advisorState.messages = advisorState.messages.slice(-24);
+  renderAdvisorMessages();
+  saveLocalState();
+}
+
+function appendAdvisorInput(text) {
+  const next = String(text || "").trim();
+  if (!next) return;
+  const current = elements.advisorInput.value.trim();
+  elements.advisorInput.value = current ? `${current}\n\n${next}` : next;
+  elements.advisorInput.focus();
+  saveLocalState();
+}
+
+function buildAdvisorContext() {
+  const parts = [
+    "你是知識庫 QA 測試頁中的快速 AI 顧問。",
+    "你的任務是幫使用者調整測試方式、prompt、chunk 策略、top-k、評分標準與問題寫法。",
+    "優先根據頁面當前狀態給具體可執行建議，回答請精簡、實用、偏操作建議。",
+    "如果資訊不足，可以直接說你還缺什麼。"
+  ];
+
+  const config = getConfig();
+  parts.push("");
+  parts.push(`目前回答 provider: ${getProviderLabel(openCopilotConfig.defaultProvider)}`);
+  parts.push(`目前回答模型: ${getConfiguredModel(openCopilotConfig) || "尚未設定"}`);
+  parts.push(`目前 embedding provider: ${getProviderLabel(openCopilotConfig.defaultEmbeddingProvider)}`);
+  parts.push(`目前 embedding model: ${getConfiguredEmbeddingModel(openCopilotConfig) || "尚未設定"}`);
+  parts.push(`目前 topK=${config.topK}, temperature=${config.temperature}, chunkSize=${config.chunkSize}, chunkOverlap=${config.chunkOverlap}`);
+  parts.push(`已匯入知識檔數量: ${importedKnowledgeFiles.length}`);
+  parts.push(`目前 chunk 數量: ${chunkIndex.length}`);
+
+  const question = elements.questionInput.value.trim();
+  const expectedAnswer = elements.expectedAnswerInput.value.trim();
+  if (question) parts.push(`目前測試問題: ${question}`);
+  if (expectedAnswer) parts.push(`目前預期答案或檢核標準: ${expectedAnswer}`);
+  if (lastAnswerRun?.answer) parts.push(`最近一次模型回答: ${lastAnswerRun.answer}`);
+  if (lastAnswerRun?.judge) {
+    parts.push(`最近一次 AI Judge: verdict=${lastAnswerRun.judge.verdict}, grounded=${lastAnswerRun.judge.grounded}, score=${lastAnswerRun.judge.score}/5, explanation=${lastAnswerRun.judge.explanation}`);
+  }
+  if (Array.isArray(lastAnswerRun?.retrieval) && lastAnswerRun.retrieval.length) {
+    const retrievalSummary = lastAnswerRun.retrieval
+      .map((chunk, index) => `Chunk ${index + 1} [${chunk.score.toFixed(4)}] ${chunk.sourceName || ""}: ${String(chunk.content || "").slice(0, 280)}`)
+      .join("\n");
+    parts.push(`最近一次檢索摘要:\n${retrievalSummary}`);
+  }
+
+  return parts.join("\n");
+}
+
+async function sendAdvisorMessage() {
+  const userInput = elements.advisorInput.value.trim();
+  if (!userInput) {
+    setStatus(elements.advisorStatus, "請先輸入想諮詢 AI 的內容。", "warn");
+    return;
+  }
+
+  setBusy([elements.advisorSendButton], true);
+  try {
+    pushAdvisorMessage("user", userInput);
+    elements.advisorInput.value = "";
+    advisorState.draft = "";
+    saveLocalState();
+    setStatus(elements.advisorStatus, "AI 顧問正在整理建議...", "warn");
+
+    const history = advisorState.messages
+      .slice(-8)
+      .map((message) => `${message.role === "user" ? "使用者" : "AI 顧問"}：${message.content}`)
+      .join("\n\n");
+
+    const prompt = [
+      buildAdvisorContext(),
+      "",
+      "以下是這個快速諮詢視窗的最近對話：",
+      history || "目前沒有歷史對話。",
+      "",
+      "請直接回答使用者最新問題，並盡量給出可以立刻修改的建議。"
+    ].join("\n");
+
+    const answer = await runDefaultProviderPrompt(prompt, getConfig().temperature);
+    pushAdvisorMessage("assistant", answer || "這次沒有收到可用回覆。");
+    setStatus(elements.advisorStatus, "已更新建議。這裡用的是和頁面回答區同一個 provider。", "good");
+  } catch (error) {
+    setStatus(elements.advisorStatus, explainAzureError(error), "bad");
+  } finally {
+    setBusy([elements.advisorSendButton], false);
+  }
 }
 
 async function loadOpenCopilotConfig() {
@@ -321,6 +646,7 @@ async function loadOpenCopilotConfig() {
   updateProviderSummary();
   saveLocalState();
   setStatus(elements.configStatus, `已載入 Open Copilot 設定。回答會跟著 ${getProviderLabel(openCopilotConfig.defaultProvider)}，embedding 會跟著 ${getProviderLabel(openCopilotConfig.defaultEmbeddingProvider)}。`, "good");
+  await loadSavedIndexFromWorkFolder({ silent: true }).catch(() => false);
 }
 
 function extractStructuredTextFromObject(value) {
@@ -388,13 +714,62 @@ function buildKnowledgeDocument(text, fileName = "") {
   };
 }
 
+function splitOversizedParagraph(paragraph, chunkSize, overlap = 0) {
+  const text = String(paragraph || "").trim();
+  if (!text) return [];
+  if (text.length <= chunkSize) return [text];
+
+  const segments = [];
+  const sentenceParts = text
+    .split(/(?<=[。！？!?\.])\s+|\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (sentenceParts.length <= 1) {
+    const step = Math.max(1, chunkSize - Math.max(0, Math.min(overlap, chunkSize - 1)));
+    for (let index = 0; index < text.length; index += step) {
+      segments.push(text.slice(index, index + chunkSize).trim());
+    }
+    return segments.filter(Boolean);
+  }
+
+  let buffer = "";
+  sentenceParts.forEach((part) => {
+    if (part.length > chunkSize) {
+      if (buffer.trim()) {
+        segments.push(buffer.trim());
+        buffer = "";
+      }
+      splitOversizedParagraph(part, chunkSize, overlap).forEach((segment) => segments.push(segment));
+      return;
+    }
+
+    const next = buffer ? `${buffer} ${part}` : part;
+    if (next.length <= chunkSize) {
+      buffer = next;
+      return;
+    }
+
+    if (buffer.trim()) {
+      segments.push(buffer.trim());
+    }
+    buffer = part;
+  });
+
+  if (buffer.trim()) {
+    segments.push(buffer.trim());
+  }
+
+  return segments.filter(Boolean);
+}
+
 function splitIntoChunks(text, chunkSize, overlap) {
   const cleaned = String(text || "").replace(/\r/g, "").trim();
   if (!cleaned) return [];
 
   const paragraphs = cleaned
     .split(/\n{2,}/)
-    .map((part) => part.trim())
+    .flatMap((part) => splitOversizedParagraph(part.trim(), chunkSize, overlap))
     .filter(Boolean);
 
   const chunks = [];
@@ -630,7 +1005,8 @@ async function createOllamaEmbeddings(inputs, config) {
     })
   });
   if (!response.ok) {
-    throw new Error(`Ollama embedding request failed: ${response.status}`);
+    const text = await response.text().catch(() => "");
+    throw new Error(`Ollama embedding request failed: ${response.status}${text ? `\n${text}` : ""}`);
   }
   const data = await response.json();
   return Array.isArray(data?.embeddings) ? data.embeddings : [];
@@ -706,18 +1082,58 @@ async function createAzureEmbeddings(inputs, config) {
 }
 
 async function createEmbeddings(inputs, config, onProgress) {
-  const batchSize = 16;
+  const batchSize = String(config.defaultEmbeddingProvider || "ollama").trim() === "ollama" ? 8 : 16;
   const results = [];
   const provider = String(config.defaultEmbeddingProvider || "ollama").trim() || "ollama";
   for (let i = 0; i < inputs.length; i += batchSize) {
     const batch = inputs.slice(i, i + batchSize);
-    const embeddings = provider === "azureOpenAi"
-      ? await createAzureEmbeddings(batch, config)
-      : provider === "lmStudio"
-        ? await createLmStudioEmbeddings(batch, config)
-        : provider === "gemini"
-          ? await createGeminiEmbeddings(batch, config)
-          : await createOllamaEmbeddings(batch, config);
+    let embeddings;
+    try {
+      embeddings = provider === "azureOpenAi"
+        ? await createAzureEmbeddings(batch, config)
+        : provider === "lmStudio"
+          ? await createLmStudioEmbeddings(batch, config)
+          : provider === "gemini"
+            ? await createGeminiEmbeddings(batch, config)
+            : await createOllamaEmbeddings(batch, config);
+    } catch (error) {
+      if (batch.length === 1) {
+        const failedText = String(batch[0] || "");
+        throw new Error([
+          String(error?.message || error || "Embedding request failed."),
+          `出錯 chunk index: ${i + 1}`,
+          `chunk 長度: ${failedText.length} chars`,
+          `chunk 前 200 字: ${failedText.slice(0, 200)}`
+        ].join("\n"));
+      }
+
+      // If a batch fails halfway through, retry one by one so we can isolate the offending chunk.
+      for (let j = 0; j < batch.length; j += 1) {
+        const singleInput = [batch[j]];
+        try {
+          const singleEmbedding = provider === "azureOpenAi"
+            ? await createAzureEmbeddings(singleInput, config)
+            : provider === "lmStudio"
+              ? await createLmStudioEmbeddings(singleInput, config)
+              : provider === "gemini"
+                ? await createGeminiEmbeddings(singleInput, config)
+                : await createOllamaEmbeddings(singleInput, config);
+          results.push(singleEmbedding[0] || []);
+          if (typeof onProgress === "function") {
+            onProgress(Math.min(inputs.length, i + j + 1), inputs.length);
+          }
+        } catch (singleError) {
+          const failedText = String(batch[j] || "");
+          throw new Error([
+            String(singleError?.message || singleError || error || "Embedding request failed."),
+            `出錯 chunk index: ${i + j + 1}`,
+            `chunk 長度: ${failedText.length} chars`,
+            `chunk 前 200 字: ${failedText.slice(0, 200)}`
+          ].join("\n"));
+        }
+      }
+      continue;
+    }
     results.push(...embeddings);
     if (typeof onProgress === "function") {
       onProgress(Math.min(inputs.length, i + batch.length), inputs.length);
@@ -823,7 +1239,7 @@ async function buildIndex() {
     return;
   }
 
-  setBusy([elements.buildIndexButton], true);
+  setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], true);
   try {
     const chunks = splitDocumentsIntoChunks(importedKnowledgeFiles, config.chunkSize, config.chunkOverlap);
     if (!chunks.length) {
@@ -843,15 +1259,24 @@ async function buildIndex() {
       ...chunk,
       embedding: embeddings[index] || []
     }));
+    chunkIndexTimestamp = new Date().toISOString();
 
     updateIndexStats();
-    setStatus(elements.indexStatus, `索引完成，共 ${chunkIndex.length} 個 chunks。現在可以開始問答測試。`, "good");
+    let saveMessage = "";
+    try {
+      await saveIndexToWorkFolder();
+      saveMessage = " 已同步存到 Work Folder。";
+    } catch (saveError) {
+      saveMessage = ` 但存到 Work Folder 失敗：${String(saveError?.message || saveError || "")}`;
+    }
+    setStatus(elements.indexStatus, `索引完成，共 ${chunkIndex.length} 個 chunks。現在可以開始問答測試。${saveMessage}`, saveMessage.startsWith(" 但") ? "warn" : "good");
   } catch (error) {
     chunkIndex = [];
+    chunkIndexTimestamp = "";
     updateIndexStats();
     setStatus(elements.indexStatus, explainAzureError(error), "bad");
   } finally {
-    setBusy([elements.buildIndexButton], false);
+    setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], false);
     saveLocalState();
   }
 }
@@ -1096,6 +1521,7 @@ elements.clearKnowledgeButton.addEventListener("click", () => {
   importedKnowledgeFiles = [];
   renderKnowledgePreview();
   chunkIndex = [];
+  chunkIndexTimestamp = "";
   updateIndexStats();
   renderRetrievedChunks([]);
   renderAnswer("");
@@ -1106,6 +1532,31 @@ elements.clearKnowledgeButton.addEventListener("click", () => {
 
 elements.buildIndexButton.addEventListener("click", () => {
   buildIndex();
+});
+
+elements.loadSavedIndexButton.addEventListener("click", () => {
+  setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], true);
+  loadSavedIndexFromWorkFolder()
+    .catch((error) => {
+      setStatus(elements.indexStatus, String(error?.message || error || "讀取已存索引失敗。"), "bad");
+    })
+    .finally(() => {
+      setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], false);
+    });
+});
+
+elements.saveIndexToFolderButton.addEventListener("click", () => {
+  setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], true);
+  saveIndexToWorkFolder()
+    .then(() => {
+      setStatus(elements.indexStatus, `已把目前索引存到 Work Folder：${WORK_FOLDER_INDEX_PATH}/${WORK_FOLDER_INDEX_FILE}`, "good");
+    })
+    .catch((error) => {
+      setStatus(elements.indexStatus, String(error?.message || error || "儲存索引失敗。"), "bad");
+    })
+    .finally(() => {
+      setBusy([elements.buildIndexButton, elements.loadSavedIndexButton, elements.saveIndexToFolderButton], false);
+    });
 });
 
 elements.runQuestionButton.addEventListener("click", () => {
@@ -1126,6 +1577,45 @@ elements.runBatchButton.addEventListener("click", () => {
   runBatch().catch((error) => {
     setStatus(elements.batchStatus, explainAzureError(error), "bad");
   });
+});
+
+elements.advisorToggleButton.addEventListener("click", () => {
+  advisorState.collapsed = !advisorState.collapsed;
+  renderAdvisorShell();
+  saveLocalState();
+});
+
+elements.advisorClearButton.addEventListener("click", () => {
+  advisorState.messages = [];
+  renderAdvisorMessages();
+  setStatus(elements.advisorStatus, "已清空快速諮詢紀錄。", "good");
+  saveLocalState();
+});
+
+elements.advisorUseQuestionButton.addEventListener("click", () => {
+  appendAdvisorInput(elements.questionInput.value.trim() ? `目前測試問題：${elements.questionInput.value.trim()}` : "");
+});
+
+elements.advisorUseAnswerButton.addEventListener("click", () => {
+  appendAdvisorInput(lastAnswerRun?.answer ? `目前回答：\n${lastAnswerRun.answer}` : "");
+});
+
+elements.advisorUseJudgeButton.addEventListener("click", () => {
+  appendAdvisorInput(lastAnswerRun?.judge
+    ? `目前評分：${lastAnswerRun.judge.verdict} / grounded=${lastAnswerRun.judge.grounded} / score=${lastAnswerRun.judge.score}/5\n${lastAnswerRun.judge.explanation}`
+    : "");
+});
+
+elements.advisorSendButton.addEventListener("click", () => {
+  sendAdvisorMessage();
+});
+
+elements.advisorInput.addEventListener("input", saveLocalState);
+elements.advisorInput.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    sendAdvisorMessage();
+  }
 });
 
 elements.themeToggle.addEventListener("change", () => {
@@ -1178,4 +1668,14 @@ updateProviderSummary();
 renderRetrievedChunks([]);
 renderAnswer("");
 renderJudge(null);
+elements.advisorInput.value = advisorState.draft || "";
+renderAdvisorShell();
+renderAdvisorMessages();
 setStatus(elements.configStatus, "你可以按「讀取 Open Copilot 設定」，讓回答與 embedding 都同步目前的預設 provider。", "warn");
+setStatus(elements.advisorStatus, "這個視窗會沿用目前回答 provider 與模型。", "warn");
+
+loadSavedIndexFromWorkFolder({ silent: true }).catch(() => false);
+
+if (globalThis.chrome?.storage?.sync) {
+  loadOpenCopilotConfig().catch(() => {});
+}

@@ -409,7 +409,10 @@ Action Advisor|Recommend practical next steps and decisions."></textarea>
             </label>
             <label class="field">
               <span id="ollamaEmbeddingModelLabel">Ollama Embedding Model</span>
-              <input id="ollamaEmbeddingModel" type="text" placeholder="embeddinggemma" />
+              <div class="inline-action-row">
+                <select id="ollamaEmbeddingModel"></select>
+                <button id="ollamaEmbeddingModelRefreshButton" class="secondary-button inline-action-button" type="button">Refresh</button>
+              </div>
             </label>
           </div>
 

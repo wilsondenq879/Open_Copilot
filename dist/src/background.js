@@ -22,6 +22,7 @@ const WORK_FOLDER_SKILL_DIR = "skill";
 const WORK_FOLDER_TASK_DIR = "task";
 const WORK_FOLDER_SYNC_DIR = "sync";
 const WORK_FOLDER_DATASET_DIR = "dataset";
+const workFolderTransferSessions = new Map();
 const WORK_FOLDER_STARTERS_FILE = "starter-skills.json";
 const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
@@ -34,13 +35,15 @@ const MAX_TASK_EXTRACTION_WINDOW_DAYS = 7;
 const MAX_BATCH_URL_QA_ITEMS = 100;
 const DEFAULT_BATCH_URL_QA_COUNT = 5;
 const LOCAL_SECRET_CONFIG_KEY = "providerSecretConfig";
-const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "azureOpenAiApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
-const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey"];
+const SECRET_CONFIG_FIELDS = ["githubApiKey", "geminiApiKey", "geminiEmbeddingApiKey", "azureOpenAiApiKey", "azureOpenAiEmbeddingApiKey", "telegramBotToken", "lineChannelAccessToken", "teamsWebhookUrl", "slackWebhookUrl", "discordWebhookUrl"];
+const CLIENT_REDACTED_CONFIG_FIELDS = [...SECRET_CONFIG_FIELDS, "lmStudioApiKey", "lmStudioEmbeddingApiKey"];
 
 const DEFAULT_SECRET_CONFIG = {
   githubApiKey: "",
   geminiApiKey: "",
+  geminiEmbeddingApiKey: "",
   azureOpenAiApiKey: "",
+  azureOpenAiEmbeddingApiKey: "",
   telegramBotToken: "",
   lineChannelAccessToken: "",
   teamsWebhookUrl: "",
@@ -50,14 +53,24 @@ const DEFAULT_SECRET_CONFIG = {
 
 const DEFAULT_CONFIG = {
   ollamaUrl: "http://127.0.0.1:11434",
+  ollamaEmbeddingUrl: "http://127.0.0.1:11434",
+  ollamaEmbeddingModel: "",
   lmStudioUrl: "http://127.0.0.1:1234",
+  lmStudioEmbeddingUrl: "http://127.0.0.1:1234",
   lmStudioModel: "",
+  lmStudioEmbeddingModel: "",
   lmStudioApiKey: "lm-studio",
+  lmStudioEmbeddingApiKey: "lm-studio",
   geminiModel: "gemini-2.5-flash",
+  geminiEmbeddingModel: "gemini-embedding-001",
   azureOpenAiEndpoint: "",
+  azureOpenAiEmbeddingEndpoint: "",
   azureOpenAiDeployment: "",
+  azureOpenAiEmbeddingDeployment: "",
   azureOpenAiApiVersion: "2024-10-21",
+  azureOpenAiEmbeddingApiVersion: "2024-10-21",
   defaultProvider: "ollama",
+  defaultEmbeddingProvider: "ollama",
   selectedModel: "",
   modelSelectionMode: "auto",
   starterModelRoutingEnabled: true,
@@ -2365,6 +2378,149 @@ async function readWorkFolderJson(path, fileName) {
   return JSON.parse(await readTextFile(directoryHandle, fileName));
 }
 
+async function writeNamedWorkFolderJson(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  await writeWorkFolderJson(path, fileName, options.data ?? {});
+  return {
+    path,
+    fileName,
+  };
+}
+
+async function readNamedWorkFolderJson(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  return {
+    path,
+    fileName,
+    data: await readWorkFolderJson(path, fileName),
+  };
+}
+
+function createTransferSessionId(prefix = "wf") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function beginWorkFolderJsonWriteSession(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  const sessionId = createTransferSessionId("wf-write");
+  workFolderTransferSessions.set(sessionId, {
+    type: "write-json",
+    writable,
+    path,
+    fileName,
+    bytesWritten: 0,
+  });
+  return {
+    sessionId,
+    path,
+    fileName,
+  };
+}
+
+async function appendWorkFolderJsonWriteSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const chunk = String(options.chunk || "");
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "write-json") {
+    throw new Error("Work folder write session not found.");
+  }
+  await session.writable.write(chunk);
+  session.bytesWritten += chunk.length;
+  return {
+    sessionId,
+    bytesWritten: session.bytesWritten,
+  };
+}
+
+async function finishWorkFolderJsonWriteSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "write-json") {
+    throw new Error("Work folder write session not found.");
+  }
+  await session.writable.close();
+  workFolderTransferSessions.delete(sessionId);
+  return {
+    sessionId,
+    path: session.path,
+    fileName: session.fileName,
+    bytesWritten: session.bytesWritten,
+  };
+}
+
+async function beginWorkFolderJsonReadSession(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  const data = await readWorkFolderJson(path, fileName);
+  const text = JSON.stringify(data);
+  const sessionId = createTransferSessionId("wf-read");
+  workFolderTransferSessions.set(sessionId, {
+    type: "read-json",
+    text,
+    path,
+    fileName,
+    size: text.length,
+  });
+  return {
+    sessionId,
+    path,
+    fileName,
+    size: text.length,
+  };
+}
+
+async function readWorkFolderJsonReadSessionChunk(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const offset = Math.max(0, Number.parseInt(String(options.offset || 0), 10) || 0);
+  const length = Math.max(1, Number.parseInt(String(options.length || 0), 10) || 1);
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "read-json") {
+    throw new Error("Work folder read session not found.");
+  }
+  const chunk = session.text.slice(offset, offset + length);
+  return {
+    sessionId,
+    offset,
+    length: chunk.length,
+    done: offset + chunk.length >= session.size,
+    chunk,
+  };
+}
+
+async function finishWorkFolderJsonReadSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "read-json") {
+    throw new Error("Work folder read session not found.");
+  }
+  workFolderTransferSessions.delete(sessionId);
+  return {
+    sessionId,
+    path: session.path,
+    fileName: session.fileName,
+    size: session.size,
+  };
+}
+
 async function writeWorkFolderStarters(starters) {
   await writeWorkFolderJson(WORK_FOLDER_SKILL_DIR, WORK_FOLDER_STARTERS_FILE, {
     version: GOOGLE_DRIVE_SYNC_VERSION,
@@ -2829,7 +2985,7 @@ function normalizeBatchUrlQaJob(job = {}) {
     status,
     model: normalizeTaskText(job.model || "", 200),
     outputLanguage: normalizeTaskText(job.outputLanguage || "", 40) || "zh-TW",
-    extraPrompt: normalizeTaskText(job.extraPrompt || "", 3000),
+    prompt: normalizeTaskText(job.prompt || job.extraPrompt || "", 16000),
     qaPerUrl: normalizeBatchUrlQaCount(job.qaPerUrl),
     fileName: normalizeBatchUrlQaFilename(job.fileName),
     urls: parsed.urls,
@@ -2947,6 +3103,46 @@ function extractJsonObjectFromText(value) {
   throw new Error("Model did not return JSON.");
 }
 
+function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {}) {
+  const resolvedCount = Math.max(1, Math.min(8, Number(qaPerUrl) || 8));
+  const resolvedLanguage = String(outputLanguage || "zh-TW").trim() || "zh-TW";
+  return [
+    "You are creating grounded FAQ training data from a single webpage.",
+    "Return one JSON object only.",
+    `Generate exactly ${resolvedCount} FAQ items from the provided page.`,
+    `Write every question variant and answer in this language: ${resolvedLanguage}.`,
+    "Rules:",
+    "1. Use only the provided webpage content for all questions, answers, and evidence.",
+    "2. Do not use outside knowledge.",
+    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
+    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
+    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
+    "6. Prefer standalone questions that still make sense outside the original page.",
+    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
+    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
+    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
+    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
+    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
+    "12. Evidence must be a short supporting passage copied from the provided page text.",
+    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
+    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
+    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
+    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
+    "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones.",
+    "",
+    "URL: {{url}}",
+    "Title: {{title}}",
+    "Meta description: {{metaDescription}}",
+    "Headings: {{headings}}",
+    "",
+    "EXISTING QA PAIRS TO AVOID",
+    "{{existingPairsSection}}",
+    "",
+    "PAGE TEXT",
+    "{{pageText}}",
+  ].join("\n");
+}
+
 function extractBatchUrlQaPairsFromPayload(payload) {
   const normalizedPayload = payload && typeof payload === "object" ? payload : {};
   if (Array.isArray(payload)) {
@@ -2979,7 +3175,7 @@ function buildBatchUrlQaPrompt({
   pageText,
   qaPerUrl,
   outputLanguage,
-  extraPrompt,
+  prompt,
   existingPairs = [],
 }) {
   const trimmedText = String(pageText || "").trim().slice(0, 12000);
@@ -2989,42 +3185,19 @@ function buildBatchUrlQaPrompt({
       .map((pair, index) => `${index + 1}. Topic: ${pair.topic || "-"}\nQuestions: ${(pair.questions || []).join(" | ")}\nAnswer: ${pair.answer}`)
       .join("\n")
     : "";
-  return [
-    "You are creating grounded FAQ training data from a single webpage.",
-    "Return one JSON object only.",
-    `Generate exactly ${remainingCount} FAQ items from the provided page.`,
-    `Write every question variant and answer in this language: ${outputLanguage || "zh-TW"}.`,
-    "Rules:",
-    "1. Use only the provided webpage content for all questions, answers, and evidence.",
-    "2. Do not use outside knowledge.",
-    "3. Each FAQ item must represent one meaningful knowledge unit, not one arbitrary sentence or one narrow step-number fact.",
-    "4. Each FAQ item must include topic, question_variants, answer, and evidence.",
-    "5. question_variants must contain 2 to 4 natural user questions that all map to the same answer.",
-    "6. Prefer standalone questions that still make sense outside the original page.",
-    "7. Avoid weak question forms like 'what is the first step', 'what should I do next', or questions that depend on page order or nearby context words such as this page / here / above.",
-    "8. Prefer questions about capabilities, definitions, requirements, differences, configuration targets, limitations, or complete procedures over narrow step-number trivia.",
-    "9. If the answer is procedural, rewrite it into a complete step-by-step answer that preserves the real sequence and key conditions from the page.",
-    "10. The answer must add concrete information from the page, such as steps, conditions, settings, limits, names, or outcomes.",
-    "11. Do not make the answer a near-copy, grammatical rewrite, or trivial paraphrase of any question variant.",
-    "12. Evidence must be a short supporting passage copied from the provided page text.",
-    "13. If the page only hints at a topic but does not provide a concrete answer, skip that topic instead of guessing.",
-    "14. The page title is the primary topic boundary. Keep every FAQ item aligned with the exact scope implied by the title and headings. Do not broaden a narrower page topic into a more general product question.",
-    "15. Example: if the page is about using a multi-function button to trigger VPN Fusion, do not write generic questions about enabling VPN Fusion overall. The question must preserve the multi-function-button scope.",
-    '16. JSON schema: {"qa_pairs":[{"topic":"...","question_variants":["...","..."],"answer":"...","evidence":"..."}]}',
-    existingSummary ? "17. Do not repeat or paraphrase the existing FAQ items listed below. Only create new ones." : "",
-    extraPrompt ? `18. Additional task instructions: ${extraPrompt}` : "",
-    "",
-    `URL: ${url}`,
-    title ? `Title: ${title}` : "",
-    metaDescription ? `Meta description: ${metaDescription}` : "",
-    headings ? `Headings: ${headings}` : "",
-    existingSummary ? "" : "",
-    existingSummary ? "EXISTING QA PAIRS TO AVOID" : "",
-    existingSummary || "",
-    "",
-    "PAGE TEXT",
-    trimmedText || "(empty)",
-  ].filter(Boolean).join("\n");
+  const template = String(prompt || "").trim() || buildDefaultBatchUrlQaPromptTemplate({
+    qaPerUrl: remainingCount,
+    outputLanguage,
+  });
+  return template
+    .replaceAll("{{qaPerUrl}}", String(remainingCount))
+    .replaceAll("{{outputLanguage}}", String(outputLanguage || "zh-TW"))
+    .replaceAll("{{url}}", String(url || ""))
+    .replaceAll("{{title}}", String(title || ""))
+    .replaceAll("{{metaDescription}}", String(metaDescription || ""))
+    .replaceAll("{{headings}}", String(headings || ""))
+    .replaceAll("{{existingPairsSection}}", existingSummary)
+    .replaceAll("{{pageText}}", trimmedText || "(empty)");
 }
 
 async function waitForTabCompletion(tabId, timeoutMs = 30000) {
@@ -3179,7 +3352,7 @@ function buildBatchUrlQaJsonl(results = []) {
   return entries.length ? `${entries.join("\n")}\n` : "";
 }
 
-async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, extraPrompt }) {
+async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, prompt }) {
   const targetCount = estimateBatchUrlQaTargetCount(pageText, headings, qaPerUrl);
   let collectedPairs = [];
   const maxAttempts = 3;
@@ -3194,7 +3367,7 @@ async function generateQaPairsForPage({ url, title, metaDescription, headings, p
         pageText,
         qaPerUrl: targetCount - collectedPairs.length,
         outputLanguage,
-        extraPrompt,
+        prompt,
         existingPairs: collectedPairs,
       }),
       model,
@@ -3274,7 +3447,7 @@ async function processBatchUrlQaJob(jobId) {
         qaPerUrl: job.qaPerUrl,
         model: job.model,
         outputLanguage: job.outputLanguage,
-        extraPrompt: job.extraPrompt,
+        prompt: job.prompt,
       });
       await throwIfBatchUrlQaCanceled(jobId);
       result = normalizeBatchUrlQaResult({
@@ -3370,7 +3543,10 @@ async function startBatchUrlQaJob(input = {}) {
     status: "queued",
     model: selectedModel,
     outputLanguage: String(input.outputLanguage || config.replyLanguage || "zh-TW").trim() || "zh-TW",
-    extraPrompt: String(input.extraPrompt || "").trim(),
+    prompt: String(input.prompt || input.extraPrompt || "").trim() || buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: input.qaPerUrl,
+      outputLanguage: input.outputLanguage || config.replyLanguage || "zh-TW",
+    }),
     qaPerUrl: normalizeBatchUrlQaCount(input.qaPerUrl),
     fileName: uniqueFileName,
     urls: parsed.urls,
@@ -3973,9 +4149,12 @@ async function searchCommonsImages({ query, limit = 6 } = {}) {
   };
 }
 
-async function listModels() {
+async function listModels(options = {}) {
   const config = await getConfig();
-  const baseUrl = normalizeBaseUrl(config.ollamaUrl);
+  const baseUrl = normalizeBaseUrl(
+    options.baseUrl
+      || (options.useEmbeddingUrl ? (config.ollamaEmbeddingUrl || config.ollamaUrl) : config.ollamaUrl)
+  );
 
   if (!baseUrl) {
     throw new Error("Ollama URL is not configured.");
@@ -3990,7 +4169,8 @@ async function listModels() {
         digest: model.digest,
       }))
     : [];
-  const nextConfig = await reconcileSelectedModel(config, models);
+  const shouldReconcileSelected = options.reconcileSelected !== false && !options.useEmbeddingUrl && !options.baseUrl;
+  const nextConfig = shouldReconcileSelected ? await reconcileSelectedModel(config, models) : config;
 
   return {
     baseUrl,
@@ -5543,7 +5723,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       case "ollama:list-models": {
-        const result = await listModels();
+        const result = await listModels({
+          baseUrl: message.baseUrl || "",
+          useEmbeddingUrl: Boolean(message.useEmbeddingUrl),
+          reconcileSelected: message.reconcileSelected,
+        });
         sendResponse({
           ok: true,
           ...result,
@@ -5626,6 +5810,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "work-folder:sync-pull": {
         sendResponse({ ok: true, result: await pullWorkFolderSync(), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:write-json": {
+        sendResponse({ ok: true, file: await writeNamedWorkFolderJson(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:read-json": {
+        sendResponse({ ok: true, file: await readNamedWorkFolderJson(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:begin-write-json-session": {
+        sendResponse({ ok: true, session: await beginWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:append-write-json-session": {
+        sendResponse({ ok: true, session: await appendWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:finish-write-json-session": {
+        sendResponse({ ok: true, session: await finishWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:begin-read-json-session": {
+        sendResponse({ ok: true, session: await beginWorkFolderJsonReadSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:read-json-session-chunk": {
+        sendResponse({ ok: true, session: await readWorkFolderJsonReadSessionChunk(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:finish-read-json-session": {
+        sendResponse({ ok: true, session: await finishWorkFolderJsonReadSession(message || {}), status: await getWorkFolderStatus() });
         return;
       }
       case "google-drive:get-status": {

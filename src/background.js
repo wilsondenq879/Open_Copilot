@@ -22,6 +22,7 @@ const WORK_FOLDER_SKILL_DIR = "skill";
 const WORK_FOLDER_TASK_DIR = "task";
 const WORK_FOLDER_SYNC_DIR = "sync";
 const WORK_FOLDER_DATASET_DIR = "dataset";
+const workFolderTransferSessions = new Map();
 const WORK_FOLDER_STARTERS_FILE = "starter-skills.json";
 const WORK_FOLDER_TASKS_FILE = "task-reminders.json";
 const TASK_ALARM_PREFIX = "task-reminder:";
@@ -2377,6 +2378,149 @@ async function readWorkFolderJson(path, fileName) {
   return JSON.parse(await readTextFile(directoryHandle, fileName));
 }
 
+async function writeNamedWorkFolderJson(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  await writeWorkFolderJson(path, fileName, options.data ?? {});
+  return {
+    path,
+    fileName,
+  };
+}
+
+async function readNamedWorkFolderJson(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  return {
+    path,
+    fileName,
+    data: await readWorkFolderJson(path, fileName),
+  };
+}
+
+function createTransferSessionId(prefix = "wf") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function beginWorkFolderJsonWriteSession(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  const sessionId = createTransferSessionId("wf-write");
+  workFolderTransferSessions.set(sessionId, {
+    type: "write-json",
+    writable,
+    path,
+    fileName,
+    bytesWritten: 0,
+  });
+  return {
+    sessionId,
+    path,
+    fileName,
+  };
+}
+
+async function appendWorkFolderJsonWriteSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const chunk = String(options.chunk || "");
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "write-json") {
+    throw new Error("Work folder write session not found.");
+  }
+  await session.writable.write(chunk);
+  session.bytesWritten += chunk.length;
+  return {
+    sessionId,
+    bytesWritten: session.bytesWritten,
+  };
+}
+
+async function finishWorkFolderJsonWriteSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "write-json") {
+    throw new Error("Work folder write session not found.");
+  }
+  await session.writable.close();
+  workFolderTransferSessions.delete(sessionId);
+  return {
+    sessionId,
+    path: session.path,
+    fileName: session.fileName,
+    bytesWritten: session.bytesWritten,
+  };
+}
+
+async function beginWorkFolderJsonReadSession(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  const data = await readWorkFolderJson(path, fileName);
+  const text = JSON.stringify(data);
+  const sessionId = createTransferSessionId("wf-read");
+  workFolderTransferSessions.set(sessionId, {
+    type: "read-json",
+    text,
+    path,
+    fileName,
+    size: text.length,
+  });
+  return {
+    sessionId,
+    path,
+    fileName,
+    size: text.length,
+  };
+}
+
+async function readWorkFolderJsonReadSessionChunk(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const offset = Math.max(0, Number.parseInt(String(options.offset || 0), 10) || 0);
+  const length = Math.max(1, Number.parseInt(String(options.length || 0), 10) || 1);
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "read-json") {
+    throw new Error("Work folder read session not found.");
+  }
+  const chunk = session.text.slice(offset, offset + length);
+  return {
+    sessionId,
+    offset,
+    length: chunk.length,
+    done: offset + chunk.length >= session.size,
+    chunk,
+  };
+}
+
+async function finishWorkFolderJsonReadSession(options = {}) {
+  const sessionId = String(options.sessionId || "").trim();
+  const session = workFolderTransferSessions.get(sessionId);
+  if (!session || session.type !== "read-json") {
+    throw new Error("Work folder read session not found.");
+  }
+  workFolderTransferSessions.delete(sessionId);
+  return {
+    sessionId,
+    path: session.path,
+    fileName: session.fileName,
+    size: session.size,
+  };
+}
+
 async function writeWorkFolderStarters(starters) {
   await writeWorkFolderJson(WORK_FOLDER_SKILL_DIR, WORK_FOLDER_STARTERS_FILE, {
     version: GOOGLE_DRIVE_SYNC_VERSION,
@@ -4005,9 +4149,12 @@ async function searchCommonsImages({ query, limit = 6 } = {}) {
   };
 }
 
-async function listModels() {
+async function listModels(options = {}) {
   const config = await getConfig();
-  const baseUrl = normalizeBaseUrl(config.ollamaUrl);
+  const baseUrl = normalizeBaseUrl(
+    options.baseUrl
+      || (options.useEmbeddingUrl ? (config.ollamaEmbeddingUrl || config.ollamaUrl) : config.ollamaUrl)
+  );
 
   if (!baseUrl) {
     throw new Error("Ollama URL is not configured.");
@@ -4022,7 +4169,8 @@ async function listModels() {
         digest: model.digest,
       }))
     : [];
-  const nextConfig = await reconcileSelectedModel(config, models);
+  const shouldReconcileSelected = options.reconcileSelected !== false && !options.useEmbeddingUrl && !options.baseUrl;
+  const nextConfig = shouldReconcileSelected ? await reconcileSelectedModel(config, models) : config;
 
   return {
     baseUrl,
@@ -5575,7 +5723,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       case "ollama:list-models": {
-        const result = await listModels();
+        const result = await listModels({
+          baseUrl: message.baseUrl || "",
+          useEmbeddingUrl: Boolean(message.useEmbeddingUrl),
+          reconcileSelected: message.reconcileSelected,
+        });
         sendResponse({
           ok: true,
           ...result,
@@ -5658,6 +5810,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "work-folder:sync-pull": {
         sendResponse({ ok: true, result: await pullWorkFolderSync(), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:write-json": {
+        sendResponse({ ok: true, file: await writeNamedWorkFolderJson(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:read-json": {
+        sendResponse({ ok: true, file: await readNamedWorkFolderJson(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:begin-write-json-session": {
+        sendResponse({ ok: true, session: await beginWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:append-write-json-session": {
+        sendResponse({ ok: true, session: await appendWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:finish-write-json-session": {
+        sendResponse({ ok: true, session: await finishWorkFolderJsonWriteSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:begin-read-json-session": {
+        sendResponse({ ok: true, session: await beginWorkFolderJsonReadSession(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:read-json-session-chunk": {
+        sendResponse({ ok: true, session: await readWorkFolderJsonReadSessionChunk(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:finish-read-json-session": {
+        sendResponse({ ok: true, session: await finishWorkFolderJsonReadSession(message || {}), status: await getWorkFolderStatus() });
         return;
       }
       case "google-drive:get-status": {

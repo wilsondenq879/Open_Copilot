@@ -2525,6 +2525,7 @@ let currentHiddenBuiltinStarterIds = [];
 let currentUiLanguage = "zh-TW";
 let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
+let latestOllamaEmbeddingModels = [];
 let latestWorkFolderStatus = null;
 let latestGoogleDriveStatus = null;
 let currentBatchUrlQaJobs = [];
@@ -2929,8 +2930,18 @@ Object.assign(OPTION_I18N["zh-TW"], {
   utilityTabGeneral: "General",
   utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "通知",
-  utilityTabStarterLibrary: "Starter",
-  utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabStarterLibrary: "Starter",
+    utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabTools: "工具",
+    toolsLibraryKicker: "工具",
+    toolsLibraryTitle: "內建工具",
+    toolsLibraryDescription: "直接在 Open Copilot 裡打開工具頁，改用 extension origin 執行，避免 `file://` 的限制。",
+    jsonlToolKicker: "JSONL",
+    jsonlToolTitle: "JSONL QA 編輯工具",
+    jsonlToolTag: "Extension Tool",
+    jsonlToolDescription: "編輯 `canonical_question`、`question_aliases`、`answers`，可用 Azure OpenAI 或 Ollama 協助整理，並支援暫存與寫回 JSONL。",
+    jsonlToolOpen: "在新分頁開啟工具",
+    jsonlToolHint: "這會以 extension 頁面開啟，可避開常見的 `file://` fetch 限制，並沿用 Open Copilot 已儲存的 provider 設定。",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "這裡會列出所有內建與自訂 skill。內建 skill 也會顯示，但不能刪除。",
   flowsPageTitle: "Agent Flows",
@@ -2996,8 +3007,18 @@ Object.assign(OPTION_I18N.en, {
   utilityTabGeneral: "General",
   utilityTabAiProvider: "AI Provider",
   utilityTabNotifications: "Notifications",
-  utilityTabStarterLibrary: "Starter",
-  utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabStarterLibrary: "Starter",
+    utilityTabAgentFlowLibrary: "Agent Flow",
+    utilityTabTools: "Tools",
+    toolsLibraryKicker: "Tools",
+    toolsLibraryTitle: "Built-in Tools",
+    toolsLibraryDescription: "Open utility pages directly inside Open Copilot so they run from the extension origin instead of `file://`.",
+    jsonlToolKicker: "JSONL",
+    jsonlToolTitle: "JSONL QA Editor",
+    jsonlToolTag: "Extension Tool",
+    jsonlToolDescription: "Edit `canonical_question`, `question_aliases`, and `answers`, use Azure OpenAI or Ollama for help, auto-save drafts, then write back to JSONL.",
+    jsonlToolOpen: "Open Tool In New Tab",
+    jsonlToolHint: "This opens as an extension page, which avoids the usual `file://` fetch restrictions and reuses your saved Open Copilot provider settings.",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "Browse every built-in and custom skill here. Built-in skills are visible too, but cannot be deleted.",
   flowsPageTitle: "Agent Flows",
@@ -3057,6 +3078,54 @@ Object.assign(OPTION_I18N.en, {
   builtinFlowDuplicated: "Duplicated built-in flow: {name}",
   popupVisibilityShown: "Shown In Toolbar",
   popupVisibilityHidden: "Hidden From Toolbar",
+});
+
+Object.assign(OPTION_I18N["zh-TW"], {
+  utilityTabEmbeddingProvider: "Embedding",
+  embeddingKicker: "Embeddings",
+  embeddingSectionTitle: "Embedding 提供者",
+  embeddingSectionTag: "向量設定",
+  defaultEmbeddingProviderLabel: "預設 Embedding 提供者",
+  embeddingOllamaTitle: "Ollama Embeddings",
+  embeddingLmStudioTitle: "LM Studio Embeddings",
+  embeddingGeminiTitle: "Gemini Embeddings",
+  embeddingAzureTitle: "Azure OpenAI Embeddings",
+  ollamaEmbeddingUrlLabel: "Ollama Embedding 網址",
+  ollamaEmbeddingModelLabel: "Ollama Embedding 模型",
+  lmStudioEmbeddingUrlLabel: "LM Studio Embedding 網址",
+  lmStudioEmbeddingModelLabel: "LM Studio Embedding 模型",
+  lmStudioEmbeddingApiKeyLabel: "Embedding API Key",
+  geminiEmbeddingModelLabel: "Gemini Embedding 模型",
+  geminiEmbeddingApiKeyLabel: "Embedding API Key",
+  azureEmbeddingEndpointLabel: "Azure Embedding Endpoint",
+  azureEmbeddingDeploymentLabel: "Azure Embedding Deployment",
+  azureEmbeddingApiVersionLabel: "Embedding API Version",
+  azureEmbeddingApiKeyLabel: "Embedding API Key",
+  embeddingHint: "這些 embedding 模型會沿用上方各 provider 的連線設定。選一個預設 embedding provider，知識庫測試等工具就能自動使用正確的向量後端。",
+});
+
+Object.assign(OPTION_I18N.en, {
+  utilityTabEmbeddingProvider: "Embedding",
+  embeddingKicker: "Embeddings",
+  embeddingSectionTitle: "Embedding Providers",
+  embeddingSectionTag: "Vector Setup",
+  defaultEmbeddingProviderLabel: "Default Embedding Provider",
+  embeddingOllamaTitle: "Ollama Embeddings",
+  embeddingLmStudioTitle: "LM Studio Embeddings",
+  embeddingGeminiTitle: "Gemini Embeddings",
+  embeddingAzureTitle: "Azure OpenAI Embeddings",
+  ollamaEmbeddingUrlLabel: "Ollama Embedding URL",
+  ollamaEmbeddingModelLabel: "Ollama Embedding Model",
+  lmStudioEmbeddingUrlLabel: "LM Studio Embedding URL",
+  lmStudioEmbeddingModelLabel: "LM Studio Embedding Model",
+  lmStudioEmbeddingApiKeyLabel: "Embedding API Key",
+  geminiEmbeddingModelLabel: "Gemini Embedding Model",
+  geminiEmbeddingApiKeyLabel: "Embedding API Key",
+  azureEmbeddingEndpointLabel: "Azure Embedding Endpoint",
+  azureEmbeddingDeploymentLabel: "Azure Embedding Deployment",
+  azureEmbeddingApiVersionLabel: "Embedding API Version",
+  azureEmbeddingApiKeyLabel: "Embedding API Key",
+  embeddingHint: "These embedding models reuse the provider connection settings above. Choose one default embedding provider so KB tools can use the right vector backend automatically.",
 });
 
 function t(key, vars = {}) {
@@ -3201,6 +3270,27 @@ function applyTranslations() {
   document.getElementById("azureApiVersionLabel").textContent = t("azureApiVersionLabel");
   document.getElementById("azureApiKeyLabel").textContent = t("azureApiKeyLabel");
   document.getElementById("azureHint").textContent = t("azureHint");
+  document.getElementById("embeddingKicker").textContent = t("embeddingKicker");
+  document.getElementById("embeddingSectionTitle").textContent = t("embeddingSectionTitle");
+  document.getElementById("embeddingSectionTag").textContent = t("embeddingSectionTag");
+  document.getElementById("defaultEmbeddingProviderLabel").textContent = t("defaultEmbeddingProviderLabel");
+  document.getElementById("embeddingOllamaTitle").textContent = t("embeddingOllamaTitle");
+  document.getElementById("embeddingLmStudioTitle").textContent = t("embeddingLmStudioTitle");
+  document.getElementById("embeddingGeminiTitle").textContent = t("embeddingGeminiTitle");
+  document.getElementById("embeddingAzureTitle").textContent = t("embeddingAzureTitle");
+  document.getElementById("ollamaEmbeddingUrlLabel").textContent = t("ollamaEmbeddingUrlLabel");
+  document.getElementById("ollamaEmbeddingModelLabel").textContent = t("ollamaEmbeddingModelLabel");
+  document.getElementById("ollamaEmbeddingModelRefreshButton").textContent = t("refresh");
+  document.getElementById("lmStudioEmbeddingUrlLabel").textContent = t("lmStudioEmbeddingUrlLabel");
+  document.getElementById("lmStudioEmbeddingModelLabel").textContent = t("lmStudioEmbeddingModelLabel");
+  document.getElementById("lmStudioEmbeddingApiKeyLabel").textContent = t("lmStudioEmbeddingApiKeyLabel");
+  document.getElementById("geminiEmbeddingModelLabel").textContent = t("geminiEmbeddingModelLabel");
+  document.getElementById("geminiEmbeddingApiKeyLabel").textContent = t("geminiEmbeddingApiKeyLabel");
+  document.getElementById("azureEmbeddingEndpointLabel").textContent = t("azureEmbeddingEndpointLabel");
+  document.getElementById("azureEmbeddingDeploymentLabel").textContent = t("azureEmbeddingDeploymentLabel");
+  document.getElementById("azureEmbeddingApiVersionLabel").textContent = t("azureEmbeddingApiVersionLabel");
+  document.getElementById("azureEmbeddingApiKeyLabel").textContent = t("azureEmbeddingApiKeyLabel");
+  document.getElementById("embeddingHint").textContent = t("embeddingHint");
   document.getElementById("githubApiKeyLabel").textContent = t("githubApiKeyLabel");
   document.getElementById("githubApiKeyHint").textContent = t("githubApiKeyHint");
   document.getElementById("telegramNotificationEnabledLabel").textContent = t("telegramNotificationEnabledLabel");
@@ -3315,9 +3405,29 @@ function applyTranslations() {
   document.getElementById("starterLibraryGridDescription").textContent = t("starterLibraryGridDescription");
   document.getElementById("tabGeneral").textContent = t("utilityTabGeneral");
   document.getElementById("tabAiProvider").textContent = t("utilityTabAiProvider");
+  document.getElementById("tabEmbeddingProvider").textContent = t("utilityTabEmbeddingProvider");
   document.getElementById("tabNotifications").textContent = t("utilityTabNotifications");
   document.getElementById("tabStarterLibrary").textContent = t("utilityTabStarterLibrary");
   document.getElementById("tabAgentFlowLibrary").textContent = t("utilityTabAgentFlowLibrary");
+  document.getElementById("tabTools").textContent = t("utilityTabTools");
+  const toolsLibraryKicker = document.getElementById("toolsLibraryKicker");
+  if (toolsLibraryKicker) toolsLibraryKicker.textContent = t("toolsLibraryKicker");
+  const toolsLibraryTitle = document.getElementById("toolsLibraryTitle");
+  if (toolsLibraryTitle) toolsLibraryTitle.textContent = t("toolsLibraryTitle");
+  const toolsLibraryDescription = document.getElementById("toolsLibraryDescription");
+  if (toolsLibraryDescription) toolsLibraryDescription.textContent = t("toolsLibraryDescription");
+  const jsonlToolKicker = document.getElementById("jsonlToolKicker");
+  if (jsonlToolKicker) jsonlToolKicker.textContent = t("jsonlToolKicker");
+  const jsonlToolTitle = document.getElementById("jsonlToolTitle");
+  if (jsonlToolTitle) jsonlToolTitle.textContent = t("jsonlToolTitle");
+  const jsonlToolTag = document.getElementById("jsonlToolTag");
+  if (jsonlToolTag) jsonlToolTag.textContent = t("jsonlToolTag");
+  const jsonlToolDescription = document.getElementById("jsonlToolDescription");
+  if (jsonlToolDescription) jsonlToolDescription.textContent = t("jsonlToolDescription");
+  const openJsonlToolButton = document.getElementById("openJsonlToolButton");
+  if (openJsonlToolButton) openJsonlToolButton.textContent = t("jsonlToolOpen");
+  const jsonlToolHint = document.getElementById("jsonlToolHint");
+  if (jsonlToolHint) jsonlToolHint.textContent = t("jsonlToolHint");
   document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
   const agentFlowLibraryTitle = document.getElementById("agentFlowLibraryTitle");
   if (agentFlowLibraryTitle) agentFlowLibraryTitle.textContent = t("agentFlowLibraryTitle");
@@ -4311,13 +4421,15 @@ function buildDuplicatedBuiltinStarter(starter) {
 }
 
 function setActiveSettingsView(view) {
-  activeSettingsView = ["general", "provider", "notifications", "skills", "flows"].includes(view) ? view : "general";
+  activeSettingsView = ["general", "provider", "embedding", "notifications", "skills", "flows", "tools"].includes(view) ? view : "general";
   const viewMap = {
     general: "generalTabPanel",
     provider: "aiProviderTabPanel",
+    embedding: "embeddingProviderTabPanel",
     notifications: "notificationTabPanel",
     skills: "starterTabPanel",
     flows: "flowTabPanel",
+    tools: "toolsTabPanel",
   };
 
   Object.entries(viewMap).forEach(([key, id]) => {
@@ -4396,6 +4508,14 @@ function renderCustomStartersPreview() {
         .join("");
     }
   }
+}
+
+function getJsonlToolUrl() {
+  return chrome.runtime.getURL("jsonl_ex.html");
+}
+
+function getKnowledgeBaseTesterUrl() {
+  return chrome.runtime.getURL("knowledge_base_tester.html");
 }
 
 function setBatchUrlQaStatus(message, isError = false) {
@@ -4797,6 +4917,59 @@ function renderStarterModelRoutingSelects(models, config = {}) {
   renderOptions(visionSelect, config.starterVisionModel || "", { includeAuto: true });
 }
 
+function renderOllamaEmbeddingModelSelect(models, selectedValue = "") {
+  const select = document.getElementById("ollamaEmbeddingModel");
+  if (!(select instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const normalizedSelectedValue = String(selectedValue || "").trim();
+  const values = Array.from(new Set((Array.isArray(models) ? models : [])
+    .map((model) => String(model?.name || "").trim())
+    .filter(Boolean)));
+
+  if (normalizedSelectedValue && !values.includes(normalizedSelectedValue)) {
+    values.unshift(normalizedSelectedValue);
+  }
+
+  if (!values.length) {
+    select.innerHTML = `<option value="">${t("noModels")}</option>`;
+    select.value = "";
+    return;
+  }
+
+  select.innerHTML = values
+    .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+    .join("");
+  select.value = normalizedSelectedValue && values.includes(normalizedSelectedValue)
+    ? normalizedSelectedValue
+    : values[0];
+}
+
+async function refreshOllamaEmbeddingModels() {
+  const currentValue = document.getElementById("ollamaEmbeddingModel")?.value.trim() || "";
+  const baseUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim()
+    || document.getElementById("ollamaUrl")?.value.trim()
+    || "";
+
+  setStatus(t("loadingModels"));
+  const result = await sendMessage({
+    type: "ollama:list-models",
+    useEmbeddingUrl: true,
+    reconcileSelected: false,
+    baseUrl,
+  });
+
+  if (!result?.ok) {
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, currentValue);
+    throw new Error(result?.error || t("fetchModelsFailed"));
+  }
+
+  latestOllamaEmbeddingModels = result.models || [];
+  renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, currentValue || result?.config?.ollamaEmbeddingModel || "");
+  setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
+}
+
 function getProviderDisplayName(provider) {
   switch (provider) {
     case "lmStudio":
@@ -4994,11 +5167,18 @@ async function loadConfig() {
     currentLocale = OPTION_I18N[uiLanguage] || OPTION_I18N.en;
     applyTranslations();
     document.getElementById("ollamaUrl").value = result.config.ollamaUrl || "";
+    document.getElementById("ollamaEmbeddingUrl").value = result.config.ollamaEmbeddingUrl || "";
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, result.config.ollamaEmbeddingModel || "");
     document.getElementById("lmStudioUrl").value = result.config.lmStudioUrl || "";
+    document.getElementById("lmStudioEmbeddingUrl").value = result.config.lmStudioEmbeddingUrl || "";
     document.getElementById("lmStudioModel").value = result.config.lmStudioModel || "";
+    document.getElementById("lmStudioEmbeddingModel").value = result.config.lmStudioEmbeddingModel || "";
     document.getElementById("lmStudioApiKey").value = result.config.lmStudioApiKey || "";
+    document.getElementById("lmStudioEmbeddingApiKey").value = result.config.lmStudioEmbeddingApiKey || "";
     document.getElementById("geminiModel").value = result.config.geminiModel || "";
+    document.getElementById("geminiEmbeddingModel").value = result.config.geminiEmbeddingModel || "";
     document.getElementById("geminiApiKey").value = result.config.geminiApiKey || "";
+    document.getElementById("geminiEmbeddingApiKey").value = result.config.geminiEmbeddingApiKey || "";
     document.getElementById("githubApiKey").value = result.config.githubApiKey || "";
     document.getElementById("telegramNotificationEnabled").checked = Boolean(result.config.telegramNotificationEnabled);
     document.getElementById("telegramBotToken").value = result.config.telegramBotToken || "";
@@ -5013,13 +5193,18 @@ async function loadConfig() {
     document.getElementById("discordNotificationEnabled").checked = Boolean(result.config.discordNotificationEnabled);
     document.getElementById("discordWebhookUrl").value = result.config.discordWebhookUrl || "";
     document.getElementById("azureOpenAiEndpoint").value = result.config.azureOpenAiEndpoint || "";
+    document.getElementById("azureOpenAiEmbeddingEndpoint").value = result.config.azureOpenAiEmbeddingEndpoint || "";
     document.getElementById("azureOpenAiDeployment").value = result.config.azureOpenAiDeployment || "";
+    document.getElementById("azureOpenAiEmbeddingDeployment").value = result.config.azureOpenAiEmbeddingDeployment || "";
     document.getElementById("azureOpenAiApiVersion").value = result.config.azureOpenAiApiVersion || "";
     document.getElementById("azureOpenAiApiKey").value = result.config.azureOpenAiApiKey || "";
+    document.getElementById("azureOpenAiEmbeddingApiVersion").value = result.config.azureOpenAiEmbeddingApiVersion || "";
+    document.getElementById("azureOpenAiEmbeddingApiKey").value = result.config.azureOpenAiEmbeddingApiKey || "";
     document.getElementById("googleDriveClientId").value = result.config.googleDriveClientId || "";
     document.getElementById("googleDriveSyncEnabled").checked = Boolean(result.config.googleDriveSyncEnabled);
     document.getElementById("googleDriveAutoSync").checked = result.config.googleDriveAutoSync !== false;
     document.getElementById("defaultProvider").value = result.config.defaultProvider || "ollama";
+    document.getElementById("defaultEmbeddingProvider").value = result.config.defaultEmbeddingProvider || "ollama";
     document.getElementById("starterModelRoutingEnabled").checked = result.config.starterModelRoutingEnabled !== false;
     document.getElementById("uiLanguage").value = uiLanguage;
     document.getElementById("replyLanguage").value = replyLanguage;
@@ -5063,11 +5248,18 @@ async function loadConfig() {
 
 async function saveConfig() {
   const ollamaUrl = document.getElementById("ollamaUrl").value.trim();
+  const ollamaEmbeddingUrl = document.getElementById("ollamaEmbeddingUrl").value.trim();
+  const ollamaEmbeddingModel = document.getElementById("ollamaEmbeddingModel").value.trim();
   const lmStudioUrl = document.getElementById("lmStudioUrl").value.trim();
+  const lmStudioEmbeddingUrl = document.getElementById("lmStudioEmbeddingUrl").value.trim();
   const lmStudioModel = document.getElementById("lmStudioModel").value.trim();
+  const lmStudioEmbeddingModel = document.getElementById("lmStudioEmbeddingModel").value.trim();
   const lmStudioApiKey = document.getElementById("lmStudioApiKey").value.trim();
+  const lmStudioEmbeddingApiKey = document.getElementById("lmStudioEmbeddingApiKey").value.trim();
   const geminiModel = document.getElementById("geminiModel").value.trim();
+  const geminiEmbeddingModel = document.getElementById("geminiEmbeddingModel").value.trim();
   const geminiApiKey = document.getElementById("geminiApiKey").value.trim();
+  const geminiEmbeddingApiKey = document.getElementById("geminiEmbeddingApiKey").value.trim();
   const githubApiKey = document.getElementById("githubApiKey").value.trim();
   const telegramNotificationEnabled = document.getElementById("telegramNotificationEnabled").checked;
   const telegramBotToken = document.getElementById("telegramBotToken").value.trim();
@@ -5082,13 +5274,18 @@ async function saveConfig() {
   const discordNotificationEnabled = document.getElementById("discordNotificationEnabled").checked;
   const discordWebhookUrl = document.getElementById("discordWebhookUrl").value.trim();
   const azureOpenAiEndpoint = document.getElementById("azureOpenAiEndpoint").value.trim();
+  const azureOpenAiEmbeddingEndpoint = document.getElementById("azureOpenAiEmbeddingEndpoint").value.trim();
   const azureOpenAiDeployment = document.getElementById("azureOpenAiDeployment").value.trim();
+  const azureOpenAiEmbeddingDeployment = document.getElementById("azureOpenAiEmbeddingDeployment").value.trim();
   const azureOpenAiApiVersion = document.getElementById("azureOpenAiApiVersion").value.trim();
   const azureOpenAiApiKey = document.getElementById("azureOpenAiApiKey").value.trim();
+  const azureOpenAiEmbeddingApiVersion = document.getElementById("azureOpenAiEmbeddingApiVersion").value.trim();
+  const azureOpenAiEmbeddingApiKey = document.getElementById("azureOpenAiEmbeddingApiKey").value.trim();
   const googleDriveClientId = document.getElementById("googleDriveClientId").value.trim();
   const googleDriveSyncEnabled = document.getElementById("googleDriveSyncEnabled").checked;
   const googleDriveAutoSync = document.getElementById("googleDriveAutoSync").checked;
   const defaultProvider = document.getElementById("defaultProvider").value;
+  const defaultEmbeddingProvider = document.getElementById("defaultEmbeddingProvider").value;
   const selectedModel = document.getElementById("starterQuickModel").value.trim();
   const starterModelRoutingEnabled = document.getElementById("starterModelRoutingEnabled").checked;
   const starterReasoningModel = document.getElementById("starterReasoningModel").value.trim();
@@ -5110,11 +5307,18 @@ async function saveConfig() {
     type: "ollama:set-config",
     config: {
       ollamaUrl,
+      ollamaEmbeddingUrl,
+      ollamaEmbeddingModel,
       lmStudioUrl,
+      lmStudioEmbeddingUrl,
       lmStudioModel,
+      lmStudioEmbeddingModel,
       lmStudioApiKey,
+      lmStudioEmbeddingApiKey,
       geminiModel,
+      geminiEmbeddingModel,
       geminiApiKey,
+      geminiEmbeddingApiKey,
       githubApiKey,
       telegramNotificationEnabled,
       telegramBotToken,
@@ -5129,13 +5333,18 @@ async function saveConfig() {
       discordNotificationEnabled,
       discordWebhookUrl,
       azureOpenAiEndpoint,
+      azureOpenAiEmbeddingEndpoint,
       azureOpenAiDeployment,
+      azureOpenAiEmbeddingDeployment,
       azureOpenAiApiVersion,
       azureOpenAiApiKey,
+      azureOpenAiEmbeddingApiVersion,
+      azureOpenAiEmbeddingApiKey,
       googleDriveClientId,
       googleDriveSyncEnabled,
       googleDriveAutoSync,
       defaultProvider,
+      defaultEmbeddingProvider,
       selectedModel,
       starterModelRoutingEnabled,
       starterReasoningModel,
@@ -5170,6 +5379,11 @@ async function refreshModels() {
   }
 
   renderModels(result.models || [], result.config || {});
+  const embeddingUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim();
+  if (!embeddingUrl || embeddingUrl === result.baseUrl) {
+    latestOllamaEmbeddingModels = result.models || [];
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, document.getElementById("ollamaEmbeddingModel")?.value.trim() || result?.config?.ollamaEmbeddingModel || "");
+  }
   updateStarterRoutingAvailability();
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
@@ -5302,6 +5516,14 @@ document.getElementById("discordTestButton").addEventListener("click", async () 
 document.getElementById("refreshButton").addEventListener("click", async () => {
   try {
     await refreshModels();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("ollamaEmbeddingModelRefreshButton").addEventListener("click", async () => {
+  try {
+    await refreshOllamaEmbeddingModels();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
@@ -5526,6 +5748,20 @@ document.querySelectorAll("[data-settings-view]").forEach((button) => {
     setActiveSettingsView(button.dataset.settingsView || "general");
   });
 });
+
+const openJsonlToolButton = document.getElementById("openJsonlToolButton");
+if (openJsonlToolButton) {
+  openJsonlToolButton.addEventListener("click", () => {
+    window.open(getJsonlToolUrl(), "_blank", "noopener,noreferrer");
+  });
+}
+
+const openKnowledgeBaseTesterButton = document.getElementById("openKnowledgeBaseTesterButton");
+if (openKnowledgeBaseTesterButton) {
+  openKnowledgeBaseTesterButton.addEventListener("click", () => {
+    window.open(getKnowledgeBaseTesterUrl(), "_blank", "noopener,noreferrer");
+  });
+}
 
 document.getElementById("starterAiEditorClose").addEventListener("click", () => {
   closeStarterAiEditor();
@@ -5995,6 +6231,11 @@ async function initializeOptionsPage() {
   startBatchUrlQaPolling();
   try {
     await refreshModels();
+    const ollamaUrl = document.getElementById("ollamaUrl")?.value.trim() || "";
+    const ollamaEmbeddingUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim() || "";
+    if (ollamaEmbeddingUrl && ollamaEmbeddingUrl !== ollamaUrl) {
+      await refreshOllamaEmbeddingModels();
+    }
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }

@@ -1268,6 +1268,17 @@ body[data-theme="light"] .notification-code-hint {
   font-size: 13px;
 }
 
+.inline-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.inline-action-button {
+  white-space: nowrap;
+}
+
 .behavior-card textarea {
   min-height: 160px;
 }
@@ -1350,6 +1361,35 @@ body[data-theme="light"] .notification-code-hint {
   border: 1px solid rgba(104, 187, 255, 0.14);
   border-radius: 20px;
   background: rgba(6, 17, 31, 0.46);
+}
+
+.tools-panel-shell {
+  gap: 18px;
+}
+
+.tools-card-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px);
+  gap: 16px;
+}
+
+.tool-card {
+  align-content: start;
+}
+
+.tools-embed-shell {
+  padding: 18px;
+  border: 1px solid rgba(104, 187, 255, 0.14);
+  border-radius: 22px;
+  background: rgba(6, 17, 31, 0.46);
+}
+
+.tools-embed-frame {
+  width: 100%;
+  min-height: 980px;
+  border: 1px solid rgba(104, 187, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(3, 10, 19, 0.92);
 }
 
 .starter-studio-head,
@@ -2084,8 +2124,10 @@ body[data-theme="light"] .starter-detail-meta-value {
   .settings-layout,
   .provider-support-grid,
   .split-fields,
+  .inline-action-row,
   .behavior-grid,
   .starter-studio-shell,
+  .tools-card-grid,
   .starter-detail-grid,
   .starter-flow-editor-layout {
     grid-template-columns: 1fr;

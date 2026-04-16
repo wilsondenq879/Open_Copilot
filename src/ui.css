@@ -1268,6 +1268,17 @@ body[data-theme="light"] .notification-code-hint {
   font-size: 13px;
 }
 
+.inline-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.inline-action-button {
+  white-space: nowrap;
+}
+
 .behavior-card textarea {
   min-height: 160px;
 }
@@ -2113,6 +2124,7 @@ body[data-theme="light"] .starter-detail-meta-value {
   .settings-layout,
   .provider-support-grid,
   .split-fields,
+  .inline-action-row,
   .behavior-grid,
   .starter-studio-shell,
   .tools-card-grid,

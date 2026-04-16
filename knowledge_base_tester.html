@@ -418,6 +418,168 @@
       margin: 2px 0;
     }
 
+    .advisor-shell {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      width: min(420px, calc(100vw - 24px));
+      z-index: 50;
+    }
+
+    .advisor-panel {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--panel-strong) 92%, white 8%);
+      box-shadow: 0 26px 60px rgba(43, 28, 16, 0.2);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+    }
+
+    .advisor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), transparent 72%);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .advisor-title {
+      display: grid;
+      gap: 3px;
+    }
+
+    .advisor-title strong {
+      font-size: 15px;
+    }
+
+    .advisor-title span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .advisor-header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .advisor-toggle,
+    .advisor-clear {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.7);
+      color: var(--text);
+      border: 1px solid var(--line);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .advisor-toggle svg,
+    .advisor-clear svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .advisor-body {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .advisor-shell.is-collapsed .advisor-body {
+      display: none;
+    }
+
+    .advisor-log {
+      display: grid;
+      gap: 10px;
+      max-height: min(48vh, 420px);
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .advisor-empty {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px dashed var(--line);
+      color: var(--muted);
+      background: var(--surface-soft);
+      line-height: 1.6;
+    }
+
+    .advisor-message {
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .advisor-message[data-role="user"] {
+      background: color-mix(in srgb, var(--accent-soft) 72%, white 28%);
+    }
+
+    .advisor-message[data-role="assistant"] {
+      background: var(--surface-strong);
+    }
+
+    .advisor-message-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .advisor-message-body {
+      white-space: pre-wrap;
+      line-height: 1.65;
+    }
+
+    .advisor-quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .advisor-chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line));
+      background: color-mix(in srgb, var(--accent-soft) 72%, white 28%);
+      color: var(--accent-strong);
+      font-weight: 600;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    }
+
+    .advisor-chip:hover {
+      background: color-mix(in srgb, var(--accent-soft) 84%, white 16%);
+      border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+      color: var(--text);
+    }
+
+    .advisor-composer {
+      display: grid;
+      gap: 10px;
+    }
+
+    .advisor-composer textarea {
+      min-height: 104px;
+    }
+
     @media (max-width: 1120px) {
       .layout {
         grid-template-columns: 1fr;
@@ -439,6 +601,12 @@
       .hero,
       .panel {
         padding: 18px;
+      }
+
+      .advisor-shell {
+        right: 10px;
+        bottom: 10px;
+        width: calc(100vw - 20px);
       }
     }
   </style>
@@ -529,6 +697,8 @@
 
         <div class="actions">
           <button id="buildIndexButton" class="primary" type="button">建立 Embedding 索引</button>
+          <button id="loadSavedIndexButton" class="secondary" type="button">載入已存索引</button>
+          <button id="saveIndexToFolderButton" class="ghost" type="button">儲存索引到 Work Folder</button>
         </div>
         <div id="indexStatus" class="status">還沒有建立索引。</div>
 
@@ -636,6 +806,49 @@
       </section>
     </section>
   </main>
+
+  <aside id="advisorShell" class="advisor-shell">
+    <section class="advisor-panel">
+      <div class="advisor-header">
+        <div class="advisor-title">
+          <strong>AI 快速諮詢</strong>
+          <span id="advisorProviderHint">使用目前回答 provider</span>
+        </div>
+        <div class="advisor-header-actions">
+          <button id="advisorClearButton" class="advisor-clear" type="button" title="清空對話" aria-label="清空對話">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16"></path>
+              <path d="M9 7V5h6v2"></path>
+              <path d="M8 7l1 12h6l1-12"></path>
+              <path d="M10 10v6"></path>
+              <path d="M14 10v6"></path>
+            </svg>
+          </button>
+          <button id="advisorToggleButton" class="advisor-toggle" type="button" title="收合視窗" aria-label="收合視窗">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 10l6 6 6-6"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="advisor-body">
+        <div id="advisorChatLog" class="advisor-log"></div>
+        <div class="advisor-quick-actions">
+          <button id="advisorUseQuestionButton" class="advisor-chip" type="button">帶入目前問題</button>
+          <button id="advisorUseAnswerButton" class="advisor-chip" type="button">帶入目前回答</button>
+          <button id="advisorUseJudgeButton" class="advisor-chip" type="button">帶入目前評分</button>
+        </div>
+        <label class="advisor-composer">
+          <span class="inline-label">你可以直接問：這題 prompt 怎麼改、chunk 怎麼切、評分規則有沒有盲點</span>
+          <textarea id="advisorInput" placeholder="例如：這題回答太發散，請根據目前測試問題與回答，建議我怎麼改 system prompt 或 chunk 設計。"></textarea>
+        </label>
+        <div class="query-actions">
+          <button id="advisorSendButton" class="primary" type="button">送出諮詢</button>
+        </div>
+        <div id="advisorStatus" class="status">這個視窗會沿用目前回答 provider 與模型。</div>
+      </div>
+    </section>
+  </aside>
 
   <script src="knowledge_base_tester.js"></script>
 </body>

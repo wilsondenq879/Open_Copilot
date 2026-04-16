@@ -2525,6 +2525,7 @@ let currentHiddenBuiltinStarterIds = [];
 let currentUiLanguage = "zh-TW";
 let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
+let latestOllamaEmbeddingModels = [];
 let latestWorkFolderStatus = null;
 let latestGoogleDriveStatus = null;
 let currentBatchUrlQaJobs = [];
@@ -3279,6 +3280,7 @@ function applyTranslations() {
   document.getElementById("embeddingAzureTitle").textContent = t("embeddingAzureTitle");
   document.getElementById("ollamaEmbeddingUrlLabel").textContent = t("ollamaEmbeddingUrlLabel");
   document.getElementById("ollamaEmbeddingModelLabel").textContent = t("ollamaEmbeddingModelLabel");
+  document.getElementById("ollamaEmbeddingModelRefreshButton").textContent = t("refresh");
   document.getElementById("lmStudioEmbeddingUrlLabel").textContent = t("lmStudioEmbeddingUrlLabel");
   document.getElementById("lmStudioEmbeddingModelLabel").textContent = t("lmStudioEmbeddingModelLabel");
   document.getElementById("lmStudioEmbeddingApiKeyLabel").textContent = t("lmStudioEmbeddingApiKeyLabel");
@@ -4915,6 +4917,59 @@ function renderStarterModelRoutingSelects(models, config = {}) {
   renderOptions(visionSelect, config.starterVisionModel || "", { includeAuto: true });
 }
 
+function renderOllamaEmbeddingModelSelect(models, selectedValue = "") {
+  const select = document.getElementById("ollamaEmbeddingModel");
+  if (!(select instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const normalizedSelectedValue = String(selectedValue || "").trim();
+  const values = Array.from(new Set((Array.isArray(models) ? models : [])
+    .map((model) => String(model?.name || "").trim())
+    .filter(Boolean)));
+
+  if (normalizedSelectedValue && !values.includes(normalizedSelectedValue)) {
+    values.unshift(normalizedSelectedValue);
+  }
+
+  if (!values.length) {
+    select.innerHTML = `<option value="">${t("noModels")}</option>`;
+    select.value = "";
+    return;
+  }
+
+  select.innerHTML = values
+    .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+    .join("");
+  select.value = normalizedSelectedValue && values.includes(normalizedSelectedValue)
+    ? normalizedSelectedValue
+    : values[0];
+}
+
+async function refreshOllamaEmbeddingModels() {
+  const currentValue = document.getElementById("ollamaEmbeddingModel")?.value.trim() || "";
+  const baseUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim()
+    || document.getElementById("ollamaUrl")?.value.trim()
+    || "";
+
+  setStatus(t("loadingModels"));
+  const result = await sendMessage({
+    type: "ollama:list-models",
+    useEmbeddingUrl: true,
+    reconcileSelected: false,
+    baseUrl,
+  });
+
+  if (!result?.ok) {
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, currentValue);
+    throw new Error(result?.error || t("fetchModelsFailed"));
+  }
+
+  latestOllamaEmbeddingModels = result.models || [];
+  renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, currentValue || result?.config?.ollamaEmbeddingModel || "");
+  setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
+}
+
 function getProviderDisplayName(provider) {
   switch (provider) {
     case "lmStudio":
@@ -5113,7 +5168,7 @@ async function loadConfig() {
     applyTranslations();
     document.getElementById("ollamaUrl").value = result.config.ollamaUrl || "";
     document.getElementById("ollamaEmbeddingUrl").value = result.config.ollamaEmbeddingUrl || "";
-    document.getElementById("ollamaEmbeddingModel").value = result.config.ollamaEmbeddingModel || "";
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, result.config.ollamaEmbeddingModel || "");
     document.getElementById("lmStudioUrl").value = result.config.lmStudioUrl || "";
     document.getElementById("lmStudioEmbeddingUrl").value = result.config.lmStudioEmbeddingUrl || "";
     document.getElementById("lmStudioModel").value = result.config.lmStudioModel || "";
@@ -5324,6 +5379,11 @@ async function refreshModels() {
   }
 
   renderModels(result.models || [], result.config || {});
+  const embeddingUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim();
+  if (!embeddingUrl || embeddingUrl === result.baseUrl) {
+    latestOllamaEmbeddingModels = result.models || [];
+    renderOllamaEmbeddingModelSelect(latestOllamaEmbeddingModels, document.getElementById("ollamaEmbeddingModel")?.value.trim() || result?.config?.ollamaEmbeddingModel || "");
+  }
   updateStarterRoutingAvailability();
   setStatus(t("connectedSummary", { baseUrl: result.baseUrl, count: result.models.length }));
 }
@@ -5456,6 +5516,14 @@ document.getElementById("discordTestButton").addEventListener("click", async () 
 document.getElementById("refreshButton").addEventListener("click", async () => {
   try {
     await refreshModels();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+document.getElementById("ollamaEmbeddingModelRefreshButton").addEventListener("click", async () => {
+  try {
+    await refreshOllamaEmbeddingModels();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
@@ -6163,6 +6231,11 @@ async function initializeOptionsPage() {
   startBatchUrlQaPolling();
   try {
     await refreshModels();
+    const ollamaUrl = document.getElementById("ollamaUrl")?.value.trim() || "";
+    const ollamaEmbeddingUrl = document.getElementById("ollamaEmbeddingUrl")?.value.trim() || "";
+    if (ollamaEmbeddingUrl && ollamaEmbeddingUrl !== ollamaUrl) {
+      await refreshOllamaEmbeddingModels();
+    }
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   }
