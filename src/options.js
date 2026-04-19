@@ -2980,6 +2980,8 @@ Object.assign(OPTION_I18N["zh-TW"], {
   batchUrlQaStatSuccess: "成功",
   batchUrlQaStatFailed: "失敗",
   batchUrlQaStatModel: "模型",
+  batchUrlQaFailedUrlTitle: "失敗網址",
+  batchUrlQaFailureReasonPrefix: "原因",
   batchUrlQaInvalidCount: "無效 URL：{count}",
   batchUrlQaTruncated: "已限制為前 100 個有效 URL。",
   batchUrlQaOutputPath: "輸出檔案：{path}",
@@ -3057,6 +3059,8 @@ Object.assign(OPTION_I18N.en, {
   batchUrlQaStatSuccess: "Success",
   batchUrlQaStatFailed: "Failed",
   batchUrlQaStatModel: "Model",
+  batchUrlQaFailedUrlTitle: "Failed URLs",
+  batchUrlQaFailureReasonPrefix: "Reason",
   batchUrlQaInvalidCount: "Invalid URLs: {count}",
   batchUrlQaTruncated: "Only the first 100 valid URLs were kept.",
   batchUrlQaOutputPath: "Output file: {path}",
@@ -4553,6 +4557,17 @@ function renderBatchUrlQaJobs() {
     }
     if (job.truncated) {
       notes.push(`<p class="batch-url-qa-job-note">${escapeHtml(t("batchUrlQaTruncated"))}</p>`);
+    }
+    const failedResults = Array.isArray(job.results)
+      ? job.results.filter((item) => item?.status === "failed")
+      : [];
+    if (failedResults.length) {
+      const failureItems = failedResults.map((item) => {
+        const url = String(item?.url || "").trim() || "-";
+        const reason = String(item?.reason || "").trim() || "unknown_error";
+        return `<p class="batch-url-qa-job-note"><strong>${escapeHtml(t("batchUrlQaFailedUrlTitle"))}</strong> ${escapeHtml(url)}<br>${escapeHtml(t("batchUrlQaFailureReasonPrefix"))}: ${escapeHtml(reason)}</p>`;
+      }).join("");
+      notes.push(failureItems);
     }
     const outputPath = job.outputPath ? `<p class="batch-url-qa-job-path">${escapeHtml(t("batchUrlQaOutputPath", { path: job.outputPath }))}</p>` : "";
     const error = job.error ? `<p class="batch-url-qa-job-error">${escapeHtml(job.error)}</p>` : "";

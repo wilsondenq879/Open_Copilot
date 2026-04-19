@@ -1028,12 +1028,17 @@ const CONTENT_I18N = {
     agentFlowNeedMoreSteps: "至少要選擇 {min} 個 skill 才能建立 Agent Flow。",
     agentFlowTooManySteps: "目前最多只能放 {max} 個 skill。",
     batchUrlQaWorkflowTitle: "網址清單生成 QA",
-    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容，依內容密度生成 2 到 8 組高品質 FAQ，寫入單一 JSONL 檔，並在完成後發送通知。",
+    batchUrlQaWorkflowHint: "貼上一批網址後，這條 workflow 會逐頁讀取內容，依內容密度生成 2 到 8 組高品質 FAQ，依你選擇輸出成 JSONL 或純文字檔，並在完成後發送通知。",
     batchUrlQaUrlsLabel: "網址列表",
     batchUrlQaClearUrls: "清空清單",
     batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
     batchUrlQaCountLabel: "每頁 FAQ 上限",
     batchUrlQaLanguageLabel: "輸出語言",
+    batchUrlQaOutputFormatLabel: "輸出模式",
+    batchUrlQaOutputFormatJsonl: "JSONL",
+    batchUrlQaOutputFormatTxt: "純文字 (.txt)",
+    batchUrlQaFailureSummaryTitle: "失敗網址",
+    batchUrlQaFailureReasonPrefix: "原因",
     batchUrlQaFileLabel: "輸出檔名",
     batchUrlQaPromptLabel: "Prompt",
     batchUrlQaPromptPlaceholder: "這裡會預先帶入目前 QA 生成用的 prompt，你可以直接修改。",
@@ -1052,7 +1057,7 @@ const CONTENT_I18N = {
     batchUrlQaStageReading: "步驟 2/5：讀取網址內容",
     batchUrlQaStageGenerating: "步驟 3/5：生成 QA pairs",
     batchUrlQaStageCollecting: "步驟 3/5：整理本頁結果",
-    batchUrlQaStageWriting: "步驟 4/5：寫入 JSONL 檔案",
+    batchUrlQaStageWriting: "步驟 4/5：寫入輸出檔案",
     batchUrlQaStageNotifying: "步驟 5/5：發送完成通知",
     batchUrlQaStageCompleted: "已完成",
     batchUrlQaStageFailed: "執行失敗",
@@ -1521,12 +1526,17 @@ const CONTENT_I18N = {
     agentFlowImagesUnsupported: "The first Agent Flow version does not support image attachments yet.",
     agentFlowUserMessage: "Run Agent Flow: {name}",
     batchUrlQaWorkflowTitle: "URL List To QA",
-    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate 2 to 8 high-quality FAQ items based on content density, write one JSONL file, and send completion notifications.",
+    batchUrlQaWorkflowHint: "Paste a URL list, let the workflow read each page, generate 2 to 8 high-quality FAQ items based on content density, export either JSONL or plain text, and send completion notifications.",
     batchUrlQaUrlsLabel: "URL List",
     batchUrlQaClearUrls: "Clear List",
     batchUrlQaUrlsPlaceholder: "https://example.com/a\nhttps://example.com/b",
     batchUrlQaCountLabel: "FAQ Cap Per Page",
     batchUrlQaLanguageLabel: "Output Language",
+    batchUrlQaOutputFormatLabel: "Output Format",
+    batchUrlQaOutputFormatJsonl: "JSONL",
+    batchUrlQaOutputFormatTxt: "Plain Text (.txt)",
+    batchUrlQaFailureSummaryTitle: "Failed URLs",
+    batchUrlQaFailureReasonPrefix: "Reason",
     batchUrlQaFileLabel: "Output File",
     batchUrlQaPromptLabel: "Prompt",
     batchUrlQaPromptPlaceholder: "The current QA generation prompt is prefilled here so you can edit it before running.",
@@ -1545,7 +1555,7 @@ const CONTENT_I18N = {
     batchUrlQaStageReading: "Step 2/5: reading webpages",
     batchUrlQaStageGenerating: "Step 3/5: generating QA pairs",
     batchUrlQaStageCollecting: "Step 3/5: collecting page result",
-    batchUrlQaStageWriting: "Step 4/5: writing JSONL file",
+    batchUrlQaStageWriting: "Step 4/5: writing output file",
     batchUrlQaStageNotifying: "Step 5/5: sending completion notifications",
     batchUrlQaStageCompleted: "Completed",
     batchUrlQaStageFailed: "Failed",
@@ -2193,6 +2203,16 @@ const LANGUAGE_LABELS = {
   de: "Deutsch",
   "pt-BR": "Português (Brasil)",
   hi: "हिन्दी",
+};
+
+const BATCH_URL_QA_OUTPUT_FORMATS = {
+  jsonl: "jsonl",
+  txt: "txt",
+};
+
+const BATCH_URL_QA_OUTPUT_EXTENSIONS = {
+  [BATCH_URL_QA_OUTPUT_FORMATS.jsonl]: ".jsonl",
+  [BATCH_URL_QA_OUTPUT_FORMATS.txt]: ".txt",
 };
 
 function runtimeMessage(message) {
@@ -6320,14 +6340,35 @@ function createDefaultAgentFlowBuilderDraft() {
   };
 }
 
-function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {}) {
+function normalizeBatchUrlQaOutputFormat(value) {
+  return value === BATCH_URL_QA_OUTPUT_FORMATS.txt
+    ? BATCH_URL_QA_OUTPUT_FORMATS.txt
+    : BATCH_URL_QA_OUTPUT_FORMATS.jsonl;
+}
+
+function getBatchUrlQaExtensionForFormat(outputFormat) {
+  return BATCH_URL_QA_OUTPUT_EXTENSIONS[normalizeBatchUrlQaOutputFormat(outputFormat)] || ".jsonl";
+}
+
+function normalizeBatchUrlQaDraftFileName(fileName, outputFormat) {
+  const extension = getBatchUrlQaExtensionForFormat(outputFormat);
+  const raw = String(fileName || "").trim();
+  const stripped = raw.replace(/\.(jsonl|txt)$/i, "").trim() || `batch-url-qa-${Date.now()}`;
+  return `${stripped}${extension}`;
+}
+
+function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage, outputFormat } = {}) {
   const resolvedCount = Math.max(1, Math.min(8, Number(qaPerUrl) || 8));
   const resolvedLanguage = String(outputLanguage || getReplyLanguage() || "zh-TW").trim() || "zh-TW";
+  const resolvedFormat = normalizeBatchUrlQaOutputFormat(outputFormat);
   return [
     "You are creating grounded FAQ training data from a single webpage.",
     "Return one JSON object only.",
     `Generate exactly ${resolvedCount} FAQ items from the provided page.`,
     `Write every question variant and answer in this language: ${resolvedLanguage}.`,
+    resolvedFormat === BATCH_URL_QA_OUTPUT_FORMATS.txt
+      ? "The final export target is plaintext .txt. Make the first question_variants entry read naturally as the standalone Q line for a Q:/A: block."
+      : "The final export target is JSONL. Make the first question_variants entry the clean canonical question for each record.",
     "Rules:",
     "1. Use only the provided webpage content for all questions, answers, and evidence.",
     "2. Do not use outside knowledge.",
@@ -6363,12 +6404,14 @@ function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {})
 function createDefaultBatchUrlQaBuilderDraft() {
   const outputLanguage = getReplyLanguage();
   const qaPerUrl = "8";
+  const outputFormat = BATCH_URL_QA_OUTPUT_FORMATS.jsonl;
   return {
     urls: "",
     qaPerUrl,
     outputLanguage,
-    fileName: `batch-url-qa-${Date.now()}.jsonl`,
-    prompt: buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage }),
+    outputFormat,
+    fileName: normalizeBatchUrlQaDraftFileName(`batch-url-qa-${Date.now()}`, outputFormat),
+    prompt: buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage, outputFormat }),
   };
 }
 
@@ -6414,8 +6457,14 @@ function ensureBatchUrlQaBuilderDraft() {
     batchUrlQaBuilderDraft.prompt = buildDefaultBatchUrlQaPromptTemplate({
       qaPerUrl: batchUrlQaBuilderDraft.qaPerUrl,
       outputLanguage: batchUrlQaBuilderDraft.outputLanguage,
+      outputFormat: batchUrlQaBuilderDraft.outputFormat,
     });
   }
+  batchUrlQaBuilderDraft.outputFormat = normalizeBatchUrlQaOutputFormat(batchUrlQaBuilderDraft.outputFormat);
+  batchUrlQaBuilderDraft.fileName = normalizeBatchUrlQaDraftFileName(
+    batchUrlQaBuilderDraft.fileName,
+    batchUrlQaBuilderDraft.outputFormat,
+  );
   return batchUrlQaBuilderDraft;
 }
 
@@ -10810,6 +10859,31 @@ function renderBatchUrlQaProgressRail(activeJob, draft) {
   `;
 }
 
+function renderBatchUrlQaFailureSummary(activeJob) {
+  const failures = Array.isArray(activeJob?.results)
+    ? activeJob.results.filter((item) => item?.status === "failed")
+    : [];
+  if (!failures.length) {
+    return "";
+  }
+  const items = failures.map((item) => {
+    const url = String(item?.url || "").trim();
+    const reason = String(item?.reason || "").trim() || "unknown_error";
+    return `
+      <div class="ollama-quick-batch-url-qa-failure-item">
+        <div class="ollama-quick-batch-url-qa-failure-url">${escapeHtml(url || "-")}</div>
+        <div class="ollama-quick-batch-url-qa-failure-reason">${escapeHtml(tl("batchUrlQaFailureReasonPrefix"))}: ${escapeHtml(reason)}</div>
+      </div>
+    `;
+  }).join("");
+  return `
+    <div class="ollama-quick-batch-url-qa-failure-surface">
+      <div class="ollama-quick-batch-url-qa-failure-title">${escapeHtml(tl("batchUrlQaFailureSummaryTitle"))}</div>
+      ${items}
+    </div>
+  `;
+}
+
 async function loadBatchUrlQaActiveJob() {
   const result = await runtimeMessage({ type: "batch-url-qa:list-jobs" });
   if (!result?.ok) {
@@ -10883,6 +10957,12 @@ function renderBatchUrlQaBuilder() {
   const languageOptions = Object.entries(LANGUAGE_LABELS)
     .map(([value, label]) => `<option value="${escapeHtml(value)}" ${draft.outputLanguage === value ? "selected" : ""}>${escapeHtml(label)}</option>`)
     .join("");
+  const outputFormatOptions = [
+    { value: BATCH_URL_QA_OUTPUT_FORMATS.jsonl, label: tl("batchUrlQaOutputFormatJsonl") },
+    { value: BATCH_URL_QA_OUTPUT_FORMATS.txt, label: tl("batchUrlQaOutputFormatTxt") },
+  ]
+    .map((item) => `<option value="${escapeHtml(item.value)}" ${draft.outputFormat === item.value ? "selected" : ""}>${escapeHtml(item.label)}</option>`)
+    .join("");
 
   return `
     <div class="ollama-quick-picker-backdrop">
@@ -10925,6 +11005,10 @@ function renderBatchUrlQaBuilder() {
                     <span>${escapeHtml(tl("batchUrlQaLanguageLabel"))}</span>
                     <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="batch-url-qa-language">${languageOptions}</select>
                   </label>
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-format">
+                    <span>${escapeHtml(tl("batchUrlQaOutputFormatLabel"))}</span>
+                    <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="batch-url-qa-output-format">${outputFormatOptions}</select>
+                  </label>
                 </div>
                 <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field is-file">
                   <span>${escapeHtml(tl("batchUrlQaFileLabel"))}</span>
@@ -10938,6 +11022,7 @@ function renderBatchUrlQaBuilder() {
             </div>
           </div>
           ${renderBatchUrlQaProgressRail(activeJob, draft)}
+          ${renderBatchUrlQaFailureSummary(activeJob)}
         </div>
         <div class="ollama-quick-picker-footer">
           <button class="ollama-quick-secondary" type="button" data-action="close-batch-url-qa-builder">${escapeHtml(tl("batchUrlQaClose"))}</button>
@@ -12408,6 +12493,7 @@ async function handleClick(event) {
       fileName: draft.fileName,
       prompt: draft.prompt || "",
       outputLanguage: draft.outputLanguage,
+      outputFormat: draft.outputFormat,
       model: executionModel,
     });
     if (!result?.ok) {
@@ -13026,12 +13112,34 @@ async function handleChange(event) {
     const previousTemplate = buildDefaultBatchUrlQaPromptTemplate({
       qaPerUrl: draft.qaPerUrl,
       outputLanguage: draft.outputLanguage,
+      outputFormat: draft.outputFormat,
     });
     draft.outputLanguage = target.value || getReplyLanguage();
     if (!String(draft.prompt || "").trim() || draft.prompt === previousTemplate) {
       draft.prompt = buildDefaultBatchUrlQaPromptTemplate({
         qaPerUrl: draft.qaPerUrl,
         outputLanguage: draft.outputLanguage,
+        outputFormat: draft.outputFormat,
+      });
+    }
+    renderShell();
+    return;
+  }
+
+  if (target instanceof HTMLSelectElement && target.dataset.role === "batch-url-qa-output-format") {
+    const draft = ensureBatchUrlQaBuilderDraft();
+    const previousTemplate = buildDefaultBatchUrlQaPromptTemplate({
+      qaPerUrl: draft.qaPerUrl,
+      outputLanguage: draft.outputLanguage,
+      outputFormat: draft.outputFormat,
+    });
+    draft.outputFormat = normalizeBatchUrlQaOutputFormat(target.value);
+    draft.fileName = normalizeBatchUrlQaDraftFileName(draft.fileName, draft.outputFormat);
+    if (!String(draft.prompt || "").trim() || draft.prompt === previousTemplate) {
+      draft.prompt = buildDefaultBatchUrlQaPromptTemplate({
+        qaPerUrl: draft.qaPerUrl,
+        outputLanguage: draft.outputLanguage,
+        outputFormat: draft.outputFormat,
       });
     }
     renderShell();
@@ -13065,6 +13173,7 @@ function handleInput(event) {
     const previousTemplate = buildDefaultBatchUrlQaPromptTemplate({
       qaPerUrl: draft.qaPerUrl,
       outputLanguage: draft.outputLanguage,
+      outputFormat: draft.outputFormat,
     });
     const parsed = Number.parseInt(target.value, 10);
     const normalized = Number.isFinite(parsed) ? String(Math.min(8, Math.max(2, parsed))) : "8";
@@ -13074,6 +13183,7 @@ function handleInput(event) {
       draft.prompt = buildDefaultBatchUrlQaPromptTemplate({
         qaPerUrl: draft.qaPerUrl,
         outputLanguage: draft.outputLanguage,
+        outputFormat: draft.outputFormat,
       });
       renderShell();
     }
@@ -13081,7 +13191,11 @@ function handleInput(event) {
   }
 
   if (target instanceof HTMLInputElement && target.dataset.role === "batch-url-qa-file") {
-    ensureBatchUrlQaBuilderDraft().fileName = target.value;
+    const draft = ensureBatchUrlQaBuilderDraft();
+    draft.fileName = normalizeBatchUrlQaDraftFileName(target.value, draft.outputFormat);
+    if (target.value !== draft.fileName) {
+      target.value = draft.fileName;
+    }
     return;
   }
 
