@@ -3,8 +3,8 @@ const STORAGE_KEYS = {
   config: "kb_qa_tester_config_v1",
   knowledge: "kb_qa_tester_knowledge_v1",
   cases: "kb_qa_tester_cases_v1",
-  prompts: "kb_qa_tester_prompts_v1",
-  advisor: "kb_qa_tester_advisor_v1"
+  prompts: "kb_qa_tester_prompts_v2",
+  advisor: "kb_qa_tester_advisor_v2"
 };
 
 const DEFAULT_CHAT_SYSTEM_PROMPT = [
@@ -124,6 +124,7 @@ const elements = {
   expectedAnswerInput: document.getElementById("expectedAnswerInput"),
   runQuestionButton: document.getElementById("runQuestionButton"),
   judgeOnlyButton: document.getElementById("judgeOnlyButton"),
+  clearTestStateButton: document.getElementById("clearTestStateButton"),
   questionStatus: document.getElementById("questionStatus"),
   answerMeta: document.getElementById("answerMeta"),
   judgeMeta: document.getElementById("judgeMeta"),
@@ -260,11 +261,11 @@ function saveLocalState() {
   localStorage.setItem(STORAGE_KEYS.prompts, JSON.stringify({
     promptEditMode: elements.promptEditToggle.value,
     chatSystemPrompt: elements.chatSystemPromptInput.value,
-    judgeSystemPrompt: elements.judgeSystemPromptInput.value,
-    testPrompt: elements.testPromptInput.value
+    judgeSystemPrompt: elements.judgeSystemPromptInput.value
   }));
-  advisorState.draft = elements.advisorInput.value;
-  localStorage.setItem(STORAGE_KEYS.advisor, JSON.stringify(advisorState));
+  localStorage.setItem(STORAGE_KEYS.advisor, JSON.stringify({
+    collapsed: advisorState.collapsed
+  }));
 }
 
 function loadLocalState() {
@@ -277,12 +278,11 @@ function loadLocalState() {
   elements.promptEditToggle.value = prompts?.promptEditMode === "editable" ? "editable" : "locked";
   elements.chatSystemPromptInput.value = String(prompts?.chatSystemPrompt || "").trim() || DEFAULT_CHAT_SYSTEM_PROMPT;
   elements.judgeSystemPromptInput.value = String(prompts?.judgeSystemPrompt || "").trim() || DEFAULT_JUDGE_SYSTEM_PROMPT;
-  elements.testPromptInput.value = String(prompts?.testPrompt || "");
   const savedAdvisor = safeJsonParse(localStorage.getItem(STORAGE_KEYS.advisor) || "", null);
   advisorState = {
     collapsed: Boolean(savedAdvisor?.collapsed),
-    messages: Array.isArray(savedAdvisor?.messages) ? savedAdvisor.messages.slice(-24) : [],
-    draft: String(savedAdvisor?.draft || "")
+    messages: [],
+    draft: ""
   };
   updatePromptEditState();
 }
@@ -373,6 +373,23 @@ function buildPersistedIndexPayload() {
     importedKnowledgeFiles,
     chunkIndex
   };
+}
+
+function createRequestHeaders(extraHeaders = {}) {
+  return {
+    "Cache-Control": "no-store, no-cache, max-age=0",
+    Pragma: "no-cache",
+    "X-KB-QA-Test-Run-Id": `kbqa-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    ...extraHeaders
+  };
+}
+
+function buildIsolatedRunPreamble() {
+  return [
+    "這是一個全新的獨立測試回合。",
+    "不要假設你看過任何先前測試、先前回答或其他回合內容。",
+    "你只能根據這次請求內提供的內容作答。"
+  ].join("\n");
 }
 
 async function sendRuntimeMessage(message) {
@@ -549,7 +566,6 @@ function appendAdvisorInput(text) {
   const current = elements.advisorInput.value.trim();
   elements.advisorInput.value = current ? `${current}\n\n${next}` : next;
   elements.advisorInput.focus();
-  saveLocalState();
 }
 
 function buildAdvisorContext() {
@@ -601,8 +617,6 @@ async function sendAdvisorMessage() {
   try {
     pushAdvisorMessage("user", userInput);
     elements.advisorInput.value = "";
-    advisorState.draft = "";
-    saveLocalState();
     setStatus(elements.advisorStatus, "AI 顧問正在整理建議...", "warn");
 
     const history = advisorState.messages
@@ -849,8 +863,9 @@ async function azureRequest(path, payload, config) {
 
   const response = await fetch(`${endpoint}${path}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       "api-key": config.azureOpenAiApiKey
     },
     body: JSON.stringify(payload)
@@ -880,7 +895,8 @@ async function callOllama(prompt, config) {
   }
   const response = await fetch(`${endpoint}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    headers: createRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       model,
       stream: false,
@@ -905,8 +921,9 @@ async function callLmStudio(prompt, config) {
   const apiKey = String(config.lmStudioApiKey || "").trim();
   const response = await fetch(`${endpoint}/v1/chat/completions`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
     },
     body: JSON.stringify({
@@ -933,8 +950,9 @@ async function callGemini(prompt, config) {
   }
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       "x-goog-api-key": apiKey
     },
     body: JSON.stringify({
@@ -968,8 +986,9 @@ async function callAzureChat(prompt, config, temperature = 0.2) {
   }
   const response = await fetch(`${endpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       "api-key": apiKey
     },
     body: JSON.stringify({
@@ -1003,7 +1022,8 @@ async function createOllamaEmbeddings(inputs, config) {
   if (!model) throw new Error("Ollama embedding model 尚未設定。");
   const response = await fetch(`${endpoint}/api/embed`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    headers: createRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       model,
       input: inputs
@@ -1025,8 +1045,9 @@ async function createLmStudioEmbeddings(inputs, config) {
   const apiKey = String(config.lmStudioEmbeddingApiKey || config.lmStudioApiKey || "").trim();
   const response = await fetch(`${endpoint}/v1/embeddings`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
     },
     body: JSON.stringify({
@@ -1049,8 +1070,9 @@ async function createGeminiEmbeddings(inputs, config) {
   const normalizedModel = model.startsWith("models/") ? model : `models/${model}`;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${normalizedModel}:batchEmbedContents`, {
     method: "POST",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...createRequestHeaders({ "Content-Type": "application/json" }),
       "x-goog-api-key": apiKey
     },
     body: JSON.stringify({
@@ -1160,6 +1182,8 @@ async function generateAnswer(question, contextChunks, config, testPrompt = "") 
   const perTestPrompt = String(testPrompt || "").trim();
 
   const userPrompt = [
+    buildIsolatedRunPreamble(),
+    "",
     perTestPrompt ? `本次測試補充要求：\n${perTestPrompt}` : "",
     perTestPrompt ? "" : "",
     `問題：${question}`,
@@ -1204,6 +1228,8 @@ async function judgeAnswer(question, expectedAnswer, answer, contextChunks, conf
     .join("\n\n");
 
   const prompt = [
+    buildIsolatedRunPreamble(),
+    "",
     elements.judgeSystemPromptInput.value.trim() || DEFAULT_JUDGE_SYSTEM_PROMPT,
     "",
     "請擔任知識庫 QA judge，根據問題、預期答案、實際回答、檢索到的內容進行評分。",
@@ -1379,6 +1405,28 @@ function explainAzureError(error) {
   return message || "未知錯誤";
 }
 
+function clearLastAnswerRunState() {
+  lastAnswerRun = null;
+  renderRetrievedChunks([]);
+  renderAnswer("");
+  renderJudge(null);
+}
+
+function clearTestState({ clearInputs = true, clearAdvisor = false } = {}) {
+  clearLastAnswerRunState();
+  if (clearInputs) {
+    elements.testPromptInput.value = "";
+    elements.questionInput.value = "";
+    elements.expectedAnswerInput.value = "";
+  }
+  if (clearAdvisor) {
+    advisorState.messages = [];
+    elements.advisorInput.value = "";
+    renderAdvisorMessages();
+  }
+  saveLocalState();
+}
+
 async function runSingleQuestion({ judgeOnly = false } = {}) {
   const config = getConfig();
   const question = elements.questionInput.value.trim();
@@ -1391,6 +1439,9 @@ async function runSingleQuestion({ judgeOnly = false } = {}) {
 
   setBusy([elements.runQuestionButton, elements.judgeOnlyButton], true);
   try {
+    if (!judgeOnly) {
+      clearLastAnswerRunState();
+    }
     let retrieval = lastAnswerRun?.question === question ? lastAnswerRun.retrieval : null;
     let answer = judgeOnly ? lastAnswerRun?.answer || "" : "";
 
@@ -1465,6 +1516,7 @@ async function runBatch() {
   const results = [];
 
   try {
+    clearLastAnswerRunState();
     for (let i = 0; i < cases.length; i += 1) {
       const item = cases[i];
       setStatus(elements.batchStatus, `正在跑批次測試 ${i + 1}/${cases.length}：${item.question}`, "warn");
@@ -1577,6 +1629,11 @@ elements.judgeOnlyButton.addEventListener("click", () => {
   runSingleQuestion({ judgeOnly: true });
 });
 
+elements.clearTestStateButton.addEventListener("click", () => {
+  clearTestState({ clearInputs: true, clearAdvisor: false });
+  setStatus(elements.questionStatus, "已清空本輪測試狀態。下一次送出會是新的乾淨測試。", "good");
+});
+
 elements.sampleCasesButton.addEventListener("click", () => {
   elements.casesInput.value = SAMPLE_CASES;
   saveLocalState();
@@ -1679,11 +1736,11 @@ updateProviderSummary();
 renderRetrievedChunks([]);
 renderAnswer("");
 renderJudge(null);
-elements.advisorInput.value = advisorState.draft || "";
+elements.advisorInput.value = "";
 renderAdvisorShell();
 renderAdvisorMessages();
 setStatus(elements.configStatus, "你可以按「讀取 Open Copilot 設定」，讓回答與 embedding 都同步目前的預設 provider。", "warn");
-setStatus(elements.advisorStatus, "這個視窗會沿用目前回答 provider 與模型。", "warn");
+setStatus(elements.advisorStatus, "這個視窗會沿用目前回答 provider 與模型；重新開頁後不會保留舊諮詢內容。", "warn");
 
 loadSavedIndexFromWorkFolder({ silent: true }).catch(() => false);
 

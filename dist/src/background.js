@@ -12,6 +12,10 @@ const LATEST_CHAT_SESSION_KEY = "latestChatSession";
 const EXPORT_SEQUENCE_KEY = "chatExportSequence";
 const TASKS_STORAGE_KEY = "taskReminderItems";
 const BATCH_URL_QA_JOBS_KEY = "batchUrlQaJobs";
+const BATCH_URL_QA_OUTPUT_FORMATS = {
+  jsonl: "jsonl",
+  txt: "txt",
+};
 const GOOGLE_DRIVE_SYNC_META_KEY = "googleDriveSyncMeta";
 const GOOGLE_DRIVE_SYNC_DOCUMENTS_KEY = "googleDriveSyncDocuments";
 const GOOGLE_DRIVE_SYNC_FILE_NAME = "edge-ai-chat-sync.json";
@@ -2602,10 +2606,21 @@ function normalizeBatchUrlQaCount(value) {
   return Math.min(8, Math.max(2, parsed));
 }
 
-function normalizeBatchUrlQaFilename(value) {
-  const fallback = `batch-url-qa-${timestampForFile()}.jsonl`;
-  const normalized = sanitizeFileSegment(String(value || "").replace(/\.(md|jsonl)$/i, ""), "batch-url-qa");
-  return `${normalized || fallback.replace(/\.jsonl$/i, "")}.jsonl`;
+function normalizeBatchUrlQaOutputFormat(value) {
+  return value === BATCH_URL_QA_OUTPUT_FORMATS.txt
+    ? BATCH_URL_QA_OUTPUT_FORMATS.txt
+    : BATCH_URL_QA_OUTPUT_FORMATS.jsonl;
+}
+
+function getBatchUrlQaFilenameExtension(outputFormat) {
+  return normalizeBatchUrlQaOutputFormat(outputFormat) === BATCH_URL_QA_OUTPUT_FORMATS.txt ? ".txt" : ".jsonl";
+}
+
+function normalizeBatchUrlQaFilename(value, outputFormat = BATCH_URL_QA_OUTPUT_FORMATS.jsonl) {
+  const extension = getBatchUrlQaFilenameExtension(outputFormat);
+  const fallback = `batch-url-qa-${timestampForFile()}${extension}`;
+  const normalized = sanitizeFileSegment(String(value || "").replace(/\.(md|jsonl|txt)$/i, ""), "batch-url-qa");
+  return `${normalized || fallback.replace(/\.(jsonl|txt)$/i, "")}${extension}`;
 }
 
 function splitFilenameParts(value) {
@@ -2633,7 +2648,7 @@ async function workFolderFileExists(path, fileName) {
 }
 
 async function ensureUniqueBatchUrlQaFilename(fileName, options = {}) {
-  const normalized = normalizeBatchUrlQaFilename(fileName);
+  const normalized = normalizeBatchUrlQaFilename(fileName, options.outputFormat);
   const excludedJobId = String(options.excludeJobId || "").trim();
   const jobs = await getBatchUrlQaJobs();
   const reservedNames = new Set(
@@ -2976,6 +2991,7 @@ function normalizeBatchUrlQaJob(job = {}) {
   const parsed = parseBatchUrlInput(Array.isArray(job.urls) ? job.urls.join("\n") : job.urls || "");
   const nowIso = new Date().toISOString();
   const status = ["queued", "running", "completed", "failed", "canceled"].includes(String(job.status || "").trim()) ? String(job.status).trim() : "queued";
+  const outputFormat = normalizeBatchUrlQaOutputFormat(job.outputFormat);
   return {
     id: normalizeTaskText(job.id || "", 120) || createStableId("batch-url-qa"),
     createdAt: normalizeTaskIsoDate(job.createdAt || "") || nowIso,
@@ -2985,9 +3001,10 @@ function normalizeBatchUrlQaJob(job = {}) {
     status,
     model: normalizeTaskText(job.model || "", 200),
     outputLanguage: normalizeTaskText(job.outputLanguage || "", 40) || "zh-TW",
+    outputFormat,
     prompt: normalizeTaskText(job.prompt || job.extraPrompt || "", 16000),
     qaPerUrl: normalizeBatchUrlQaCount(job.qaPerUrl),
-    fileName: normalizeBatchUrlQaFilename(job.fileName),
+    fileName: normalizeBatchUrlQaFilename(job.fileName, outputFormat),
     urls: parsed.urls,
     invalidUrls: Array.isArray(job.invalidUrls) ? job.invalidUrls.map((item) => String(item || "").trim()).filter(Boolean) : parsed.invalid,
     truncated: Boolean(job.truncated || parsed.truncated),
@@ -3103,14 +3120,18 @@ function extractJsonObjectFromText(value) {
   throw new Error("Model did not return JSON.");
 }
 
-function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage } = {}) {
+function buildDefaultBatchUrlQaPromptTemplate({ qaPerUrl, outputLanguage, outputFormat } = {}) {
   const resolvedCount = Math.max(1, Math.min(8, Number(qaPerUrl) || 8));
   const resolvedLanguage = String(outputLanguage || "zh-TW").trim() || "zh-TW";
+  const resolvedFormat = normalizeBatchUrlQaOutputFormat(outputFormat);
   return [
     "You are creating grounded FAQ training data from a single webpage.",
     "Return one JSON object only.",
     `Generate exactly ${resolvedCount} FAQ items from the provided page.`,
     `Write every question variant and answer in this language: ${resolvedLanguage}.`,
+    resolvedFormat === BATCH_URL_QA_OUTPUT_FORMATS.txt
+      ? "The final export target is plaintext .txt. Make the first question_variants entry read naturally as the standalone Q line for a Q:/A: block."
+      : "The final export target is JSONL. Make the first question_variants entry the clean canonical question for each record.",
     "Rules:",
     "1. Use only the provided webpage content for all questions, answers, and evidence.",
     "2. Do not use outside knowledge.",
@@ -3352,6 +3373,37 @@ function buildBatchUrlQaJsonl(results = []) {
   return entries.length ? `${entries.join("\n")}\n` : "";
 }
 
+function buildBatchUrlQaPlainText(results = []) {
+  const entries = (Array.isArray(results) ? results : [])
+    .filter((item) => item.status === "ok" && Array.isArray(item.qaPairs) && item.qaPairs.length)
+    .flatMap((item) => item.qaPairs.map((pair) => {
+      const question = normalizeBatchUrlQaOutputLine(
+        truncateEmbeddedQaMarker(
+          stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(Array.isArray(pair.questions) ? pair.questions[0] || "" : ""), "Q"),
+          "A",
+        ),
+      );
+      const answer = normalizeBatchUrlQaOutputLine(
+        truncateEmbeddedQaMarker(
+          stripLeadingQaLabel(convertPlainUrlsToMarkdownLinks(pair.answer), "A"),
+          "Q",
+        ),
+      );
+      if (!question || !answer) {
+        return "";
+      }
+      return `Q: ${question}\nA: ${answer}`;
+    }))
+    .filter(Boolean);
+  return entries.length ? `${entries.join("\n\n")}\n` : "";
+}
+
+function buildBatchUrlQaOutput(results = [], outputFormat = BATCH_URL_QA_OUTPUT_FORMATS.jsonl) {
+  return normalizeBatchUrlQaOutputFormat(outputFormat) === BATCH_URL_QA_OUTPUT_FORMATS.txt
+    ? buildBatchUrlQaPlainText(results)
+    : buildBatchUrlQaJsonl(results);
+}
+
 async function generateQaPairsForPage({ url, title, metaDescription, headings, pageText, qaPerUrl, model, outputLanguage, prompt }) {
   const targetCount = estimateBatchUrlQaTargetCount(pageText, headings, qaPerUrl);
   let collectedPairs = [];
@@ -3405,7 +3457,7 @@ async function processBatchUrlQaJob(jobId) {
     stage: "starting",
     stageLabel: "Preparing batch workflow",
   });
-  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaOutput(job.results, job.outputFormat));
 
   for (const [urlIndex, url] of job.urls.entries()) {
     job = await throwIfBatchUrlQaCanceled(jobId);
@@ -3476,7 +3528,7 @@ async function processBatchUrlQaJob(jobId) {
       currentUrl: url,
       currentIndex: urlIndex + 1,
     });
-    await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
+    await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaOutput(job.results, job.outputFormat));
   }
 
   job = await throwIfBatchUrlQaCanceled(jobId);
@@ -3484,9 +3536,9 @@ async function processBatchUrlQaJob(jobId) {
     ...job,
     updatedAt: new Date().toISOString(),
     stage: "writing",
-    stageLabel: "Writing JSONL file",
+    stageLabel: "Writing output file",
   });
-  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaJsonl(job.results));
+  await writeWorkFolderText(WORK_FOLDER_DATASET_DIR, job.fileName, buildBatchUrlQaOutput(job.results, job.outputFormat));
   job = await throwIfBatchUrlQaCanceled(jobId);
   job = await upsertBatchUrlQaJob({
     ...job,
@@ -3534,7 +3586,8 @@ async function startBatchUrlQaJob(input = {}) {
     throw new Error("Pick a model before starting Batch URL QA.");
   }
   await getWritableWorkFolderHandle();
-  const uniqueFileName = await ensureUniqueBatchUrlQaFilename(input.fileName);
+  const outputFormat = normalizeBatchUrlQaOutputFormat(input.outputFormat);
+  const uniqueFileName = await ensureUniqueBatchUrlQaFilename(input.fileName, { outputFormat });
 
   const job = await upsertBatchUrlQaJob({
     id: createStableId("batch-url-qa"),
@@ -3543,9 +3596,11 @@ async function startBatchUrlQaJob(input = {}) {
     status: "queued",
     model: selectedModel,
     outputLanguage: String(input.outputLanguage || config.replyLanguage || "zh-TW").trim() || "zh-TW",
+    outputFormat,
     prompt: String(input.prompt || input.extraPrompt || "").trim() || buildDefaultBatchUrlQaPromptTemplate({
       qaPerUrl: input.qaPerUrl,
       outputLanguage: input.outputLanguage || config.replyLanguage || "zh-TW",
+      outputFormat,
     }),
     qaPerUrl: normalizeBatchUrlQaCount(input.qaPerUrl),
     fileName: uniqueFileName,
@@ -4320,6 +4375,23 @@ async function fetchImageAttachmentFromUrl(url) {
 
   return {
     name: getImageFilenameFromUrl(url, mimeType),
+    mimeType,
+    base64,
+    sourceUrl: url,
+  };
+}
+
+async function fetchBinaryAttachmentFromUrl(url) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const mimeType = blob.type || response.headers.get("content-type") || "application/octet-stream";
+  const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+
+  return {
     mimeType,
     base64,
     sourceUrl: url,
@@ -5758,6 +5830,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "browser:capture-visible-tab-image": {
         sendResponse({ ok: true, image: await captureVisibleTabImage(sender?.tab?.windowId) });
+        return;
+      }
+      case "browser:get-current-tab-info": {
+        sendResponse({
+          ok: true,
+          tab: sender?.tab
+            ? {
+                id: sender.tab.id,
+                title: String(sender.tab.title || ""),
+                url: String(sender.tab.url || ""),
+              }
+            : null,
+        });
+        return;
+      }
+      case "browser:fetch-binary-url": {
+        sendResponse({ ok: true, file: await fetchBinaryAttachmentFromUrl(String(message.url || "")) });
         return;
       }
       case "web:search": {

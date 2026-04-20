@@ -2660,6 +2660,7 @@ const BUILTIN_STARTER_KEYS = [
   "githubRepoSecurityReview",
   "chatWeeklyDigest",
   "chatActionItems",
+  "pdfDeepSummary",
   "docExecutiveBrief",
   "docOutline",
   "bullVsBear",
@@ -2717,6 +2718,7 @@ const BUILTIN_STARTER_SCOPE_MAP = {
   githubRepoSecurityReview: ["github"],
   chatWeeklyDigest: ["collaboration"],
   chatActionItems: ["collaboration"],
+  pdfDeepSummary: ["document"],
   docExecutiveBrief: ["document"],
   docOutline: ["document"],
   bullVsBear: ["market"],
@@ -2775,6 +2777,7 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
     githubRepoSecurityReview: "從 repository 層級檢查設定、流程與管理上的安全風險。",
     chatWeeklyDigest: "把最近幾天的對談濃縮成一份短報告。",
     chatActionItems: "從對話中抓出待辦、負責人與時程。",
+    pdfDeepSummary: "優先把整份 PDF 視為完整文件，做較詳細的重點整理。",
     docExecutiveBrief: "把文件濃縮成適合快速決策閱讀的高層摘要。",
     docOutline: "把目前內容重新整理成結構清楚的大綱。",
     bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
@@ -2832,6 +2835,7 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
     githubRepoSecurityReview: "Review repository-level security risks in setup and workflow.",
     chatWeeklyDigest: "Condense recent conversation history into a short digest.",
     chatActionItems: "Extract action items, owners, and deadlines from the conversation.",
+    pdfDeepSummary: "Prefer the whole PDF as a document and produce a more detailed summary.",
     docExecutiveBrief: "Turn the document into a concise, decision-friendly brief.",
     docOutline: "Reorganize the current content into a clearer outline.",
     bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
@@ -2891,6 +2895,7 @@ const BUILTIN_STARTER_LABEL_MAP = {
     githubRepoSecurityReview: "檢查 Repo 安全設定",
     chatWeeklyDigest: "整理近三天對話重點",
     chatActionItems: "整理待辦與負責人",
+    pdfDeepSummary: "整理整份 PDF 重點",
     docExecutiveBrief: "整理決策摘要",
     docOutline: "重整文件大綱",
     bullVsBear: "多空觀點分析",
@@ -2980,6 +2985,8 @@ Object.assign(OPTION_I18N["zh-TW"], {
   batchUrlQaStatSuccess: "成功",
   batchUrlQaStatFailed: "失敗",
   batchUrlQaStatModel: "模型",
+  batchUrlQaFailedUrlTitle: "失敗網址",
+  batchUrlQaFailureReasonPrefix: "原因",
   batchUrlQaInvalidCount: "無效 URL：{count}",
   batchUrlQaTruncated: "已限制為前 100 個有效 URL。",
   batchUrlQaOutputPath: "輸出檔案：{path}",
@@ -3057,6 +3064,8 @@ Object.assign(OPTION_I18N.en, {
   batchUrlQaStatSuccess: "Success",
   batchUrlQaStatFailed: "Failed",
   batchUrlQaStatModel: "Model",
+  batchUrlQaFailedUrlTitle: "Failed URLs",
+  batchUrlQaFailureReasonPrefix: "Reason",
   batchUrlQaInvalidCount: "Invalid URLs: {count}",
   batchUrlQaTruncated: "Only the first 100 valid URLs were kept.",
   batchUrlQaOutputPath: "Output file: {path}",
@@ -4087,14 +4096,16 @@ async function saveStarterFlowEditorDraft() {
 }
 
 async function runAiSkillEditorGenerate(prompt) {
-  if (!currentSelectedModel) {
+  const provider = document.getElementById("defaultProvider")?.value || "ollama";
+  const model = getConfiguredProviderModelLabel(provider);
+  if (!model) {
     throw new Error("Select a model first.");
   }
 
   const result = await sendMessage({
     type: "ollama:generate",
     prompt,
-    model: currentSelectedModel,
+    model,
   });
 
   if (!result?.ok) {
@@ -4553,6 +4564,17 @@ function renderBatchUrlQaJobs() {
     }
     if (job.truncated) {
       notes.push(`<p class="batch-url-qa-job-note">${escapeHtml(t("batchUrlQaTruncated"))}</p>`);
+    }
+    const failedResults = Array.isArray(job.results)
+      ? job.results.filter((item) => item?.status === "failed")
+      : [];
+    if (failedResults.length) {
+      const failureItems = failedResults.map((item) => {
+        const url = String(item?.url || "").trim() || "-";
+        const reason = String(item?.reason || "").trim() || "unknown_error";
+        return `<p class="batch-url-qa-job-note"><strong>${escapeHtml(t("batchUrlQaFailedUrlTitle"))}</strong> ${escapeHtml(url)}<br>${escapeHtml(t("batchUrlQaFailureReasonPrefix"))}: ${escapeHtml(reason)}</p>`;
+      }).join("");
+      notes.push(failureItems);
     }
     const outputPath = job.outputPath ? `<p class="batch-url-qa-job-path">${escapeHtml(t("batchUrlQaOutputPath", { path: job.outputPath }))}</p>` : "";
     const error = job.error ? `<p class="batch-url-qa-job-error">${escapeHtml(job.error)}</p>` : "";
@@ -5585,7 +5607,9 @@ document.getElementById("fixStartersJsonButton").addEventListener("click", async
     return;
   }
 
-  if (!currentSelectedModel) {
+  const provider = document.getElementById("defaultProvider")?.value || "ollama";
+  const model = getConfiguredProviderModelLabel(provider);
+  if (!model) {
     const message = t("customStarterJsonNeedModel");
     setCustomStarterValidationMessage(message, "error");
     setStatus(message, true);

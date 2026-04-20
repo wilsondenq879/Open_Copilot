@@ -50,6 +50,18 @@
     }
   },
   "options_page": "src/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/vendor/pdfjs/pdf.mjs",
+        "src/vendor/pdfjs/pdf.worker.mjs"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [

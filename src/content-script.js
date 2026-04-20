@@ -1,5 +1,6 @@
 const HOST_ID = "ollama-quick-chat-host";
 const MAX_PAGE_TEXT = 8000;
+const MAX_PDF_PAGE_TEXT = 24000;
 const MAX_SELECTION_TEXT = 2000;
 const MAX_PAGE_IMAGE_CANDIDATES = 6;
 const MAX_FRAME_DEPTH = 2;
@@ -615,7 +616,7 @@ const PAGE_COPILOT_STARTERS = {
   email: ["emailSummary", "translatePage"],
   github: ["githubRepoPurpose", "githubSummary", "githubReviewFocus", "githubNextSteps"],
   collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary"],
-  document: ["docExecutiveBrief", "landingHtml", "docOutline", "pageSummary", "translatePage"],
+  document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "docOutline", "pageSummary", "translatePage"],
   market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
   entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
   generic: ["pageSummary", "landingHtml", "translatePage", "multiPerspective"],
@@ -826,7 +827,7 @@ const CONTENT_I18N = {
     githubRepoNotFound: "找不到這個 GitHub repo。請確認 owner/repo 是否正確，或 token 是否有權限讀取這個 repo。",
     githubRefNotFound: "找不到這個 branch 或 commit。請確認你輸入的 ref 是否存在。",
     githubPathNotFound: "找不到這個 GitHub 路徑。請確認檔案或資料夾 path 是否正確。",
-    filesUnsupported: "目前只支援圖片與文字檔（.txt、.md、.json、.csv）。",
+    filesUnsupported: "目前支援圖片與文件檔（.pdf、.txt、.md、.json、.csv）。",
     imagesOnly: "目前只支援圖片檔。",
     attachedImagesVisionWarning: "已附加 {count} 張圖片。目前模型可能不支援視覺，建議切換模型。",
     attachedImages: "已附加 {count} 張圖片。",
@@ -843,7 +844,7 @@ const CONTENT_I18N = {
     waitingForModel: "等待 {model}{details}...",
     waitingWith: "，附帶 {items}",
     doneWithModel: "{model} 已完成。",
-    analyzeTextFile: "請分析附加的文字檔。",
+    analyzeTextFile: "請分析附加的文件內容。",
     analyzeImage: "請分析附加的圖片。",
     attachedTextFilesHeading: "ATTACHED TEXT FILES",
     attachedFileLabel: "檔案",
@@ -902,6 +903,7 @@ const CONTENT_I18N = {
     starter_githubRepoSecurityReview: "檢查 Repo 安全設定",
     starter_chatWeeklyDigest: "整理近三天對話重點",
     starter_chatActionItems: "整理待辦與負責人",
+    starter_pdfDeepSummary: "整理整份 PDF 重點",
     starter_docExecutiveBrief: "整理決策摘要",
     starter_docOutline: "重整文件大綱",
     starter_landingHtml: "將網頁內容整理成html簡報",
@@ -925,6 +927,11 @@ const CONTENT_I18N = {
     starter_qaMarkdownPolish: "QA · 整理成 Markdown",
     agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "網址清單生成 QA",
+    pdfAutoScrollPreparing: "正在自動捲動 PDF，盡量載入整份文件內容...",
+    pdfAutoScrollPrepared: "PDF 掃描完成，目前已載入 {count} 頁內容。",
+    pdfAutoScrollPreparedFallback: "PDF 掃描完成，接著開始整理重點。",
+    pdfAutoScrollFailed: "PDF 無法完整自動捲動，改以目前已載入的頁面內容繼續整理。",
+    pdfAutoScrollNoMovement: "已嘗試自動捲動 PDF，但這個 viewer 沒有接受捲動控制，先以目前已載入的頁面內容繼續整理。",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
@@ -969,6 +976,7 @@ const CONTENT_I18N = {
     githubRepoSecurityReviewPrompt: "請根據目前這個 GitHub 頁面與我加入的 repository 來源，從 repo 層級做安全檢查。請盤點權限邊界、敏感模組、配置風險、外部輸入點、部署面與可能需要補看的安全相關檔案。請使用{language}回答。",
     chatWeeklyDigestPrompt: "請把這個聊天 / 協作頁面整理成「近三天重點匯報」。請優先使用最近 3 天內可見的訊息；如果頁面只載入了昨天或幾小時前的內容，請明確說明你目前實際能看到的時間範圍，不要假裝看過三天。整理時請利用聊天前後文做合理推理：把同一串討論中的追問、確認、回覆、反對意見與結論串起來，不要只摘單句。輸出格式：\n1. 近三天最重要 5 點\n2. 已完成事項\n3. 進行中事項\n4. 風險 / 卡點\n5. 建議下一步\n若某結論是根據上下文推得，請標記「推測」。請使用{language}回答。",
     chatActionItemsPrompt: "請從這個聊天 / 協作頁面抓出可執行事項，並利用聊天前後文釐清 owner、任務與目前狀態。不要只抽單句，請把同一主題前後的補充、指派、承諾、追蹤和回覆合併理解後再整理。若多則訊息提到同一個型號、產品名、專案代號、ticket、漏洞編號或其他重複關鍵字，且本質上是在討論同一件事，請整合成同一個 issue，不要拆成多列。請輸出 Markdown 表格，欄位固定為：Issue / 主題 | 任務 | 負責人 | 截止時間 | 目前狀態 / 依據訊息 | 信心。規則：\n1. 若負責人是明確點名，信心標示為高。\n2. 若負責人是根據上下文推得，請在名字後加上「（推測）」並把信心標示為中或低。\n3. 若無法判定，就填「未知」，不要亂猜。\n4. 同一任務若在不同訊息中有更新，請整合成一列，並在狀態中寫出最新判斷。\n5. 若同一 issue 底下其實有多個子任務，請優先合併成同一列並在任務欄簡潔列出子項，只有在 owner 或狀態明顯不同時才拆列。\n6. 先列最需要追蹤的項目。\n請優先使用最近 3 天內可見的訊息，並使用{language}回答。",
+    pdfDeepSummaryPrompt: "請把這份 PDF 當成整份文件來讀，不要只摘要標題、首頁或目錄。若目前提供的內容看起來仍然只有部分頁面、部分段落、單一頁、目錄或首頁，請先明確說明你實際讀到的範圍，再基於已讀內容整理，不要假裝看過全文。若有足夠內容，請輸出一份詳細重點整理，格式固定為：\n1. 文件主題與目的\n2. 章節 / 結構總覽\n3. 核心重點摘要（至少 8 點，能細就細）\n4. 關鍵定義、條件、數字、日期或要求\n5. 值得特別注意的限制、例外、風險或易誤解處\n6. 建議優先閱讀的章節 / 頁面\n7. 100 字內高階摘要\n若某段是根據文件結構推測，而不是正文直接寫明，請標記「推測」。請使用{language}回答。",
     docExecutiveBriefPrompt: "請把這份線上文件整理成適合主管快速閱讀的摘要。請分成：\n1. 文件目的\n2. 關鍵結論\n3. 重要數字 / 事實\n4. 風險與假設\n5. 建議決策或下一步\n請使用{language}回答。",
     docOutlinePrompt: "請根據這份線上文件內容重建清楚的大綱。請先列章節與重點，再補三個最值得優先閱讀的部分。若文件結構不完整，請標記推測處。請使用{language}回答。",
     bullVsBearPrompt: "請根據這個頁面，用股市視角做 `Bull vs Bear` 分析。請分成：\n1. 多頭論點\n2. 空頭論點\n3. 市場最可能先交易哪一段敘事\n4. 我還要觀察什麼\n請使用{language}回答，避免直接給買賣建議。",
@@ -1343,7 +1351,7 @@ const CONTENT_I18N = {
     githubRepoNotFound: "GitHub repo not found. Check the owner/repo value or whether your token can access this repository.",
     githubRefNotFound: "That branch or commit was not found. Check whether the ref exists.",
     githubPathNotFound: "That GitHub path was not found. Check whether the file or directory path is correct.",
-    filesUnsupported: "Only images and text files (.txt, .md, .json, .csv) are supported.",
+    filesUnsupported: "Only images and document files (.pdf, .txt, .md, .json, .csv) are supported.",
     imagesOnly: "Only image files are supported.",
     attachedImagesVisionWarning: "Attached {count} image(s). Current model may not support vision. Consider switching models.",
     attachedImages: "Attached {count} image(s).",
@@ -1360,7 +1368,7 @@ const CONTENT_I18N = {
     waitingForModel: "Waiting for {model}{details}...",
     waitingWith: " with {items}",
     doneWithModel: "Done with {model}.",
-    analyzeTextFile: "Please analyze the attached text file.",
+    analyzeTextFile: "Please analyze the attached document.",
     analyzeImage: "Please analyze the attached image.",
     attachedTextFilesHeading: "ATTACHED TEXT FILES",
     attachedFileLabel: "FILE",
@@ -1419,6 +1427,7 @@ const CONTENT_I18N = {
     starter_githubRepoSecurityReview: "Review Repo Security",
     starter_chatWeeklyDigest: "3-Day Chat Digest",
     starter_chatActionItems: "Action Items / Owners",
+    starter_pdfDeepSummary: "Full PDF Summary",
     starter_docExecutiveBrief: "Executive Brief",
     starter_docOutline: "Rebuild Document Outline",
     starter_landingHtml: "Make HTML",
@@ -1442,6 +1451,11 @@ const CONTENT_I18N = {
     starter_qaMarkdownPolish: "QA · Polish Markdown",
     agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "URL List To QA",
+    pdfAutoScrollPreparing: "Auto-scrolling the PDF to load as much of the document as possible...",
+    pdfAutoScrollPrepared: "PDF scan complete. {count} page(s) are currently loaded.",
+    pdfAutoScrollPreparedFallback: "PDF scan complete. Building the summary now.",
+    pdfAutoScrollFailed: "The PDF could not be fully auto-scrolled. Continuing with the pages that are currently loaded.",
+    pdfAutoScrollNoMovement: "Tried to auto-scroll the PDF, but this viewer did not accept scripted scrolling. Continuing with the pages that are currently loaded.",
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
@@ -1486,6 +1500,7 @@ const CONTENT_I18N = {
     githubRepoSecurityReviewPrompt: "Use this GitHub page and the repository source I added to perform a repository-level security review. Map permission boundaries, sensitive modules, configuration risk, external input points, deployment surfaces, and which security-relevant files I should inspect next. Respond in {language}.",
     chatWeeklyDigestPrompt: "Turn this chat or collaboration page into a 3-day digest. Prioritize messages visible from the last 3 days. If the page only contains yesterday's or the last few hours of messages, explicitly say what time range is actually visible instead of pretending all 3 days are loaded. Use conversational context, not isolated lines: connect follow-ups, confirmations, objections, and decisions from the same discussion thread before summarizing. Structure the answer as Top 5 updates, Completed work, In-progress work, Risks or blockers, and Recommended next steps. If a conclusion is inferred from context rather than explicitly stated, label it as inferred. Respond in {language}.",
     chatActionItemsPrompt: "Extract actionable items from this chat or collaboration page and use conversational context to clarify the likely owner, task, and current status. Do not just copy single lines. Merge nearby messages from the same topic, including assignment, commitment, follow-up, and resolution. If multiple messages mention the same model number, product name, project code, ticket, vulnerability ID, or other repeated keyword and they are really about the same underlying topic, merge them into the same issue instead of creating separate rows. Output a Markdown table with these exact columns: Issue / Topic | Task | Owner | Due date | Status or message evidence | Confidence. Rules: 1. If the owner is explicitly named, confidence should be high. 2. If the owner is inferred from context, append '(inferred)' to the owner name and use medium or low confidence. 3. If ownership is unclear, write unknown instead of guessing. 4. If the same task appears across multiple messages, merge it into one row and reflect the latest state. 5. If one issue contains multiple sub-tasks, prefer keeping them in one row and summarize the sub-tasks in the Task column unless owner or status clearly differs. 6. Put the most important follow-up items first. Prioritize messages visible from the last 3 days and respond in {language}.",
+    pdfDeepSummaryPrompt: "Read this PDF as a full document rather than summarizing only the title, first page, or table of contents. If the available context still looks partial, clearly state what range or portion is actually visible before summarizing, and do not pretend the whole PDF was read. When enough content is available, produce a detailed summary in this exact structure: 1. Document topic and purpose 2. Section or structure overview 3. Core takeaways with at least 8 detailed points 4. Important definitions, thresholds, numbers, dates, or requirements 5. Limits, exceptions, risks, or easy-to-misread parts 6. Which sections or pages deserve priority reading 7. A 100-word executive recap. Mark anything inferred from structure rather than directly stated in the text as inferred. Respond in {language}.",
     docExecutiveBriefPrompt: "Turn this online document into an executive brief. Structure the answer as Document purpose, Key conclusions, Important numbers or facts, Risks and assumptions, and Recommended decisions or next steps. Respond in {language}.",
     docOutlinePrompt: "Rebuild a clean outline from this online document. List the likely sections and key points first, then add the three parts worth reading first. If some structure is inferred, mark it as inferred. Respond in {language}.",
     bullVsBearPrompt: "Analyze this page from a market perspective using a Bull vs Bear format. Structure the answer as Bull case, Bear case, Which narrative the market is most likely to trade first, and What to watch next. Respond in {language} and avoid direct buy/sell advice.",
@@ -3618,7 +3633,533 @@ function getGithubVisibleCodeContext() {
   ].join("\n\n");
 }
 
-function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+function isPdfDocumentPage(doc = document) {
+  try {
+    const pathname = String(doc.location?.pathname || "").toLowerCase();
+    const title = String(doc.title || "").toLowerCase();
+    if (pathname.endsWith(".pdf") || title.endsWith(".pdf")) {
+      return true;
+    }
+
+    if (doc.contentType === "application/pdf") {
+      return true;
+    }
+
+    return Boolean(
+      doc.querySelector(
+        "embed[type='application/pdf'], object[type='application/pdf'], iframe[src*='.pdf'], .pdfViewer, #viewer .page, .textLayer"
+      )
+    );
+  } catch (_error) {
+    return false;
+  }
+}
+
+function waitForDelay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function createBridgeRequestId(prefix = "pdf") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+let pdfJsModulePromise = null;
+
+function base64ToUint8Array(base64) {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function loadPdfJsModule() {
+  if (!pdfJsModulePromise) {
+    const moduleUrl = chrome.runtime.getURL("src/vendor/pdfjs/pdf.mjs");
+    pdfJsModulePromise = import(moduleUrl).then((pdfjsLib) => {
+      const workerUrl = chrome.runtime.getURL("src/vendor/pdfjs/pdf.worker.mjs");
+      if (pdfjsLib?.GlobalWorkerOptions) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+      }
+      return pdfjsLib;
+    });
+  }
+  return pdfJsModulePromise;
+}
+
+function isElementScrollable(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(element);
+  const overflowY = style?.overflowY || "";
+  return /(auto|scroll|overlay)/i.test(overflowY) && element.scrollHeight > element.clientHeight + 8;
+}
+
+function getPdfPageCount(doc = document) {
+  try {
+    return queryAllIncludingShadow(
+      doc,
+      [
+        ".pdfViewer .page",
+        "#viewer .page",
+        ".page[data-page-number]",
+        "[data-page-number]",
+      ],
+      400
+    ).length;
+  } catch (_error) {
+    return 0;
+  }
+}
+
+function getPdfScrollContainer(doc = document) {
+  const directSelectors = [
+    "#viewerContainer",
+    ".pdfViewer",
+    "[data-testid='pdf-viewer']",
+    "viewer",
+  ];
+
+  for (const selector of directSelectors) {
+    const node = doc.querySelector(selector);
+    if (isElementScrollable(node)) {
+      return node;
+    }
+  }
+
+  const pageNode = doc.querySelector(".pdfViewer .page, #viewer .page, .page[data-page-number], [data-page-number]");
+  let parent = pageNode instanceof HTMLElement ? pageNode.parentElement : null;
+  while (parent) {
+    if (isElementScrollable(parent)) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+
+  const scrollingElement = doc.scrollingElement instanceof HTMLElement ? doc.scrollingElement : null;
+  if (isElementScrollable(scrollingElement)) {
+    return scrollingElement;
+  }
+
+  return scrollingElement || document.scrollingElement || document.documentElement;
+}
+
+function normalizePdfExtractedPageText(text) {
+  return String(text || "")
+    .replace(/\u0000/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+async function requestPdfViewerFullTextFromPage(timeoutMs = 12000) {
+  if (!isPdfDocumentPage(document)) {
+    return null;
+  }
+
+  const requestId = createBridgeRequestId("pdf-text");
+  const sourceName = FRAME_CONTEXT_MESSAGE_SOURCE;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const handleMessage = (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      const payload = event.data;
+      if (
+        !payload ||
+        payload.source !== sourceName ||
+        payload.type !== "page-pdf-text-response" ||
+        payload.requestId !== requestId
+      ) {
+        return;
+      }
+      finish(payload.result || null);
+    };
+    const timeoutId = window.setTimeout(() => finish(null), timeoutMs);
+    window.addEventListener("message", handleMessage);
+
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.textContent = `
+      (() => {
+        const requestId = ${JSON.stringify(requestId)};
+        const sourceName = ${JSON.stringify(sourceName)};
+        const reply = (result) => {
+          window.postMessage({
+            source: sourceName,
+            type: "page-pdf-text-response",
+            requestId,
+            result,
+          }, "*");
+        };
+        (async () => {
+          try {
+            const app = window.PDFViewerApplication;
+            if (!app) {
+              reply({ ok: false, error: "PDFViewerApplication unavailable" });
+              return;
+            }
+            if (!app.pdfDocument && app.pdfLoadingTask && app.pdfLoadingTask.promise) {
+              try {
+                await app.pdfLoadingTask.promise;
+              } catch (_error) {
+                // Ignore and fall through to the normal checks below.
+              }
+            }
+            const pdfDocument = app.pdfDocument || null;
+            if (!pdfDocument || typeof pdfDocument.getPage !== "function") {
+              reply({ ok: false, error: "pdfDocument unavailable" });
+              return;
+            }
+            const pageCount = Number(pdfDocument.numPages || 0);
+            const pages = [];
+            for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+              const page = await pdfDocument.getPage(pageNumber);
+              const textContent = await page.getTextContent();
+              const text = Array.isArray(textContent?.items)
+                ? textContent.items.map((item) => item?.str || "").join(" ")
+                : "";
+              pages.push({
+                pageNumber,
+                text,
+              });
+            }
+            reply({ ok: true, pageCount, pages });
+          } catch (error) {
+            reply({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error || "Unknown PDF error"),
+            });
+          }
+        })();
+      })();
+    `;
+
+    const parent = document.documentElement || document.head || document.body;
+    if (!parent) {
+      finish(null);
+      return;
+    }
+
+    parent.appendChild(script);
+    script.remove();
+  });
+}
+
+async function requestPdfViewerMetadataFromPage(timeoutMs = 6000) {
+  if (!isPdfDocumentPage(document)) {
+    return null;
+  }
+
+  const requestId = createBridgeRequestId("pdf-meta");
+  const sourceName = FRAME_CONTEXT_MESSAGE_SOURCE;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const handleMessage = (event) => {
+      if (event.source !== window) {
+        return;
+      }
+      const payload = event.data;
+      if (
+        !payload ||
+        payload.source !== sourceName ||
+        payload.type !== "page-pdf-meta-response" ||
+        payload.requestId !== requestId
+      ) {
+        return;
+      }
+      finish(payload.result || null);
+    };
+    const timeoutId = window.setTimeout(() => finish(null), timeoutMs);
+    window.addEventListener("message", handleMessage);
+
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.textContent = `
+      (() => {
+        const requestId = ${JSON.stringify(requestId)};
+        const sourceName = ${JSON.stringify(sourceName)};
+        const reply = (result) => {
+          window.postMessage({
+            source: sourceName,
+            type: "page-pdf-meta-response",
+            requestId,
+            result,
+          }, "*");
+        };
+        try {
+          const app = window.PDFViewerApplication;
+          const rawUrl = app?.url || app?.baseUrl || app?.appConfig?.defaultUrl || "";
+          const pageCount = Number(app?.pdfDocument?.numPages || 0);
+          reply({ ok: Boolean(rawUrl), url: rawUrl, pageCount });
+        } catch (error) {
+          reply({
+            ok: false,
+            url: "",
+            pageCount: 0,
+            error: error instanceof Error ? error.message : String(error || "Unknown PDF metadata error"),
+          });
+        }
+      })();
+    `;
+
+    const parent = document.documentElement || document.head || document.body;
+    if (!parent) {
+      finish(null);
+      return;
+    }
+
+    parent.appendChild(script);
+    script.remove();
+  });
+}
+
+function getScrollTopValue(container, useWindowScroll) {
+  if (useWindowScroll) {
+    return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+  }
+  return container instanceof HTMLElement ? container.scrollTop : 0;
+}
+
+function getMaxScrollTopValue(container, useWindowScroll) {
+  if (useWindowScroll) {
+    return Math.max(
+      0,
+      (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - (window.innerHeight || 0)
+    );
+  }
+  if (!(container instanceof HTMLElement)) {
+    return 0;
+  }
+  return Math.max(0, container.scrollHeight - container.clientHeight);
+}
+
+function tryScrollPdfStep(container, nextTop, stepSize, useWindowScroll) {
+  const beforeTop = getScrollTopValue(container, useWindowScroll);
+
+  if (useWindowScroll) {
+    window.scrollTo({ top: nextTop, behavior: "auto" });
+    window.scrollBy({ top: stepSize, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = nextTop;
+    document.body.scrollTop = nextTop;
+  } else if (container instanceof HTMLElement) {
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({ top: nextTop, behavior: "auto" });
+    }
+    if (typeof container.scrollBy === "function") {
+      container.scrollBy({ top: stepSize, left: 0, behavior: "auto" });
+    }
+    container.scrollTop = nextTop;
+    container.dispatchEvent(new WheelEvent("wheel", {
+      deltaY: stepSize,
+      bubbles: true,
+      cancelable: true,
+    }));
+  }
+
+  window.dispatchEvent(new WheelEvent("wheel", {
+    deltaY: stepSize,
+    bubbles: true,
+    cancelable: true,
+  }));
+
+  return beforeTop;
+}
+
+async function autoScrollPdfForSummary() {
+  if (!isPdfDocumentPage(document)) {
+    return { pagesSeen: 0, didScroll: false };
+  }
+
+  const scrollContainer = getPdfScrollContainer(document);
+  const useWindowScroll = !(scrollContainer instanceof HTMLElement) || scrollContainer === document.body || scrollContainer === document.documentElement;
+  const viewportHeight = Math.max(
+    320,
+    useWindowScroll
+      ? window.innerHeight || document.documentElement.clientHeight || 800
+      : scrollContainer.clientHeight || window.innerHeight || 800
+  );
+  const stepSize = Math.max(240, Math.floor(viewportHeight * 0.9));
+  const maxSteps = 160;
+  let lastKnownPageCount = getPdfPageCount(document);
+  let stableCountRounds = 0;
+  let previousTop = -1;
+  let didScroll = false;
+
+  for (let step = 0; step < maxSteps; step += 1) {
+    const maxScrollTop = getMaxScrollTopValue(scrollContainer, useWindowScroll);
+    const currentTop = getScrollTopValue(scrollContainer, useWindowScroll);
+
+    if (maxScrollTop <= 0) {
+      break;
+    }
+
+    const nextTop = Math.min(maxScrollTop, currentTop + stepSize);
+    if (nextTop <= currentTop + 2) {
+      stableCountRounds += 1;
+    } else {
+      tryScrollPdfStep(scrollContainer, nextTop, stepSize, useWindowScroll);
+    }
+
+    await waitForDelay(180);
+
+    const latestPageCount = getPdfPageCount(document);
+    if (latestPageCount > lastKnownPageCount) {
+      lastKnownPageCount = latestPageCount;
+      stableCountRounds = 0;
+    } else {
+      stableCountRounds += 1;
+    }
+
+    const latestTop = getScrollTopValue(scrollContainer, useWindowScroll);
+    if (latestTop > currentTop + 2) {
+      didScroll = true;
+    }
+    const nearBottom = latestTop >= maxScrollTop - Math.max(120, Math.floor(viewportHeight * 0.25));
+    const topUnchanged = Math.abs(latestTop - previousTop) < 4;
+    previousTop = latestTop;
+
+    if (nearBottom && (stableCountRounds >= 4 || topUnchanged)) {
+      break;
+    }
+  }
+
+  await waitForDelay(220);
+
+  if (useWindowScroll) {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  } else {
+    if (typeof scrollContainer.scrollTo === "function") {
+      scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+    }
+    scrollContainer.scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  await waitForDelay(120);
+
+  return {
+    pagesSeen: getPdfPageCount(document),
+    didScroll,
+  };
+}
+
+function collectPdfTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
+  try {
+    if (!isPdfDocumentPage(doc)) {
+      return [];
+    }
+
+    const blocks = [];
+    const seen = new Set();
+    const pageNodes = queryAllIncludingShadow(
+      doc,
+      [
+        ".pdfViewer .page",
+        "#viewer .page",
+        ".page[data-page-number]",
+        "[data-page-number]",
+      ],
+      maxBlocks * 8
+    );
+
+    pageNodes.forEach((node) => {
+      if (!(node instanceof Element) || blocks.length >= maxBlocks) {
+        return;
+      }
+
+      const pageNumber = String(node.getAttribute("data-page-number") || "").trim();
+      const text = normalizeExtractedText(node.innerText || node.textContent || "");
+      if (!text || text.length < 80) {
+        return;
+      }
+
+      appendUniqueTextBlock(
+        blocks,
+        seen,
+        `${pageNumber ? `PDF page ${pageNumber}\n` : ""}${text}`,
+        5200
+      );
+    });
+
+    if (blocks.length) {
+      return blocks.slice(0, maxBlocks);
+    }
+
+    queryAllIncludingShadow(
+      doc,
+      [
+        ".textLayer",
+        "[class*='textLayer']",
+        ".textLayer span",
+        "[class*='textLayer'] span",
+      ],
+      maxBlocks * 120
+    ).forEach((node) => {
+      if (blocks.length >= maxBlocks) {
+        return;
+      }
+
+      const text = getNodeVisibleText(node);
+      if (text.length < 40) {
+        return;
+      }
+      appendUniqueTextBlock(blocks, seen, text, 2600);
+    });
+
+    if (blocks.length) {
+      return blocks.slice(0, maxBlocks);
+    }
+
+    const fallbackText = normalizeExtractedText(doc.body?.innerText || doc.body?.textContent || "");
+    if (fallbackText) {
+      appendUniqueTextBlock(blocks, seen, fallbackText, 8000);
+    }
+
+    return blocks.slice(0, maxBlocks);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS, options = {}) {
   const blocks = [];
   const seen = new Set();
 
@@ -3642,6 +4183,11 @@ function collectTextBlocksFromDocument(doc, maxBlocks = MAX_CONTEXT_BLOCKS) {
       if (officeBlocks.length) {
         return officeBlocks;
       }
+    }
+
+    const pdfBlocks = collectPdfTextBlocksFromDocument(doc, options.preferFullPdf ? Math.max(maxBlocks * 2, 48) : maxBlocks);
+    if (pdfBlocks.length) {
+      return pdfBlocks;
     }
 
     const githubBlocks = collectGithubTextBlocksFromDocument(doc, maxBlocks);
@@ -3806,15 +4352,16 @@ function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = tru
     const documents = includeChildFrames ? collectAccessibleDocuments(window) : [document];
     const blocks = [];
     const seen = new Set();
+    const targetMaxLength = options.preferFullPdf ? Math.max(maxLength, MAX_PDF_PAGE_TEXT) : maxLength;
 
     documents.forEach((doc) => {
-      collectTextBlocksFromDocument(doc).forEach((block) => {
-        appendUniqueTextBlock(blocks, seen, block, maxLength);
+      collectTextBlocksFromDocument(doc, MAX_CONTEXT_BLOCKS, options).forEach((block) => {
+        appendUniqueTextBlock(blocks, seen, block, targetMaxLength);
       });
     });
 
     const normalized = normalizeExtractedText(blocks.join("\n\n"));
-    if (normalized.length <= maxLength) {
+    if (normalized.length <= targetMaxLength) {
       return normalized;
     }
 
@@ -3826,8 +4373,8 @@ function getPageTextSnapshot(maxLength = MAX_PAGE_TEXT, includeChildFrames = tru
     });
 
     return isLikelyCollaborationHost() && !officeSignals.teamsEmbeddedOffice && !officeSignals.matchesHost && !officeSignals.matchesPath
-      ? normalized.slice(-maxLength)
-      : normalized.slice(0, maxLength);
+      ? normalized.slice(-targetMaxLength)
+      : normalized.slice(0, targetMaxLength);
   };
 
   return options?.expandDetails
@@ -4164,6 +4711,7 @@ function matchesDocumentWorkspacePage(signals) {
   ];
 
   return (
+    isPdfDocumentPage(document) ||
     officeSignals.matchesHost ||
     officeSignals.matchesPath ||
     officeSignals.teamsEmbeddedOffice ||
@@ -4598,6 +5146,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       label: getStarterText(starterKey),
       prompt: getStarterPrompt(starterKey),
       description: summarizeStarterDescription(getStarterDescription(starterKey), getStarterText(starterKey)),
+      contextOptions: starterKey === "pdfDeepSummary" ? { preferFullPdf: true } : undefined,
       composeMode: starterKey === "multiPerspective" ? "perspective" : "chat",
       isCustomStarter: false,
       starterKey,
@@ -6279,6 +6828,10 @@ function getStarterPrompt(starterKey) {
     return tl("chatActionItemsPrompt", { language: getTargetLanguageLabel() });
   }
 
+  if (starterKey === "pdfDeepSummary") {
+    return tl("pdfDeepSummaryPrompt", { language: getTargetLanguageLabel() });
+  }
+
   if (starterKey === "docExecutiveBrief") {
     return tl("docExecutiveBriefPrompt", { language: getTargetLanguageLabel() });
   }
@@ -7708,7 +8261,7 @@ function getLatestAssistantSuggestedStarterEntries() {
 
 function getPageContext(includeChildFrames = true, options = {}) {
   const selection = getSelectionText();
-  const pageText = getPageTextSnapshot(MAX_PAGE_TEXT, includeChildFrames, options);
+  const pageText = getPageTextSnapshot(options.preferFullPdf ? MAX_PDF_PAGE_TEXT : MAX_PAGE_TEXT, includeChildFrames, options);
   const imageCandidates = getPageImageSnapshot(MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
   const headings = getPageHeadingsSnapshot(12, includeChildFrames, options)
     .slice(0, 12)
@@ -8152,14 +8705,410 @@ function requestFrameContexts() {
   });
 }
 
-async function getAggregatedPageContext() {
-  const localContext = getPageContext(false);
+function requestFramePdfAutoScroll() {
+  if (!IS_TOP_FRAME) {
+    return Promise.resolve([]);
+  }
+
+  const childWindows = collectChildFrameWindows(window);
+  if (!childWindows.length) {
+    return Promise.resolve([]);
+  }
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const requestNonce = createFrameContextNonce();
+  const requesterOrigin = getCurrentWindowOrigin();
+  const allowedSources = new Set(childWindows);
+
+  return new Promise((resolve) => {
+    const responses = [];
+    const handleMessage = (event) => {
+      const payload = event.data;
+      if (
+        !payload ||
+        payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE ||
+        payload.type !== "frame-pdf-scroll-response" ||
+        payload.requestId !== requestId ||
+        payload.requestNonce !== requestNonce ||
+        !allowedSources.has(event.source)
+      ) {
+        return;
+      }
+
+      if (!isValidFrameContextNonce(payload.requestNonce)) {
+        return;
+      }
+
+      const frameOrigin = String(payload.frameOrigin || "").trim() || "null";
+      if (frameOrigin !== String(event.origin || "").trim()) {
+        return;
+      }
+
+      responses.push({
+        didScroll: payload.didScroll === true,
+        pagesSeen: Number(payload.pagesSeen || 0),
+      });
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    childWindows.forEach((childWindow) => {
+      try {
+        const childOrigin = getWindowOriginForMessaging(childWindow);
+        childWindow.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-scroll-request",
+            requestId,
+            requestNonce,
+            requesterOrigin,
+          },
+          childOrigin && childOrigin !== "null" ? childOrigin : "*"
+        );
+      } catch (_error) {
+        // Ignore frames that cannot receive messages.
+      }
+    });
+
+    window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      resolve(responses);
+    }, Math.max(FRAME_CONTEXT_REQUEST_TIMEOUT_MS * 6, 7000));
+  });
+}
+
+function requestFramePdfViewerText() {
+  if (!IS_TOP_FRAME) {
+    return Promise.resolve([]);
+  }
+
+  const childWindows = collectChildFrameWindows(window);
+  if (!childWindows.length) {
+    return Promise.resolve([]);
+  }
+
+  const requestId = createBridgeRequestId("frame-pdf-text");
+  const requestNonce = createFrameContextNonce();
+  const requesterOrigin = getCurrentWindowOrigin();
+  const allowedSources = new Set(childWindows);
+
+  return new Promise((resolve) => {
+    const responses = [];
+    const handleMessage = (event) => {
+      const payload = event.data;
+      if (
+        !payload ||
+        payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE ||
+        payload.type !== "frame-pdf-text-response" ||
+        payload.requestId !== requestId ||
+        payload.requestNonce !== requestNonce ||
+        !allowedSources.has(event.source)
+      ) {
+        return;
+      }
+
+      if (!isValidFrameContextNonce(payload.requestNonce)) {
+        return;
+      }
+
+      const frameOrigin = String(payload.frameOrigin || "").trim() || "null";
+      if (frameOrigin !== String(event.origin || "").trim()) {
+        return;
+      }
+
+      responses.push(payload.result || null);
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    childWindows.forEach((childWindow) => {
+      try {
+        const childOrigin = getWindowOriginForMessaging(childWindow);
+        childWindow.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-text-request",
+            requestId,
+            requestNonce,
+            requesterOrigin,
+          },
+          childOrigin && childOrigin !== "null" ? childOrigin : "*"
+        );
+      } catch (_error) {
+        // Ignore frames that cannot receive messages.
+      }
+    });
+
+    window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      resolve(responses);
+    }, Math.max(FRAME_CONTEXT_REQUEST_TIMEOUT_MS * 10, 12000));
+  });
+}
+
+function requestFramePdfViewerMetadata() {
+  if (!IS_TOP_FRAME) {
+    return Promise.resolve([]);
+  }
+
+  const childWindows = collectChildFrameWindows(window);
+  if (!childWindows.length) {
+    return Promise.resolve([]);
+  }
+
+  const requestId = createBridgeRequestId("frame-pdf-meta");
+  const requestNonce = createFrameContextNonce();
+  const requesterOrigin = getCurrentWindowOrigin();
+  const allowedSources = new Set(childWindows);
+
+  return new Promise((resolve) => {
+    const responses = [];
+    const handleMessage = (event) => {
+      const payload = event.data;
+      if (
+        !payload ||
+        payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE ||
+        payload.type !== "frame-pdf-meta-response" ||
+        payload.requestId !== requestId ||
+        payload.requestNonce !== requestNonce ||
+        !allowedSources.has(event.source)
+      ) {
+        return;
+      }
+
+      if (!isValidFrameContextNonce(payload.requestNonce)) {
+        return;
+      }
+
+      const frameOrigin = String(payload.frameOrigin || "").trim() || "null";
+      if (frameOrigin !== String(event.origin || "").trim()) {
+        return;
+      }
+
+      responses.push(payload.result || null);
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    childWindows.forEach((childWindow) => {
+      try {
+        const childOrigin = getWindowOriginForMessaging(childWindow);
+        childWindow.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-meta-request",
+            requestId,
+            requestNonce,
+            requesterOrigin,
+          },
+          childOrigin && childOrigin !== "null" ? childOrigin : "*"
+        );
+      } catch (_error) {
+        // Ignore frames that cannot receive messages.
+      }
+    });
+
+    window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      resolve(responses);
+    }, Math.max(FRAME_CONTEXT_REQUEST_TIMEOUT_MS * 8, 9000));
+  });
+}
+
+function collectPdfUrlCandidatesFromDocument(doc = document) {
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (value) => {
+    const normalized = toAbsolutePageUrl(value);
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    candidates.push(normalized);
+  };
+
+  addCandidate(window.location.href);
+  addCandidate(doc.querySelector("embed[type='application/pdf']")?.getAttribute("src"));
+  addCandidate(doc.querySelector("object[type='application/pdf']")?.getAttribute("data"));
+  addCandidate(doc.querySelector("iframe[src*='.pdf']")?.getAttribute("src"));
+  addCandidate(doc.querySelector("a[href*='.pdf']")?.getAttribute("href"));
+
+  [
+    "file",
+    "source",
+    "url",
+  ].forEach((key) => {
+    try {
+      const value = new URL(window.location.href).searchParams.get(key);
+      addCandidate(value);
+    } catch (_error) {
+      // Ignore malformed URL params.
+    }
+  });
+
+  return candidates.filter((item) => /\.pdf(?:$|[?#])/i.test(item) || /application\/pdf/i.test(item));
+}
+
+async function extractPdfTextFromFetchedFile(url) {
+  const result = await runtimeMessage({
+    type: "browser:fetch-binary-url",
+    url,
+  });
+
+  if (!result?.ok || !result?.file?.base64) {
+    return null;
+  }
+
+  const pdfjsLib = await loadPdfJsModule();
+  const loadingTask = pdfjsLib.getDocument({
+    data: base64ToUint8Array(result.file.base64),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  });
+  const pdfDocument = await loadingTask.promise;
+  const pageCount = Number(pdfDocument.numPages || 0);
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const page = await pdfDocument.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const text = normalizePdfExtractedPageText(
+      Array.isArray(textContent?.items)
+        ? textContent.items.map((item) => item?.str || "").join(" ")
+        : ""
+    );
+    if (text) {
+      pages.push(`PDF page ${pageNumber}\n${text}`);
+    }
+  }
+
+  return {
+    url,
+    pageCount,
+    text: pages.join("\n\n"),
+  };
+}
+
+async function getCurrentTabPdfCandidateUrls() {
+  try {
+    const result = await runtimeMessage({ type: "browser:get-current-tab-info" });
+    const tabUrl = String(result?.tab?.url || "").trim();
+    if (!tabUrl) {
+      return [];
+    }
+
+    const candidates = [];
+    const seen = new Set();
+    const addCandidate = (value) => {
+      const normalized = toAbsolutePageUrl(value);
+      if (!normalized) {
+        return;
+      }
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      candidates.push(normalized);
+    };
+
+    addCandidate(tabUrl);
+    try {
+      const parsed = new URL(tabUrl);
+      ["file", "source", "url", "download", "src"].forEach((key) => {
+        addCandidate(parsed.searchParams.get(key));
+      });
+    } catch (_error) {
+      // Ignore malformed tab URL.
+    }
+
+    return candidates;
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function getAggregatedPageContext(options = {}) {
+  const localContext = getPageContext(false, options);
   if (!IS_TOP_FRAME) {
     return localContext;
   }
 
   const frameContexts = await requestFrameContexts();
-  return mergePageContexts([localContext, ...frameContexts]);
+  let merged = mergePageContexts([localContext, ...frameContexts]);
+
+  if (options.preferFullPdf) {
+    const localPdfResult = await requestPdfViewerFullTextFromPage().catch(() => null);
+    const framePdfResults = await requestFramePdfViewerText().catch(() => []);
+    const allPdfResults = [localPdfResult, ...framePdfResults]
+      .filter((item) => item?.ok && Array.isArray(item?.pages) && item.pages.length);
+    const bestPdfResult = allPdfResults.sort((left, right) => {
+      const leftLength = JSON.stringify(left?.pages || []).length;
+      const rightLength = JSON.stringify(right?.pages || []).length;
+      if (rightLength !== leftLength) {
+        return rightLength - leftLength;
+      }
+      return Number(right?.pageCount || 0) - Number(left?.pageCount || 0);
+    })[0];
+
+    if (bestPdfResult) {
+      const fullPdfText = normalizePdfExtractedPageText(
+        (bestPdfResult.pages || [])
+          .map((page) => {
+            const pageText = normalizePdfExtractedPageText(page?.text || "");
+            if (!pageText) {
+              return "";
+            }
+            return `PDF page ${page.pageNumber}\n${pageText}`;
+          })
+          .filter(Boolean)
+          .join("\n\n")
+      );
+
+      if (fullPdfText) {
+        merged = {
+          ...merged,
+          pageText: fullPdfText.slice(0, MAX_PDF_PAGE_TEXT),
+          headings: merged.headings || `PDF pages: 1-${bestPdfResult.pageCount || bestPdfResult.pages.length}`,
+        };
+      }
+    }
+
+    if (!merged.pageText || merged.pageText.length < 4000) {
+      const localPdfMeta = await requestPdfViewerMetadataFromPage().catch(() => null);
+      const framePdfMetas = await requestFramePdfViewerMetadata().catch(() => []);
+      const currentTabCandidates = await getCurrentTabPdfCandidateUrls();
+      const metadataCandidates = [localPdfMeta, ...framePdfMetas].filter((item) => item?.url);
+      const directCandidates = collectPdfUrlCandidatesFromDocument(document).map((url) => ({ url }));
+      const pdfUrlCandidates = [...currentTabCandidates.map((url) => ({ url })), ...metadataCandidates, ...directCandidates]
+        .map((item) => String(item?.url || "").trim())
+        .filter(Boolean)
+        .filter((url, index, list) => list.indexOf(url) === index);
+
+      for (const pdfUrl of pdfUrlCandidates) {
+        try {
+          const fetchedPdf = await extractPdfTextFromFetchedFile(pdfUrl);
+          const fullPdfText = normalizePdfExtractedPageText(fetchedPdf?.text || "");
+          if (fullPdfText && fullPdfText.length > (merged.pageText || "").length) {
+            merged = {
+              ...merged,
+              pageText: fullPdfText.slice(0, MAX_PDF_PAGE_TEXT),
+              headings: merged.headings || `PDF pages: 1-${fetchedPdf.pageCount || ""}`,
+            };
+            break;
+          }
+        } catch (_error) {
+          // Try the next candidate URL.
+        }
+      }
+    }
+  }
+
+  return merged;
 }
 
 function getAttachedDocumentsContext() {
@@ -8218,10 +9167,10 @@ function getPageContextModeLabel(mode = pageContextMode) {
   return tl("contextModeAuto");
 }
 
-async function buildPrompt(userMessage) {
+async function buildPrompt(userMessage, options = {}) {
   const starterRequest = isStarterBuilderRequest(userMessage);
   const includePageContext = shouldIncludePageContext();
-  const context = includePageContext ? await getAggregatedPageContext() : null;
+  const context = includePageContext ? await getAggregatedPageContext(options.contextOptions || {}) : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubVisibleCodeContext = includePageContext && isGithubAdapterActive() ? getGithubVisibleCodeContext() : "";
   const githubContext = await getSelectedGithubContext();
@@ -8856,6 +9805,15 @@ function fileToText(file) {
   });
 }
 
+function fileToArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Failed to read file."));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function isImageFile(file) {
   return file.type.startsWith("image/");
 }
@@ -8869,14 +9827,52 @@ function isTextDocumentFile(file) {
   const name = (file.name || "").toLowerCase();
   return (
     isMarkdownFile(file) ||
+    file.type === "application/pdf" ||
     file.type === "text/plain" ||
     file.type === "application/json" ||
     file.type === "text/json" ||
     file.type === "text/csv" ||
+    name.endsWith(".pdf") ||
     name.endsWith(".txt") ||
     name.endsWith(".json") ||
     name.endsWith(".csv")
   );
+}
+
+function isPdfDocumentFile(file) {
+  const name = (file.name || "").toLowerCase();
+  return file.type === "application/pdf" || name.endsWith(".pdf");
+}
+
+async function extractPdfTextFromFile(file) {
+  const pdfjsLib = await loadPdfJsModule();
+  const buffer = await fileToArrayBuffer(file);
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+  });
+  const pdfDocument = await loadingTask.promise;
+  const pageCount = Number(pdfDocument.numPages || 0);
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+    const page = await pdfDocument.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const text = normalizePdfExtractedPageText(
+      Array.isArray(textContent?.items)
+        ? textContent.items.map((item) => item?.str || "").join(" ")
+        : ""
+    );
+    if (text) {
+      pages.push(`PDF page ${pageNumber}\n${text}`);
+    }
+  }
+
+  return {
+    pageCount,
+    text: pages.join("\n\n"),
+  };
 }
 
 function modelLikelySupportsVision(modelName) {
@@ -8954,12 +9950,18 @@ async function attachTextDocumentFiles(files) {
   }
 
   const nextDocuments = await Promise.all(
-    textDocumentFiles.map(async (file) => ({
-      id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
-      name: file.name,
-      text: await fileToText(file),
-      source: "upload",
-    }))
+    textDocumentFiles.map(async (file) => {
+      const extracted = isPdfDocumentFile(file)
+        ? await extractPdfTextFromFile(file)
+        : { text: await fileToText(file), pageCount: 0 };
+      return {
+        id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        text: extracted.text,
+        source: "upload",
+        pageCount: extracted.pageCount || 0,
+      };
+    })
   );
 
   attachedDocuments = [...attachedDocuments, ...nextDocuments];
@@ -9005,13 +10007,19 @@ async function replaceLocalDocumentsFromFiles(files) {
   }
 
   const nextLocalDocuments = await Promise.all(
-    textDocumentFiles.map(async (file) => ({
-      id: `local-upload-${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
-      name: file.name,
-      text: await fileToText(file),
-      path: file.name,
-      source: "local-work-folder",
-    }))
+    textDocumentFiles.map(async (file) => {
+      const extracted = isPdfDocumentFile(file)
+        ? await extractPdfTextFromFile(file)
+        : { text: await fileToText(file), pageCount: 0 };
+      return {
+        id: `local-upload-${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        text: extracted.text,
+        path: file.name,
+        source: "local-work-folder",
+        pageCount: extracted.pageCount || 0,
+      };
+    })
   );
 
   attachedDocuments = [...nonLocalDocuments, ...nextLocalDocuments];
@@ -10144,7 +11152,7 @@ function renderShell() {
               <div class="ollama-quick-compose-input">
                 <label class="ollama-quick-compose-upload" title="${escapeHtml(tl("uploadFile"))}" aria-label="${escapeHtml(tl("uploadFile"))}">
                   ⊕
-                  <input class="ollama-quick-file-input" type="file" accept="image/*,.txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" multiple />
+                  <input class="ollama-quick-file-input" type="file" accept="image/*,.pdf,.txt,.md,.json,.csv,application/pdf,text/plain,text/markdown,application/json,text/json,text/csv" data-role="image-upload" multiple />
                 </label>
                 <textarea class="ollama-quick-textarea" data-role="prompt" placeholder="${escapeHtml(tl("promptPlaceholder"))}"></textarea>
               </div>
@@ -10179,7 +11187,7 @@ function renderShell() {
           </div>
           <div class="ollama-quick-include-panel">
             <button class="ollama-quick-secondary ollama-quick-include-trigger" type="button" data-action="open-local-document-picker">${escapeHtml(localDocuments.length ? tl("changeLocalDocument") : tl("addLocalDocument"))}</button>
-            <input hidden class="ollama-quick-local-document-input" type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/json,text/csv" data-role="local-document-upload" multiple />
+            <input hidden class="ollama-quick-local-document-input" type="file" accept=".pdf,.txt,.md,.json,.csv,application/pdf,text/plain,text/markdown,application/json,text/json,text/csv" data-role="local-document-upload" multiple />
             <div class="ollama-quick-include-summary">${getLocalDocumentSummary()}</div>
             ${localDocuments.length ? `<button class="ollama-quick-icon-button ollama-quick-danger-icon-button" type="button" data-action="clear-local-documents" aria-label="${escapeHtml(tl("clearLocalDocuments"))}" title="${escapeHtml(tl("clearLocalDocuments"))}">×</button>` : ""}
           </div>
@@ -11663,6 +12671,26 @@ async function startStarterExecution(plan, modelOverride = "", executionOptions 
   const starter = plan.starter;
   composeMode = starter.composeMode;
   renderShell();
+
+  if (starter.starterKey === "pdfDeepSummary") {
+    setStatus(tl("pdfAutoScrollPreparing"));
+    try {
+      const localPreloadResult = await autoScrollPdfForSummary();
+      const framePreloadResults = IS_TOP_FRAME ? await requestFramePdfAutoScroll() : [];
+      const allPreloadResults = [localPreloadResult, ...framePreloadResults].filter(Boolean);
+      const didAnyScroll = allPreloadResults.some((item) => item?.didScroll === true);
+      const maxPagesSeen = allPreloadResults.reduce((best, item) => Math.max(best, Number(item?.pagesSeen || 0)), 0);
+      if (!didAnyScroll) {
+        setStatus(tl("pdfAutoScrollNoMovement"));
+      } else if (maxPagesSeen > 0) {
+        setStatus(tl("pdfAutoScrollPrepared", { count: maxPagesSeen }));
+      } else {
+        setStatus(tl("pdfAutoScrollPreparedFallback"));
+      }
+    } catch (_error) {
+      setStatus(tl("pdfAutoScrollFailed"));
+    }
+  }
 
   if (starter.isAgentFlow) {
     await runAgentFlow(starter, effectiveModel);
@@ -13387,6 +14415,7 @@ async function sendCurrentPrompt(options = {}) {
 
   const starterPlan = options.starterPlan || pendingStarterExecution || null;
   const pendingStarter = starterPlan?.starter || null;
+  const contextOptions = starterPlan?.contextOptions || options.contextOptions || {};
   const hasUserMessageOverride = Object.prototype.hasOwnProperty.call(options, "userMessageOverride");
   let imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
   const documentAttachments = Array.isArray(options.documentAttachments) ? options.documentAttachments : attachedDocuments;
@@ -13485,7 +14514,7 @@ async function sendCurrentPrompt(options = {}) {
   setStatus(tl("waitingForModel", { model: effectiveModel, details: waitingParts.length ? tl("waitingWith", { items: formatAttachmentSummary(waitingParts) }) : "" }));
 
   try {
-    await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments }), effectiveModel);
+    await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments, contextOptions }), effectiveModel);
     imageAttachments.forEach((item) => {
       if (item.previewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(item.previewUrl);
@@ -13576,7 +14605,7 @@ function updateAssistantDraft(text) {
 }
 
 async function buildChatMessages(userMessage, options = {}) {
-  const contextPrompt = await buildPrompt(userMessage);
+  const contextPrompt = await buildPrompt(userMessage, options);
   const systemPrompt = buildSystemPrompt();
   const imageAttachments = Array.isArray(options.imageAttachments) ? options.imageAttachments : attachedImages;
   const messages = [];
@@ -13785,7 +14814,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 window.addEventListener("message", (event) => {
   const payload = event.data;
-  if (!payload || payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE || payload.type !== "frame-context-request") {
+  if (!payload || payload.source !== FRAME_CONTEXT_MESSAGE_SOURCE) {
     return;
   }
 
@@ -13798,20 +14827,129 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  try {
-    window.top?.postMessage(
-      {
-        source: FRAME_CONTEXT_MESSAGE_SOURCE,
-        type: "frame-context-response",
-        requestId: payload.requestId,
-        requestNonce: payload.requestNonce,
-        frameOrigin: getCurrentWindowOrigin(),
-        context: getPageContext(false),
-      },
-      requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
-    );
-  } catch (_error) {
-    // Ignore frames that cannot reply to the top window.
+  if (payload.type === "frame-context-request") {
+    try {
+      window.top?.postMessage(
+        {
+          source: FRAME_CONTEXT_MESSAGE_SOURCE,
+          type: "frame-context-response",
+          requestId: payload.requestId,
+          requestNonce: payload.requestNonce,
+          frameOrigin: getCurrentWindowOrigin(),
+          context: getPageContext(false),
+        },
+        requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+      );
+    } catch (_error) {
+      // Ignore frames that cannot reply to the top window.
+    }
+    return;
+  }
+
+  if (payload.type === "frame-pdf-scroll-request") {
+    autoScrollPdfForSummary()
+      .then((result) => {
+        window.top?.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-scroll-response",
+            requestId: payload.requestId,
+            requestNonce: payload.requestNonce,
+            frameOrigin: getCurrentWindowOrigin(),
+            didScroll: result?.didScroll === true,
+            pagesSeen: Number(result?.pagesSeen || 0),
+          },
+          requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+        );
+      })
+      .catch(() => {
+        try {
+          window.top?.postMessage(
+            {
+              source: FRAME_CONTEXT_MESSAGE_SOURCE,
+              type: "frame-pdf-scroll-response",
+              requestId: payload.requestId,
+              requestNonce: payload.requestNonce,
+              frameOrigin: getCurrentWindowOrigin(),
+              didScroll: false,
+              pagesSeen: 0,
+            },
+            requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+          );
+        } catch (_error) {
+          // Ignore frames that cannot reply to the top window.
+        }
+      });
+    return;
+  }
+
+  if (payload.type === "frame-pdf-text-request") {
+    requestPdfViewerFullTextFromPage()
+      .then((result) => {
+        window.top?.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-text-response",
+            requestId: payload.requestId,
+            requestNonce: payload.requestNonce,
+            frameOrigin: getCurrentWindowOrigin(),
+            result,
+          },
+          requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+        );
+      })
+      .catch(() => {
+        try {
+          window.top?.postMessage(
+            {
+              source: FRAME_CONTEXT_MESSAGE_SOURCE,
+              type: "frame-pdf-text-response",
+              requestId: payload.requestId,
+              requestNonce: payload.requestNonce,
+              frameOrigin: getCurrentWindowOrigin(),
+              result: null,
+            },
+            requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+          );
+        } catch (_error) {
+          // Ignore frames that cannot reply to the top window.
+        }
+      });
+    return;
+  }
+
+  if (payload.type === "frame-pdf-meta-request") {
+    requestPdfViewerMetadataFromPage()
+      .then((result) => {
+        window.top?.postMessage(
+          {
+            source: FRAME_CONTEXT_MESSAGE_SOURCE,
+            type: "frame-pdf-meta-response",
+            requestId: payload.requestId,
+            requestNonce: payload.requestNonce,
+            frameOrigin: getCurrentWindowOrigin(),
+            result,
+          },
+          requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+        );
+      })
+      .catch(() => {
+        try {
+          window.top?.postMessage(
+            {
+              source: FRAME_CONTEXT_MESSAGE_SOURCE,
+              type: "frame-pdf-meta-response",
+              requestId: payload.requestId,
+              requestNonce: payload.requestNonce,
+              frameOrigin: getCurrentWindowOrigin(),
+              result: null,
+            },
+            requesterOrigin && requesterOrigin !== "null" ? requesterOrigin : "*"
+          );
+        } catch (_error) {
+          // Ignore frames that cannot reply to the top window.
+        }
+      });
   }
 });
 

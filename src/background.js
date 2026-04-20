@@ -4381,6 +4381,23 @@ async function fetchImageAttachmentFromUrl(url) {
   };
 }
 
+async function fetchBinaryAttachmentFromUrl(url) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch file (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const mimeType = blob.type || response.headers.get("content-type") || "application/octet-stream";
+  const base64 = arrayBufferToBase64(await blob.arrayBuffer());
+
+  return {
+    mimeType,
+    base64,
+    sourceUrl: url,
+  };
+}
+
 async function analyzeImageInTab(tabId, imageUrl) {
   if (!Number.isFinite(Number(tabId))) {
     throw new Error("Missing tab id for image analysis.");
@@ -5813,6 +5830,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "browser:capture-visible-tab-image": {
         sendResponse({ ok: true, image: await captureVisibleTabImage(sender?.tab?.windowId) });
+        return;
+      }
+      case "browser:get-current-tab-info": {
+        sendResponse({
+          ok: true,
+          tab: sender?.tab
+            ? {
+                id: sender.tab.id,
+                title: String(sender.tab.title || ""),
+                url: String(sender.tab.url || ""),
+              }
+            : null,
+        });
+        return;
+      }
+      case "browser:fetch-binary-url": {
+        sendResponse({ ok: true, file: await fetchBinaryAttachmentFromUrl(String(message.url || "")) });
         return;
       }
       case "web:search": {
