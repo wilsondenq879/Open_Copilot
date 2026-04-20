@@ -1401,6 +1401,16 @@ body[data-theme="light"] .notification-code-hint {
   margin-bottom: 14px;
 }
 
+.starter-library-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.starter-library-sort-field {
+  min-width: 180px;
+}
+
 .starter-studio-intake-horizontal {
   display: grid;
   grid-column: 1 / -1;
@@ -1561,6 +1571,12 @@ body[data-theme="light"] .notification-code-hint {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.starter-preview-order-action.is-active {
+  border-color: rgba(255, 205, 109, 0.46);
+  background: rgba(255, 205, 109, 0.14);
+  color: #fff2b9;
 }
 
 .starter-preview-skill-meta {
@@ -2166,6 +2182,11 @@ body[data-theme="light"] .starter-detail-meta-value {
   .starter-studio-head,
   .starter-studio-library-head {
     flex-direction: column;
+  }
+
+  .starter-library-controls,
+  .starter-library-sort-field {
+    width: 100%;
   }
 
   .starter-studio-intake-horizontal {

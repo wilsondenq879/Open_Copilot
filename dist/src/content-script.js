@@ -275,6 +275,7 @@ let isDragActive = false;
 let pendingMessageRenderFrame = 0;
 let pendingSessionSaveTimer = 0;
 let starterSearch = "";
+const STARTER_SORT_MODES = ["recommended", "recently-used", "a-z", "manual"];
 let highlightedStarterId = "";
 let isPanelOpen = false;
 let isPanelMaximized = false;
@@ -338,6 +339,8 @@ let agentFlowBuilderOpen = false;
 let agentFlowBuilderDraft = null;
 let batchUrlQaBuilderOpen = false;
 let batchUrlQaBuilderDraft = null;
+let landingPageBuilderOpen = false;
+let landingPageBuilderDraft = null;
 let batchUrlQaActiveJob = null;
 let batchUrlQaWorkFolderStatus = null;
 let batchUrlQaPollTimer = null;
@@ -360,6 +363,20 @@ const HTML_MERMAID_RUNTIME_SCRIPT_ID = "edge-ai-chat-mermaid-runtime";
 const HTML_MERMAID_MODULE_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 const HTML_IMAGE_QUERY_ATTRIBUTE = "data-edge-ai-image-query";
 const MAX_HTML_IMAGE_SEARCHES = 4;
+const LANDING_PAGE_TEMPLATE_IDS = {
+  productHero: "product-hero",
+  productHeroTechExplainer: "product-hero-tech-explainer",
+  saasConversion: "saas-conversion",
+  storyBrandNarrative: "story-brand-narrative",
+  editorialMagazine: "editorial-magazine",
+  eventCampaign: "event-campaign",
+  comparisonBuyerGuide: "comparison-buyer-guide",
+  portfolioShowcase: "portfolio-showcase",
+  caseStudySuccessStory: "case-study-success-story",
+  featureDeepDive: "feature-deep-dive",
+  waitlistLaunchTeaser: "waitlist-launch-teaser",
+  recruitingCareers: "recruiting-careers",
+};
 const STARTER_REASONING_GITHUB_CONTEXT_SET = new Set(["codeView", "pullRequestOverview", "repository"]);
 const STARTER_REASONING_BUILTIN_KEY_SET = new Set([
   "codeRiskReview",
@@ -412,7 +429,18 @@ const HTML_LAYOUT_GUARD_CSS = [
   ".edge-ai-html-visual-fallback { display: grid; place-items: center; min-height: clamp(220px, 36vw, 420px); padding: clamp(24px, 4vw, 48px); border-radius: 32px; background: linear-gradient(135deg, rgba(238,244,255,0.96), rgba(226,239,255,0.88)); color: rgba(28,34,48,0.72); text-align: center; }",
   ".edge-ai-html-visual-fallback strong { display: block; font-size: clamp(1.1rem, 1.8vw, 1.5rem); color: rgba(18,24,38,0.88); }",
   ".edge-ai-html-visual-fallback span { display: block; margin-top: 0.75rem; font-size: clamp(0.92rem, 1.2vw, 1rem); line-height: 1.7; max-width: 34ch; }",
-  "h1, h2, h3, h4, p, li, blockquote { max-width: 100%; }",
+  "h1, h2, h3, h4, h5, h6, p, li, blockquote, a, span { max-width: 100%; overflow-wrap: anywhere; }",
+  "h1, h2, h3 { text-wrap: balance; }",
+  "p, li, blockquote { text-wrap: pretty; }",
+  "h1 { font-size: clamp(2.2rem, 7vw, 5.8rem) !important; line-height: 0.98 !important; }",
+  "h2 { font-size: clamp(1.8rem, 4.6vw, 3.8rem) !important; line-height: 1.04 !important; }",
+  "h3 { font-size: clamp(1.35rem, 2.8vw, 2.3rem) !important; line-height: 1.12 !important; }",
+  "p, li, blockquote { line-height: 1.65 !important; }",
+  "button, .button, [class*=\"button\"], [class*=\"cta\"] { max-width: 100%; white-space: normal; }",
+  "[class*=\"actions\"], [class*=\"cta-group\"], [class*=\"button-group\"], [class*=\"buttonGroup\"], [class*=\"hero-actions\"], [class*=\"heroActions\"] { display: flex; flex-wrap: wrap; gap: clamp(12px, 1.6vw, 18px); align-items: flex-start; }",
+  "[class*=\"hero\"] > *, [class*=\"hero\"] [class*=\"content\"], [class*=\"hero\"] [class*=\"copy\"], [class*=\"hero\"] [class*=\"text\"] { min-width: 0; max-width: 100%; }",
+  "[class*=\"hero\"] [class*=\"content\"], [class*=\"hero\"] [class*=\"copy\"], [class*=\"hero\"] [class*=\"text\"], [class*=\"headline\"], [class*=\"title\"] { max-width: min(100%, 18ch); }",
+  "[style*=\"position:absolute\"] { max-width: 100%; }",
   ":lang(zh), :lang(ja), :lang(ko) { word-break: keep-all; line-break: loose; }",
   "[class*=\"grid\"], [class*=\"split\"], [class*=\"hero\"], [class*=\"layout\"], [class*=\"panel\"], [class*=\"feature\"] { min-width: 0; }",
   "@media (max-width: 1200px) {",
@@ -420,6 +448,8 @@ const HTML_LAYOUT_GUARD_CSS = [
   "    grid-template-columns: 1fr !important;",
   "    flex-direction: column !important;",
   "  }",
+  "  h1 { font-size: clamp(2rem, 11vw, 4.2rem) !important; }",
+  "  h2 { font-size: clamp(1.6rem, 7vw, 3rem) !important; }",
   "}",
 ].join("\n");
 const IS_TOP_FRAME = (() => {
@@ -469,6 +499,281 @@ const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSu
 const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
 const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
 const QA_FLOW_BLOCK_STARTERS = ["qaSourceDistill", "qaQuestionDraft", "qaAnswerEvidence", "qaMarkdownPolish"];
+
+function createLandingPageTemplatePreviewSvg({
+  accent = "#6fd6ff",
+  accentSoft = "rgba(111, 214, 255, 0.35)",
+  title = "Template",
+  layout = "hero",
+}) {
+  const layoutShapes = (() => {
+    if (layout === "hero") {
+      return `
+        <rect x="26" y="86" width="184" height="126" rx="24" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="228" y="86" width="186" height="126" rx="28" fill="rgba(111,214,255,0.18)" stroke="${accentSoft}" />
+        <rect x="26" y="232" width="388" height="34" rx="17" fill="rgba(255,255,255,0.05)" />
+        <rect x="26" y="282" width="112" height="38" rx="19" fill="${accent}" fill-opacity="0.84" />
+        <rect x="154" y="282" width="118" height="38" rx="19" fill="rgba(255,255,255,0.08)" />
+        <rect x="288" y="282" width="126" height="38" rx="19" fill="rgba(255,255,255,0.04)" />
+      `;
+    }
+    if (layout === "tech") {
+      return `
+        <rect x="26" y="84" width="262" height="52" rx="18" fill="rgba(255,255,255,0.08)" stroke="${accentSoft}" />
+        <rect x="304" y="84" width="110" height="52" rx="18" fill="rgba(111,214,255,0.1)" stroke="${accentSoft}" />
+        <path d="M72 178h92M118 178v42M118 220h120M238 220v42M238 262h120" stroke="${accent}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+        <rect x="54" y="160" width="36" height="36" rx="12" fill="rgba(255,255,255,0.1)" />
+        <rect x="220" y="202" width="36" height="36" rx="12" fill="rgba(255,255,255,0.1)" />
+        <rect x="340" y="244" width="36" height="36" rx="12" fill="rgba(255,255,255,0.1)" />
+        <rect x="26" y="300" width="388" height="32" rx="16" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "conversion") {
+      return `
+        <rect x="26" y="86" width="388" height="74" rx="24" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="42" y="106" width="112" height="16" rx="8" fill="rgba(255,255,255,0.88)" />
+        <rect x="42" y="130" width="72" height="12" rx="6" fill="rgba(255,255,255,0.22)" />
+        <rect x="288" y="104" width="108" height="38" rx="19" fill="${accent}" fill-opacity="0.88" />
+        <rect x="26" y="182" width="388" height="34" rx="17" fill="rgba(255,255,255,0.05)" />
+        <rect x="26" y="236" width="182" height="96" rx="22" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="226" y="224" width="188" height="120" rx="24" fill="rgba(143,177,255,0.18)" stroke="${accentSoft}" />
+        <rect x="248" y="248" width="54" height="14" rx="7" fill="rgba(255,255,255,0.86)" />
+        <rect x="248" y="274" width="80" height="24" rx="12" fill="rgba(255,255,255,0.12)" />
+        <rect x="248" y="308" width="102" height="18" rx="9" fill="rgba(255,255,255,0.08)" />
+      `;
+    }
+    if (layout === "story") {
+      return `
+        <rect x="26" y="86" width="388" height="116" rx="30" fill="rgba(255,200,137,0.16)" stroke="${accentSoft}" />
+        <rect x="46" y="108" width="138" height="14" rx="7" fill="rgba(255,255,255,0.9)" />
+        <rect x="46" y="134" width="110" height="12" rx="6" fill="rgba(255,255,255,0.22)" />
+        <circle cx="336" cy="144" r="42" fill="rgba(255,255,255,0.08)" />
+        <rect x="26" y="222" width="136" height="116" rx="22" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="182" y="238" width="232" height="28" rx="14" fill="rgba(255,255,255,0.06)" />
+        <rect x="182" y="280" width="196" height="16" rx="8" fill="rgba(255,255,255,0.06)" />
+        <rect x="182" y="308" width="150" height="16" rx="8" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "editorial") {
+      return `
+        <rect x="26" y="84" width="252" height="160" rx="26" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="294" y="84" width="120" height="160" rx="24" fill="rgba(255,157,112,0.18)" stroke="${accentSoft}" />
+        <rect x="26" y="262" width="190" height="18" rx="9" fill="rgba(255,255,255,0.08)" />
+        <rect x="26" y="290" width="224" height="14" rx="7" fill="rgba(255,255,255,0.06)" />
+        <rect x="26" y="316" width="154" height="14" rx="7" fill="rgba(255,255,255,0.05)" />
+        <rect x="294" y="262" width="120" height="68" rx="20" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "event") {
+      return `
+        <rect x="26" y="82" width="388" height="88" rx="28" fill="rgba(255,255,255,0.06)" stroke="${accentSoft}" />
+        <rect x="46" y="102" width="126" height="14" rx="7" fill="rgba(255,255,255,0.9)" />
+        <rect x="46" y="126" width="182" height="16" rx="8" fill="rgba(255,255,255,0.18)" />
+        <rect x="292" y="100" width="102" height="44" rx="22" fill="${accent}" fill-opacity="0.88" />
+        <rect x="26" y="194" width="118" height="132" rx="22" fill="rgba(255,255,255,0.05)" />
+        <rect x="162" y="194" width="118" height="132" rx="22" fill="rgba(255,255,255,0.04)" />
+        <rect x="298" y="194" width="116" height="132" rx="22" fill="rgba(255,255,255,0.05)" />
+        <rect x="52" y="220" width="66" height="12" rx="6" fill="rgba(255,255,255,0.14)" />
+        <rect x="188" y="220" width="66" height="12" rx="6" fill="rgba(255,255,255,0.14)" />
+        <rect x="324" y="220" width="66" height="12" rx="6" fill="rgba(255,255,255,0.14)" />
+      `;
+    }
+    if (layout === "comparison") {
+      return `
+        <rect x="26" y="82" width="388" height="52" rx="20" fill="rgba(255,255,255,0.06)" />
+        <rect x="26" y="152" width="118" height="178" rx="22" fill="rgba(255,255,255,0.05)" />
+        <rect x="161" y="152" width="118" height="178" rx="22" fill="rgba(143,177,255,0.16)" stroke="${accentSoft}" />
+        <rect x="296" y="152" width="118" height="178" rx="22" fill="rgba(255,255,255,0.05)" />
+        <rect x="48" y="176" width="74" height="12" rx="6" fill="rgba(255,255,255,0.16)" />
+        <rect x="183" y="176" width="74" height="12" rx="6" fill="rgba(255,255,255,0.86)" />
+        <rect x="318" y="176" width="74" height="12" rx="6" fill="rgba(255,255,255,0.16)" />
+        <rect x="48" y="212" width="74" height="24" rx="12" fill="rgba(255,255,255,0.08)" />
+        <rect x="183" y="212" width="74" height="24" rx="12" fill="${accent}" fill-opacity="0.88" />
+        <rect x="318" y="212" width="74" height="24" rx="12" fill="rgba(255,255,255,0.08)" />
+        <rect x="48" y="256" width="74" height="10" rx="5" fill="rgba(255,255,255,0.12)" />
+        <rect x="183" y="256" width="74" height="10" rx="5" fill="rgba(255,255,255,0.2)" />
+        <rect x="318" y="256" width="74" height="10" rx="5" fill="rgba(255,255,255,0.12)" />
+      `;
+    }
+    if (layout === "portfolio") {
+      return `
+        <rect x="26" y="82" width="184" height="112" rx="24" fill="rgba(255,255,255,0.05)" stroke="${accentSoft}" />
+        <rect x="230" y="82" width="184" height="112" rx="24" fill="rgba(255,255,255,0.08)" />
+        <rect x="26" y="212" width="118" height="116" rx="20" fill="rgba(255,255,255,0.05)" />
+        <rect x="162" y="212" width="118" height="116" rx="20" fill="rgba(255,255,255,0.05)" />
+        <rect x="298" y="212" width="116" height="116" rx="20" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "case-study") {
+      return `
+        <rect x="26" y="82" width="204" height="150" rx="24" fill="rgba(255,255,255,0.05)" />
+        <rect x="248" y="82" width="166" height="66" rx="22" fill="rgba(255,255,255,0.07)" />
+        <rect x="248" y="166" width="166" height="66" rx="22" fill="rgba(111,214,255,0.18)" stroke="${accentSoft}" />
+        <rect x="26" y="252" width="388" height="18" rx="9" fill="rgba(255,255,255,0.08)" />
+        <rect x="26" y="284" width="388" height="44" rx="22" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "feature-dive") {
+      return `
+        <rect x="26" y="84" width="388" height="62" rx="24" fill="rgba(255,255,255,0.06)" />
+        <rect x="26" y="166" width="388" height="94" rx="28" fill="rgba(255,255,255,0.04)" stroke="${accentSoft}" />
+        <circle cx="88" cy="304" r="34" fill="rgba(255,255,255,0.06)" />
+        <rect x="140" y="280" width="274" height="16" rx="8" fill="rgba(255,255,255,0.08)" />
+        <rect x="140" y="308" width="188" height="14" rx="7" fill="rgba(255,255,255,0.05)" />
+      `;
+    }
+    if (layout === "waitlist") {
+      return `
+        <rect x="26" y="84" width="388" height="120" rx="30" fill="rgba(255,255,255,0.05)" stroke="${accentSoft}" />
+        <rect x="46" y="110" width="144" height="14" rx="7" fill="rgba(255,255,255,0.9)" />
+        <rect x="46" y="138" width="210" height="16" rx="8" fill="rgba(255,255,255,0.18)" />
+        <rect x="46" y="168" width="162" height="40" rx="20" fill="${accent}" fill-opacity="0.88" />
+        <rect x="26" y="226" width="260" height="104" rx="24" fill="rgba(255,255,255,0.05)" />
+        <rect x="304" y="226" width="110" height="104" rx="24" fill="rgba(255,255,255,0.08)" />
+      `;
+    }
+    if (layout === "careers") {
+      return `
+        <rect x="26" y="82" width="388" height="78" rx="26" fill="rgba(255,255,255,0.06)" />
+        <rect x="26" y="180" width="184" height="148" rx="24" fill="rgba(255,255,255,0.05)" />
+        <rect x="230" y="180" width="184" height="42" rx="18" fill="rgba(255,255,255,0.06)" />
+        <rect x="230" y="236" width="184" height="42" rx="18" fill="rgba(255,255,255,0.06)" />
+        <rect x="230" y="292" width="184" height="36" rx="18" fill="${accent}" fill-opacity="0.84" />
+      `;
+    }
+    return "";
+  })();
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="440" height="360" viewBox="0 0 440 360" fill="none">
+      <rect width="440" height="360" rx="30" fill="#08111f"/>
+      <rect x="14" y="14" width="412" height="332" rx="24" fill="url(#panel)" stroke="rgba(255,255,255,0.1)"/>
+      <rect x="26" y="28" width="84" height="10" rx="5" fill="${accent}" fill-opacity="0.9"/>
+      <rect x="26" y="48" width="142" height="20" rx="10" fill="rgba(255,255,255,0.9)"/>
+      <rect x="176" y="50" width="74" height="16" rx="8" fill="rgba(255,255,255,0.2)"/>
+      ${layoutShapes}
+      <text x="30" y="338" fill="rgba(255,255,255,0.78)" font-family="ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700">${title}</text>
+      <defs>
+        <linearGradient id="panel" x1="40" y1="22" x2="392" y2="346" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#11213b"/>
+          <stop offset="1" stop-color="#0a1221"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+const LANDING_PAGE_TEMPLATE_CATALOG = [
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.productHero,
+    labelKey: "landingPageTemplateProductHero",
+    summaryKey: "landingPageTemplateProductHeroSummary",
+    recommendedForKey: "landingPageTemplateProductHeroRecommendedFor",
+    sectionOutline: ["Hero", "Core Value Props", "Feature Highlights", "Visual Showcase", "CTA"],
+    visualTags: ["visual-first", "concise", "bold"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#67d6ff", accentSoft: "rgba(103,214,255,0.35)", title: "Product Hero", layout: "hero" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    labelKey: "landingPageTemplateProductHeroTechExplainer",
+    summaryKey: "landingPageTemplateProductHeroTechExplainerSummary",
+    recommendedForKey: "landingPageTemplateProductHeroTechExplainerRecommendedFor",
+    sectionOutline: ["Hero", "What It Is", "Problem Scenarios", "Core Technologies", "Comparison", "FAQ", "CTA"],
+    visualTags: ["technical", "structured", "high-density"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#7ef0c8", accentSoft: "rgba(126,240,200,0.35)", title: "Tech Explainer", layout: "tech" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+    labelKey: "landingPageTemplateSaasConversion",
+    summaryKey: "landingPageTemplateSaasConversionSummary",
+    recommendedForKey: "landingPageTemplateSaasConversionRecommendedFor",
+    sectionOutline: ["Hero", "Social Proof", "Features", "Use Cases", "FAQ", "CTA"],
+    visualTags: ["conversion", "proof", "cta-driven"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8fb1ff", accentSoft: "rgba(143,177,255,0.35)", title: "SaaS Conversion", layout: "conversion" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+    labelKey: "landingPageTemplateStoryBrandNarrative",
+    summaryKey: "landingPageTemplateStoryBrandNarrativeSummary",
+    recommendedForKey: "landingPageTemplateStoryBrandNarrativeRecommendedFor",
+    sectionOutline: ["Hero", "Worldview", "Story Blocks", "Values", "Signature Offering", "CTA"],
+    visualTags: ["narrative", "emotional", "brand-led"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffc889", accentSoft: "rgba(255,200,137,0.35)", title: "Brand Narrative", layout: "story" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+    labelKey: "landingPageTemplateEditorialMagazine",
+    summaryKey: "landingPageTemplateEditorialMagazineSummary",
+    recommendedForKey: "landingPageTemplateEditorialMagazineRecommendedFor",
+    sectionOutline: ["Feature Hero", "Key Angle", "Story Blocks", "Pull Quote / Sidebar", "Visual Spread", "CTA"],
+    visualTags: ["editorial", "feature-story", "image-led"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffb184", accentSoft: "rgba(255,177,132,0.35)", title: "Editorial", layout: "editorial" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+    labelKey: "landingPageTemplateEventCampaign",
+    summaryKey: "landingPageTemplateEventCampaignSummary",
+    recommendedForKey: "landingPageTemplateEventCampaignRecommendedFor",
+    sectionOutline: ["Hero", "Hook", "Agenda / Milestones", "Highlights", "Proof / FAQ", "CTA"],
+    visualTags: ["campaign", "urgent", "cta-led"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8bd5ff", accentSoft: "rgba(139,213,255,0.35)", title: "Campaign", layout: "event" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+    labelKey: "landingPageTemplateComparisonBuyerGuide",
+    summaryKey: "landingPageTemplateComparisonBuyerGuideSummary",
+    recommendedForKey: "landingPageTemplateComparisonBuyerGuideRecommendedFor",
+    sectionOutline: ["Hero", "Decision Criteria", "Comparison Table", "Best Fit Scenarios", "FAQ", "CTA"],
+    visualTags: ["comparison", "decision-making", "structured"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#98b7ff", accentSoft: "rgba(152,183,255,0.35)", title: "Comparison", layout: "comparison" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+    labelKey: "landingPageTemplatePortfolioShowcase",
+    summaryKey: "landingPageTemplatePortfolioShowcaseSummary",
+    recommendedForKey: "landingPageTemplatePortfolioShowcaseRecommendedFor",
+    sectionOutline: ["Hero", "Featured Work", "Project Grid", "Process / Tools", "About", "CTA"],
+    visualTags: ["showcase", "gallery", "visual-led"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#f2a8ff", accentSoft: "rgba(242,168,255,0.35)", title: "Portfolio", layout: "portfolio" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+    labelKey: "landingPageTemplateCaseStudySuccessStory",
+    summaryKey: "landingPageTemplateCaseStudySuccessStorySummary",
+    recommendedForKey: "landingPageTemplateCaseStudySuccessStoryRecommendedFor",
+    sectionOutline: ["Hero", "Challenge", "Approach", "Proof / Metrics", "Outcome", "CTA"],
+    visualTags: ["proof", "results", "trust-building"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#7ee0ff", accentSoft: "rgba(126,224,255,0.35)", title: "Case Study", layout: "case-study" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+    labelKey: "landingPageTemplateFeatureDeepDive",
+    summaryKey: "landingPageTemplateFeatureDeepDiveSummary",
+    recommendedForKey: "landingPageTemplateFeatureDeepDiveRecommendedFor",
+    sectionOutline: ["Hero", "Core Capability", "How It Works", "Scenarios", "Specs / FAQ", "CTA"],
+    visualTags: ["focused", "single-feature", "detailed"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#79f0d3", accentSoft: "rgba(121,240,211,0.35)", title: "Feature Dive", layout: "feature-dive" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+    labelKey: "landingPageTemplateWaitlistLaunchTeaser",
+    summaryKey: "landingPageTemplateWaitlistLaunchTeaserSummary",
+    recommendedForKey: "landingPageTemplateWaitlistLaunchTeaserRecommendedFor",
+    sectionOutline: ["Hero", "Teaser Proof", "Why Join Early", "Launch Timeline", "Waitlist CTA"],
+    visualTags: ["launch", "teaser", "short-form"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffd36e", accentSoft: "rgba(255,211,110,0.35)", title: "Waitlist", layout: "waitlist" }),
+  },
+  {
+    id: LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    labelKey: "landingPageTemplateRecruitingCareers",
+    summaryKey: "landingPageTemplateRecruitingCareersSummary",
+    recommendedForKey: "landingPageTemplateRecruitingCareersRecommendedFor",
+    sectionOutline: ["Hero", "Why Join", "Open Roles", "Team / Culture", "Hiring Flow", "CTA"],
+    visualTags: ["recruiting", "team", "opportunity"],
+    previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8ac5ff", accentSoft: "rgba(138,197,255,0.35)", title: "Careers", layout: "careers" }),
+  },
+];
 const BUILTIN_STARTER_DESCRIPTIONS = {
   "zh-TW": {
     pageSummary: "快速整理目前頁面的重點、脈絡與關鍵資訊。",
@@ -528,6 +833,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     qaMarkdownPolish: "把已整理好的 QA 結果轉成乾淨一致的 Markdown 輸出格式。",
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
+    landingPageBuilder: "先分析來源頁面，再讓你用帶圖模板選擇器挑選 landing page 方向。",
     createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
     createAgentFlow: "把多個技能串成一條可重複執行的 Agent Flow。",
   },
@@ -589,6 +895,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     qaMarkdownPolish: "Turn the grounded QA output into a clean, reusable Markdown format.",
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
+    landingPageBuilder: "Analyze the source page first, then let the user pick a landing-page direction from visual templates.",
     createCustomStarter: "Help teach your AI a new reusable skill.",
     createAgentFlow: "Combine multiple skills into a reusable Agent Flow.",
   },
@@ -616,10 +923,10 @@ const PAGE_COPILOT_STARTERS = {
   email: ["emailSummary", "translatePage"],
   github: ["githubRepoPurpose", "githubSummary", "githubReviewFocus", "githubNextSteps"],
   collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary"],
-  document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "docOutline", "pageSummary", "translatePage"],
+  document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "landingPageBuilder", "docOutline", "pageSummary", "translatePage"],
   market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
   entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
-  generic: ["pageSummary", "landingHtml", "translatePage", "multiPerspective"],
+  generic: ["pageSummary", "landingPageBuilder", "landingHtml", "translatePage", "multiPerspective"],
 };
 const CONTENT_I18N = {
   "zh-TW": {
@@ -691,6 +998,15 @@ const CONTENT_I18N = {
     selectBrowserTabs: "選擇分頁",
     searchBrowserTabs: "搜尋分頁標題或網址",
     searchStarters: "搜尋快捷指令",
+    starterSortLabel: "排序",
+    starterSortRecommended: "推薦優先",
+    starterSortRecentlyUsed: "最近使用",
+    starterSortAZ: "名稱 A-Z",
+    starterSortManual: "自訂順序",
+    starterPin: "加入收藏",
+    starterUnpin: "取消收藏",
+    starterMoveEarlier: "往前移",
+    starterMoveLater: "往後移",
     loadingBrowserTabs: "正在載入已開啟分頁...",
     browserTabBadge: "分頁",
     webSearchNeedQuery: "請先在輸入框輸入想搜尋的內容。",
@@ -792,6 +1108,84 @@ const CONTENT_I18N = {
     customStarterBuilderNeedDiscussion: "先和 AI 討論一下，再決定要不要建立 skill。",
     customStarterBuilderSaved: "Skill 已建立：{name}",
     customStarterBuilderPromptReady: "已整理好 starter 需求，接著可以送給 AI。",
+    landingPageBuilderTitle: "Landing Page Builder",
+    landingPageBuilderHint: "先分析來源頁面，再從多種帶圖模板中挑一種，最後生成 landing page HTML。",
+    landingPageBuilderSourceLabel: "來源資料",
+    landingPageBuilderSourceCurrent: "目前停留頁面",
+    landingPageBuilderSourceCurrentInclude: "加入參考",
+    landingPageBuilderSourceCurrentExclude: "不加入",
+    landingPageBuilderSourceUrl: "貼上多個網址",
+    landingPageBuilderUrlPlaceholder: "每行一個網址",
+    landingPageBuilderTextLabel: "補充文字",
+    landingPageBuilderTextPlaceholder: "貼上品牌定位、產品重點、文案方向、你想保留的句子...",
+    landingPageBuilderAnalyze: "分析並顯示模板",
+    landingPageBuilderAnalyzing: "分析中...",
+    landingPageBuilderGenerate: "生成 Landing Page",
+    landingPageBuilderGenerating: "生成中...",
+    landingPageBuilderRepairing: "正在修正版面...",
+    landingPageBuilderThemeLabel: "輸出主題",
+    landingPageBuilderThemeDark: "Dark",
+    landingPageBuilderThemeLight: "Light",
+    landingPageBuilderSelectTemplate: "先選一個模板",
+    landingPageBuilderNeedUrl: "請先輸入有效的 HTTP 或 HTTPS 網址。",
+    landingPageBuilderNeedSource: "請至少提供一種來源：目前頁面、多個網址、附加文件、GitHub source、分頁內容或補充文字。",
+    landingPageBuilderNeedAnalysis: "請先分析來源頁面，再選模板。",
+    landingPageBuilderAnalysisReady: "已整理來源頁面並推薦模板。",
+    landingPageBuilderGenerated: "已把 landing page 生成到對話中。",
+    landingPageBuilderResultTitle: "生成結果",
+    landingPageBuilderResultReady: "HTML 已生成完成，現在可以直接在這裡下載。",
+    landingPageBuilderDownloadHtml: "下載 HTML",
+    landingPageBuilderCopyHtml: "複製 HTML",
+    landingPageBuilderCopiedHtml: "已複製 landing page HTML。",
+    landingPageBuilderCloseGeneratingTitle: "Landing Page Builder",
+    landingPageBuilderCloseGeneratingMessage: "關閉這個視窗不會中斷生成中的任務，要先關閉嗎？",
+    landingPageBuilderCloseGeneratingConfirm: "仍然關閉",
+    landingPageBuilderSourceSummaryCurrent: "你可以決定是否把目前停留頁面一起納入，再搭配網址、補充文字與已附加來源一起分析。",
+    landingPageBuilderAttachedSummary: "已附加的文件、Browser Tabs、GitHub Sources 也會一併納入。",
+    landingPageBuilderRecommendedTitle: "推薦模板",
+    landingPageBuilderSelectedTitle: "已選模板",
+    landingPageBuilderAnalysisTitle: "頁面分析",
+    landingPageBuilderWhyFit: "為什麼適合",
+    landingPageBuilderBestFor: "適用情境",
+    landingPageBuilderSectionOutline: "主要區塊",
+    landingPageBuilderVisualTags: "視覺方向",
+    landingPageBuilderNoAnalysis: "先分析頁面後，這裡會出現推薦模板與摘要。",
+    landingPageTemplateProductHero: "Product Hero",
+    landingPageTemplateProductHeroSummary: "清楚介紹產品，主視覺先行。",
+    landingPageTemplateProductHeroRecommendedFor: "單一產品主打頁、新品發表頁、活動主視覺頁",
+    landingPageTemplateProductHeroTechExplainer: "Product Hero / Tech Explainer",
+    landingPageTemplateProductHeroTechExplainerSummary: "用更結構化的方式講懂技術與價值。",
+    landingPageTemplateProductHeroTechExplainerRecommendedFor: "技術規格頁、平台能力頁、硬體與 AI 技術頁",
+    landingPageTemplateSaasConversion: "SaaS Conversion",
+    landingPageTemplateSaasConversionSummary: "以試用、註冊或 demo 轉換為主。",
+    landingPageTemplateSaasConversionRecommendedFor: "SaaS 首頁、B2B 軟體頁、demo / trial 導向頁",
+    landingPageTemplateStoryBrandNarrative: "Story / Brand Narrative",
+    landingPageTemplateStoryBrandNarrativeSummary: "先建立品牌世界觀與情緒，再帶出產品。",
+    landingPageTemplateStoryBrandNarrativeRecommendedFor: "品牌首頁、設計工作室、理念型產品或服務",
+    landingPageTemplateEditorialMagazine: "Editorial / Magazine",
+    landingPageTemplateEditorialMagazineSummary: "用雜誌式編排呈現人物、新聞與深度內容。",
+    landingPageTemplateEditorialMagazineRecommendedFor: "新聞專題、人物報導、內容企劃、媒體型 landing page",
+    landingPageTemplateEventCampaign: "Event / Campaign",
+    landingPageTemplateEventCampaignSummary: "強調時間感、動員感與明確行動呼籲。",
+    landingPageTemplateEventCampaignRecommendedFor: "活動頁、倡議頁、徵才頁、發表與招募頁",
+    landingPageTemplateComparisonBuyerGuide: "Comparison / Buyer Guide",
+    landingPageTemplateComparisonBuyerGuideSummary: "用清楚的比較結構幫使用者做選擇。",
+    landingPageTemplateComparisonBuyerGuideRecommendedFor: "產品比較頁、方案差異頁、選購指南、規格對照頁",
+    landingPageTemplatePortfolioShowcase: "Portfolio / Showcase",
+    landingPageTemplatePortfolioShowcaseSummary: "用大量視覺與作品卡片展現代表成果。",
+    landingPageTemplatePortfolioShowcaseRecommendedFor: "作品集、設計師頁、工作室頁、案例展示頁",
+    landingPageTemplateCaseStudySuccessStory: "Case Study / Success Story",
+    landingPageTemplateCaseStudySuccessStorySummary: "用挑戰、方法與成果證明價值。",
+    landingPageTemplateCaseStudySuccessStoryRecommendedFor: "客戶案例、專案成果、成功故事、before / after 頁面",
+    landingPageTemplateFeatureDeepDive: "Feature Deep Dive",
+    landingPageTemplateFeatureDeepDiveSummary: "聚焦一個功能或能力，講得更深入。",
+    landingPageTemplateFeatureDeepDiveRecommendedFor: "單一功能頁、技術亮點頁、能力介紹頁",
+    landingPageTemplateWaitlistLaunchTeaser: "Waitlist / Launch Teaser",
+    landingPageTemplateWaitlistLaunchTeaserSummary: "用短頁與強視覺為即將上線的產品造勢。",
+    landingPageTemplateWaitlistLaunchTeaserRecommendedFor: "產品預告頁、waitlist 頁、即將上線頁",
+    landingPageTemplateRecruitingCareers: "Recruiting / Careers",
+    landingPageTemplateRecruitingCareersSummary: "以團隊、職缺與使命感吸引人才加入。",
+    landingPageTemplateRecruitingCareersRecommendedFor: "徵才頁、職涯頁、團隊招募頁、人才品牌頁",
     modelSelected: "目前模型：{model}",
     modelSelectFailed: "選擇模型失敗。",
     pageContextModeUpdated: "已更新網頁內容加入模式：{mode}。",
@@ -919,6 +1313,7 @@ const CONTENT_I18N = {
     starter_multiPerspective: "多視角分析",
     starter_imageAnalysis: "看圖整理重點",
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
+    starter_landingPageBuilder: "帶模板生成 Landing Page",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
     starter_qaSourceDistill: "QA · 整理來源",
@@ -934,6 +1329,7 @@ const CONTENT_I18N = {
     pdfAutoScrollNoMovement: "已嘗試自動捲動 PDF，但這個 viewer 沒有接受捲動控制，先以目前已載入的頁面內容繼續整理。",
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
+    landingPageBuilderPrompt: "請先幫我分析這個來源頁面適合哪一種 landing page 模板。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
     reflectionArticlePrompt: "請依照這個網頁內容生成一篇心得文。先簡短整理重點，再用自然、有觀點的語氣寫出閱讀心得、啟發與可延伸思考。請使用{language}輸出，避免只是逐段重述原文。",
@@ -1229,6 +1625,15 @@ const CONTENT_I18N = {
     selectLocalDocuments: "Select Local Documents",
     searchLocalFilesAndFolders: "Search files or folders",
     searchStarters: "Search starters",
+    starterSortLabel: "Sort",
+    starterSortRecommended: "Recommended",
+    starterSortRecentlyUsed: "Recently Used",
+    starterSortAZ: "Name A-Z",
+    starterSortManual: "Manual",
+    starterPin: "Favorite",
+    starterUnpin: "Unfavorite",
+    starterMoveEarlier: "Move earlier",
+    starterMoveLater: "Move later",
     loadingLocalFiles: "Loading local files...",
     noLocalFiles: "This folder does not contain any supported text files.",
     localDocumentSelectionSaved: "Updated local documents.",
@@ -1301,6 +1706,84 @@ const CONTENT_I18N = {
     customStarterBuilderNeedDiscussion: "Discuss it with AI first, then create the skill once it looks right.",
     customStarterBuilderSaved: "Skill created: {name}",
     customStarterBuilderPromptReady: "Starter request prepared. You can send it to AI now.",
+    landingPageBuilderTitle: "Landing Page Builder",
+    landingPageBuilderHint: "Analyze the source page first, then pick from multiple visual templates before generating a landing page HTML draft.",
+    landingPageBuilderSourceLabel: "Source Material",
+    landingPageBuilderSourceCurrent: "Current Page",
+    landingPageBuilderSourceCurrentInclude: "Include",
+    landingPageBuilderSourceCurrentExclude: "Exclude",
+    landingPageBuilderSourceUrl: "Paste Multiple URLs",
+    landingPageBuilderUrlPlaceholder: "One URL per line",
+    landingPageBuilderTextLabel: "Additional Text",
+    landingPageBuilderTextPlaceholder: "Paste brand positioning, product notes, copy direction, or key phrases to preserve...",
+    landingPageBuilderAnalyze: "Analyze And Show Templates",
+    landingPageBuilderAnalyzing: "Analyzing...",
+    landingPageBuilderGenerate: "Generate Landing Page",
+    landingPageBuilderGenerating: "Generating...",
+    landingPageBuilderRepairing: "Repairing layout...",
+    landingPageBuilderThemeLabel: "Output Theme",
+    landingPageBuilderThemeDark: "Dark",
+    landingPageBuilderThemeLight: "Light",
+    landingPageBuilderSelectTemplate: "Pick a template first.",
+    landingPageBuilderNeedUrl: "Enter a valid HTTP or HTTPS URL first.",
+    landingPageBuilderNeedSource: "Provide at least one source: current page, URLs, attached docs, GitHub source, browser tabs, or extra text.",
+    landingPageBuilderNeedAnalysis: "Analyze the source page first, then choose a template.",
+    landingPageBuilderAnalysisReady: "Source page analyzed and templates recommended.",
+    landingPageBuilderGenerated: "The landing page has been added to the chat.",
+    landingPageBuilderResultTitle: "Generated Result",
+    landingPageBuilderResultReady: "The HTML is ready. You can download it directly here.",
+    landingPageBuilderDownloadHtml: "Download HTML",
+    landingPageBuilderCopyHtml: "Copy HTML",
+    landingPageBuilderCopiedHtml: "Copied the landing page HTML.",
+    landingPageBuilderCloseGeneratingTitle: "Landing Page Builder",
+    landingPageBuilderCloseGeneratingMessage: "Closing this window will not interrupt the generation task. Close it anyway?",
+    landingPageBuilderCloseGeneratingConfirm: "Close Anyway",
+    landingPageBuilderSourceSummaryCurrent: "Choose whether to include the current page, then combine it with pasted URLs, extra text, and attached sources for analysis.",
+    landingPageBuilderAttachedSummary: "Attached documents, browser tabs, and GitHub sources will also be included automatically.",
+    landingPageBuilderRecommendedTitle: "Recommended Templates",
+    landingPageBuilderSelectedTitle: "Selected Template",
+    landingPageBuilderAnalysisTitle: "Page Analysis",
+    landingPageBuilderWhyFit: "Why It Fits",
+    landingPageBuilderBestFor: "Best For",
+    landingPageBuilderSectionOutline: "Sections",
+    landingPageBuilderVisualTags: "Visual Direction",
+    landingPageBuilderNoAnalysis: "Analyze the source page first to see recommended templates and a short summary.",
+    landingPageTemplateProductHero: "Product Hero",
+    landingPageTemplateProductHeroSummary: "A clear product intro with the visual up front.",
+    landingPageTemplateProductHeroRecommendedFor: "Single-product pages, launches, and hero-led campaign pages",
+    landingPageTemplateProductHeroTechExplainer: "Product Hero / Tech Explainer",
+    landingPageTemplateProductHeroTechExplainerSummary: "A more structured layout for explaining technology and value.",
+    landingPageTemplateProductHeroTechExplainerRecommendedFor: "Technical product pages, platform explainers, hardware and AI capability pages",
+    landingPageTemplateSaasConversion: "SaaS Conversion",
+    landingPageTemplateSaasConversionSummary: "Built around trial, signup, or demo conversion.",
+    landingPageTemplateSaasConversionRecommendedFor: "SaaS homepages, B2B software pages, and demo / trial funnels",
+    landingPageTemplateStoryBrandNarrative: "Story / Brand Narrative",
+    landingPageTemplateStoryBrandNarrativeSummary: "Lead with brand worldview and emotion before the product.",
+    landingPageTemplateStoryBrandNarrativeRecommendedFor: "Brand homepages, studios, and story-led products or services",
+    landingPageTemplateEditorialMagazine: "Editorial / Magazine",
+    landingPageTemplateEditorialMagazineSummary: "A magazine-style layout for people, stories, and deep content.",
+    landingPageTemplateEditorialMagazineRecommendedFor: "Feature stories, profiles, editorial projects, and media-led landing pages",
+    landingPageTemplateEventCampaign: "Event / Campaign",
+    landingPageTemplateEventCampaignSummary: "Built for urgency, momentum, and action-taking.",
+    landingPageTemplateEventCampaignRecommendedFor: "Events, campaigns, recruiting pages, launches, and initiatives",
+    landingPageTemplateComparisonBuyerGuide: "Comparison / Buyer Guide",
+    landingPageTemplateComparisonBuyerGuideSummary: "A structured comparison layout to help users decide.",
+    landingPageTemplateComparisonBuyerGuideRecommendedFor: "Comparison pages, plan differences, buyer guides, and spec-driven pages",
+    landingPageTemplatePortfolioShowcase: "Portfolio / Showcase",
+    landingPageTemplatePortfolioShowcaseSummary: "A visual-heavy layout for showing standout work and projects.",
+    landingPageTemplatePortfolioShowcaseRecommendedFor: "Portfolios, studios, designers, creators, and showcase pages",
+    landingPageTemplateCaseStudySuccessStory: "Case Study / Success Story",
+    landingPageTemplateCaseStudySuccessStorySummary: "Prove value through challenge, approach, and outcomes.",
+    landingPageTemplateCaseStudySuccessStoryRecommendedFor: "Customer stories, project outcomes, success stories, and before / after pages",
+    landingPageTemplateFeatureDeepDive: "Feature Deep Dive",
+    landingPageTemplateFeatureDeepDiveSummary: "A tighter layout focused on one feature or capability.",
+    landingPageTemplateFeatureDeepDiveRecommendedFor: "Single-feature pages, capability highlights, and focused technical pages",
+    landingPageTemplateWaitlistLaunchTeaser: "Waitlist / Launch Teaser",
+    landingPageTemplateWaitlistLaunchTeaserSummary: "A short, high-energy teaser page for upcoming launches.",
+    landingPageTemplateWaitlistLaunchTeaserRecommendedFor: "Waitlists, launch pages, product teasers, and coming-soon pages",
+    landingPageTemplateRecruitingCareers: "Recruiting / Careers",
+    landingPageTemplateRecruitingCareersSummary: "A recruiting layout centered on roles, mission, and team appeal.",
+    landingPageTemplateRecruitingCareersRecommendedFor: "Hiring pages, careers pages, team recruiting, and employer-brand pages",
     starterReasoningModelReady: "This starter is set to use a deeper-thinking model first: {model}. You can switch back to a quick reply.",
     starterReasoningModelHint: "{starter} will use {model} for deeper analysis by default.",
     starterReasoningModelAction: "Use deeper model",
@@ -1443,6 +1926,7 @@ const CONTENT_I18N = {
     starter_multiPerspective: "Multi-View Answer",
     starter_imageAnalysis: "Analyze Image",
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
+    starter_landingPageBuilder: "Landing Page With Templates",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
     starter_qaSourceDistill: "QA · Distill Source",
@@ -1458,6 +1942,7 @@ const CONTENT_I18N = {
     pdfAutoScrollNoMovement: "Tried to auto-scroll the PDF, but this viewer did not accept scripted scrolling. Continuing with the pages that are currently loaded.",
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
+    landingPageBuilderPrompt: "Please analyze this source page and help me choose the best landing page template first.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
     translationPrompt: "Translate this page into {language}.",
     reflectionArticlePrompt: "Write a reflection article based on this page. Start with a brief recap of the key points, then write thoughtful takeaways, insights, and possible follow-up ideas in a natural voice. Respond in {language}, and do not just restate the page section by section.",
@@ -4887,7 +5372,7 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
+  nextKeys = [...nextKeys, "landingPageBuilder", "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
 
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
 }
@@ -4916,6 +5401,7 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
     ...QA_FLOW_BLOCK_STARTERS,
+    "landingPageBuilder",
     "batchUrlQaWorkflow",
     "createAgentFlow",
     "createCustomStarter",
@@ -5154,6 +5640,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
         && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized)
         && !isQaFlowBlock,
       isRecommended: highlightedKeys.includes(starterKey),
+      isLandingPageBuilder: starterKey === "landingPageBuilder",
       isBatchUrlQaBuilder: starterKey === "batchUrlQaWorkflow",
       isQaFlowBlock,
       isCustomStarterBuilder: starterKey === "createCustomStarter",
@@ -5163,61 +5650,139 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
   });
 }
 
-function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
-  function getStarterPriority(starter) {
-    if (starter.isSuggestedFollowup) {
-      return 0;
-    }
-    if (starter.id === highlightedStarterId) {
-      return 1;
-    }
-    if (starter.isAgentFlowBuilder) {
-      return 2;
-    }
-    if (starter.isBatchUrlQaBuilder) {
-      return 3;
-    }
-    if (starter.isCustomStarterBuilder) {
-      return 4;
-    }
-    if (starter.isAgentFlow) {
-      return 5;
-    }
-    if (starter.isCustomStarter) {
-      return 6;
-    }
-    if (starter.isRecommended) {
-      return 7;
-    }
-    return 8;
-  }
+function normalizeStarterSortMode(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return STARTER_SORT_MODES.includes(normalized) ? normalized : "recommended";
+}
 
+function getStarterSortMode() {
+  return normalizeStarterSortMode(currentConfig?.starterSortMode);
+}
+
+function getStarterPinnedIds() {
+  return (Array.isArray(currentConfig?.starterPinnedIds) ? currentConfig.starterPinnedIds : [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function getStarterManualOrder() {
+  return (Array.isArray(currentConfig?.starterManualOrder) ? currentConfig.starterManualOrder : [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function getStarterLastUsedMap() {
+  const raw = currentConfig?.starterLastUsedAt;
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+function getStarterUsageRank(starterId) {
+  const raw = getStarterLastUsedMap()?.[starterId];
+  const timestamp = typeof raw === "number" ? raw : Date.parse(String(raw || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getStarterPriority(starter) {
+  if (starter.isSuggestedFollowup) {
+    return 0;
+  }
+  if (starter.id === highlightedStarterId) {
+    return 1;
+  }
+  if (starter.isAgentFlowBuilder) {
+    return 2;
+  }
+  if (starter.isLandingPageBuilder) {
+    return 3;
+  }
+  if (starter.isBatchUrlQaBuilder) {
+    return 4;
+  }
+  if (starter.isCustomStarterBuilder) {
+    return 5;
+  }
+  if (starter.isAgentFlow || starter.isCustomStarter) {
+    return 6;
+  }
+  if (starter.isRecommended) {
+    return 7;
+  }
+  return 8;
+}
+
+function compareStarterLabels(left, right) {
+  return String(left?.label || "").localeCompare(String(right?.label || ""), getUiLanguage(), { sensitivity: "base" });
+}
+
+function compareStartersByRecommended(left, right) {
+  const leftPriority = getStarterPriority(left);
+  const rightPriority = getStarterPriority(right);
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+  const leftRank = Number.isFinite(left.recommendationRank) ? left.recommendationRank : 999;
+  const rightRank = Number.isFinite(right.recommendationRank) ? right.recommendationRank : 999;
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
+  }
+  return (left.sortIndex || 0) - (right.sortIndex || 0);
+}
+
+function compareStartersBySortMode(left, right, sortMode = getStarterSortMode()) {
+  if (sortMode === "recently-used") {
+    const usageDiff = getStarterUsageRank(right.id) - getStarterUsageRank(left.id);
+    if (usageDiff !== 0) {
+      return usageDiff;
+    }
+  } else if (sortMode === "a-z") {
+    const labelDiff = compareStarterLabels(left, right);
+    if (labelDiff !== 0) {
+      return labelDiff;
+    }
+  } else if (sortMode === "manual") {
+    const manualOrder = getStarterManualOrder();
+    const leftIndex = manualOrder.indexOf(left.id);
+    const rightIndex = manualOrder.indexOf(right.id);
+    const hasLeft = leftIndex >= 0;
+    const hasRight = rightIndex >= 0;
+    if (hasLeft && hasRight && leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+    if (hasLeft !== hasRight) {
+      return hasLeft ? -1 : 1;
+    }
+  }
+  return compareStartersByRecommended(left, right);
+}
+
+function getActiveStarterEntries(pageCopilot = currentPageCopilot) {
   return [...getLatestAssistantSuggestedStarterEntries(), ...getBuiltinStarterEntries(pageCopilot), ...getCustomStarterEntries(pageCopilot)]
-    .map((starter, index) => ({ ...starter, sortIndex: index }))
-    .sort((left, right) => {
-      const leftPriority = getStarterPriority(left);
-      const rightPriority = getStarterPriority(right);
-      if (leftPriority !== rightPriority) {
-        return leftPriority - rightPriority;
-      }
-      const leftRank = Number.isFinite(left.recommendationRank) ? left.recommendationRank : 999;
-      const rightRank = Number.isFinite(right.recommendationRank) ? right.recommendationRank : 999;
-      if (leftRank !== rightRank) {
-        return leftRank - rightRank;
-      }
-      return left.sortIndex - right.sortIndex;
-    });
+    .map((starter, index) => ({ ...starter, sortIndex: index }));
+}
+
+function getSortedStarterEntries(entries, sortMode = getStarterSortMode()) {
+  const pinnedIds = getStarterPinnedIds();
+  return [...entries].sort((left, right) => {
+    const leftPinned = pinnedIds.includes(left.id);
+    const rightPinned = pinnedIds.includes(right.id);
+    if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1;
+    }
+    return compareStartersBySortMode(left, right, sortMode);
+  });
 }
 
 function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
   const entries = getActiveStarterEntries(pageCopilot).filter((starter) => starter.showInPopup !== false);
   const query = normalizeStarterSearchText(starterSearch);
   if (!query) {
-    return entries;
+    return getSortedStarterEntries(entries);
   }
 
   const queryTerms = query.split(" ").filter(Boolean);
-  return entries.filter((starter) => {
+  return getSortedStarterEntries(entries.filter((starter) => {
     const searchTerms = [
       starter.label,
       starter.description,
@@ -5234,7 +5799,7 @@ function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
       .filter(Boolean)
       .join(" ");
     return queryTerms.every((term) => searchTerms.includes(term));
-  });
+  }));
 }
 
 function normalizeStarterSearchText(value) {
@@ -6660,6 +7225,10 @@ function getStarterPrompt(starterKey) {
     return tl("landingHtmlPrompt", { language: getTargetLanguageLabel() });
   }
 
+  if (starterKey === "landingPageBuilder") {
+    return tl("landingPageBuilderPrompt");
+  }
+
   if (starterKey === "createCustomStarter") {
     return tl("createCustomStarterPrompt");
   }
@@ -6893,6 +7462,430 @@ function createDefaultAgentFlowBuilderDraft() {
   };
 }
 
+function getLandingPageTemplateById(templateId) {
+  return LANDING_PAGE_TEMPLATE_CATALOG.find((item) => item.id === templateId) || null;
+}
+
+function getLocalizedLandingPageTemplateCatalog() {
+  return LANDING_PAGE_TEMPLATE_CATALOG.map((item) => ({
+    ...item,
+    label: tl(item.labelKey),
+    oneLineSummary: tl(item.summaryKey),
+    recommendedFor: tl(item.recommendedForKey),
+  }));
+}
+
+function createDefaultLandingPageBuilderDraft() {
+  return {
+    includeCurrentPage: true,
+    urlsText: "",
+    extraText: "",
+    themePreference: "dark",
+    sourceBundle: null,
+    analysisSummary: "",
+    audienceSummary: "",
+    valueProps: [],
+    recommendedTemplateIds: [],
+    selectedTemplateId: "",
+    templateReason: "",
+    isAnalyzing: false,
+    isGenerating: false,
+    generatedHtml: "",
+    generatedFileName: "",
+    generatedTemplateId: "",
+  };
+}
+
+function normalizeLandingPageBuilderUrl(value) {
+  const normalized = String(value || "").trim();
+  return /^https?:\/\//i.test(normalized) ? normalized : "";
+}
+
+function parseLandingPageBuilderUrls(value) {
+  return String(value || "")
+    .split(/\r?\n|[\t ,]+/)
+    .map((item) => normalizeLandingPageBuilderUrl(item))
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .slice(0, 6);
+}
+
+function resetLandingPageBuilderState() {
+  landingPageBuilderDraft = createDefaultLandingPageBuilderDraft();
+}
+
+function ensureLandingPageBuilderDraft() {
+  if (!landingPageBuilderDraft || typeof landingPageBuilderDraft !== "object") {
+    landingPageBuilderDraft = createDefaultLandingPageBuilderDraft();
+  }
+  if (!Array.isArray(landingPageBuilderDraft.recommendedTemplateIds)) {
+    landingPageBuilderDraft.recommendedTemplateIds = [];
+  }
+  if (!Array.isArray(landingPageBuilderDraft.valueProps)) {
+    landingPageBuilderDraft.valueProps = [];
+  }
+  landingPageBuilderDraft.themePreference = landingPageBuilderDraft.themePreference === "light" ? "light" : "dark";
+  landingPageBuilderDraft.generatedHtml = String(landingPageBuilderDraft.generatedHtml || "");
+  landingPageBuilderDraft.generatedFileName = String(landingPageBuilderDraft.generatedFileName || "");
+  landingPageBuilderDraft.generatedTemplateId = String(landingPageBuilderDraft.generatedTemplateId || "");
+  return landingPageBuilderDraft;
+}
+
+function clearLandingPageBuilderGeneratedResult(draft = ensureLandingPageBuilderDraft()) {
+  draft.generatedHtml = "";
+  draft.generatedFileName = "";
+  draft.generatedTemplateId = "";
+}
+
+function buildLandingPageBuilderHtmlFilename(draft, template) {
+  const sourceTitle = String(
+    draft?.sourceBundle?.currentPageContext?.title
+    || draft?.sourceBundle?.urlContexts?.[0]?.title
+    || template?.label
+    || "landing-page"
+  ).trim();
+  return `${timestampForFile(new Date())}-${sanitizeFileSegment(sourceTitle, "landing-page")}.html`;
+}
+
+function collectImageCandidatesFromLandingPageSourceBundle(sourceBundle) {
+  const merged = [];
+  const seen = new Set();
+  const contexts = [
+    ...(sourceBundle?.currentPageContext ? [sourceBundle.currentPageContext] : []),
+    ...(Array.isArray(sourceBundle?.urlContexts) ? sourceBundle.urlContexts : []),
+  ];
+  contexts.forEach((context) => {
+    (Array.isArray(context?.imageCandidates) ? context.imageCandidates : []).forEach((item) => {
+      const src = String(item?.src || "").trim();
+      if (!src) {
+        return;
+      }
+      const key = src.toLowerCase();
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      merged.push({
+        src,
+        alt: String(item?.alt || "").trim(),
+      });
+    });
+  });
+  return merged.slice(0, 8);
+}
+
+function renderLandingPageContextBlock(context, title = "SOURCE PAGE CONTEXT") {
+  if (!context) {
+    return "";
+  }
+  return [
+    title,
+    `Title: ${String(context.title || "").trim()}`,
+    `URL: ${String(context.url || "").trim()}`,
+    context.metaDescription ? `Description: ${String(context.metaDescription).trim()}` : "",
+    context.headings ? `Headings: ${String(context.headings).trim()}` : "",
+    context.pageText ? `Visible page text:\n${String(context.pageText).trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function renderLandingPageSourceBundleBlock(sourceBundle) {
+  if (!sourceBundle) {
+    return "";
+  }
+  return [
+    sourceBundle.currentPageContext ? renderLandingPageContextBlock(sourceBundle.currentPageContext, "CURRENT PAGE SOURCE") : "",
+    ...(Array.isArray(sourceBundle.urlContexts) ? sourceBundle.urlContexts.map((context, index) => renderLandingPageContextBlock(context, `URL SOURCE ${index + 1}`)) : []),
+    sourceBundle.extraText
+      ? [
+          "USER-PROVIDED TEXT SOURCE",
+          String(sourceBundle.extraText || "").trim(),
+        ].join("\n\n")
+      : "",
+    sourceBundle.attachedDocumentsContext ? wrapUntrustedPromptSection("attached documents", sourceBundle.attachedDocumentsContext) : "",
+    sourceBundle.browserTabsContext ? wrapUntrustedPromptSection("browser tab context", sourceBundle.browserTabsContext) : "",
+    sourceBundle.githubContext ? wrapUntrustedPromptSection("github source context", sourceBundle.githubContext) : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
+
+function parseStructuredJsonResponse(text) {
+  const rawText = String(text || "").trim();
+  if (!rawText) {
+    return null;
+  }
+  const candidates = collectLikelyJsonCandidates(rawText);
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (_error) {
+      // Try the next candidate.
+    }
+  }
+  return null;
+}
+
+function inferLandingPageTemplateIdsFromContext(context) {
+  const sample = [
+    String(context?.title || ""),
+    String(context?.metaDescription || ""),
+    String(context?.headings || ""),
+    String(context?.pageText || "").slice(0, 5000),
+  ]
+    .join("\n")
+    .toLowerCase();
+
+  const hasSaasSignals = /(demo|request a demo|start free|start for free|try for free|free trial|book a demo|pricing|sign up|signup|roi|customer story|trusted by)/.test(sample);
+  const hasTechSignals = /(wifi|throughput|latency|protocol|technology|technical|architecture|spec|specification|comparison|faq|network|router|platform|infrastructure|ai model|bandwidth)/.test(sample);
+  const hasStorySignals = /(our story|our mission|our values|philosophy|craft|shareholder|activism|about us|about\b|brand|commitment|worldview)/.test(sample);
+  const hasEditorialSignals = /(cnn|interview|story|feature|editorial|profile|magazine|reported|reporting|newsroom|headline|人物|專題|专题|報導|报道|故事|新聞|新闻|採訪|采访)/.test(sample);
+  const hasEventSignals = /(register|join us|apply now|deadline|countdown|event|campaign|summit|launch|initiative|sign up now|reserve your spot|徵才|招募|活動|活动|報名|报名|加入我們|加入我们|截止)/.test(sample);
+  const hasComparisonSignals = /(vs\\.?|versus|compare|comparison|buyer.?s guide|choose|which one|plan|tier|方案|比較|比较|選購|选购|差異|差异)/.test(sample);
+  const hasPortfolioSignals = /(portfolio|gallery|showcase|selected work|featured work|behance|dribbble|case collection|作品集|案例集|展示|精選作品|精选作品)/.test(sample);
+  const hasCaseStudySignals = /(case study|success story|before and after|outcome|results|challenge|solution|implementation|customer story|成果|案例|成效|導入|导入|挑戰|挑战)/.test(sample);
+  const hasFeatureDeepDiveSignals = /(deep dive|feature|how it works|capability|module|workflow|engine|single feature|功能|特性|能力|運作方式|运作方式)/.test(sample);
+  const hasWaitlistSignals = /(waitlist|coming soon|coming-soon|join the list|early access|be first|notify me|prelaunch|預告|即將上線|即将上线|搶先|抢先|候補|预约)/.test(sample);
+  const hasCareersSignals = /(careers|career|jobs|hiring|open roles|apply|team|join the team|work with us|職缺|徵才|招募|加入團隊|加入团队|職涯|职业)/.test(sample);
+
+  if (hasPortfolioSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    ];
+  }
+
+  if (hasCaseStudySignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    ];
+  }
+
+  if (hasWaitlistSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    ];
+  }
+
+  if (hasCareersSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    ];
+  }
+
+  if (hasFeatureDeepDiveSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  if (hasEditorialSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  if (hasEventSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+    ];
+  }
+
+  if (hasComparisonSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  if (hasSaasSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  if (hasTechSignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  if (hasStorySignals) {
+    return [
+      LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+      LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+      LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+      LANDING_PAGE_TEMPLATE_IDS.productHero,
+      LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+      LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+      LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+      LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+      LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+      LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+      LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+      LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+    ];
+  }
+
+  return [
+    LANDING_PAGE_TEMPLATE_IDS.productHero,
+    LANDING_PAGE_TEMPLATE_IDS.editorialMagazine,
+    LANDING_PAGE_TEMPLATE_IDS.saasConversion,
+    LANDING_PAGE_TEMPLATE_IDS.productHeroTechExplainer,
+    LANDING_PAGE_TEMPLATE_IDS.storyBrandNarrative,
+    LANDING_PAGE_TEMPLATE_IDS.eventCampaign,
+    LANDING_PAGE_TEMPLATE_IDS.comparisonBuyerGuide,
+    LANDING_PAGE_TEMPLATE_IDS.portfolioShowcase,
+    LANDING_PAGE_TEMPLATE_IDS.caseStudySuccessStory,
+    LANDING_PAGE_TEMPLATE_IDS.featureDeepDive,
+    LANDING_PAGE_TEMPLATE_IDS.waitlistLaunchTeaser,
+    LANDING_PAGE_TEMPLATE_IDS.recruitingCareers,
+  ];
+}
+
+function normalizeLandingPageAnalysisResult(result, context) {
+  const sampleText = typeof context === "string"
+    ? context
+    : [
+        String(context?.title || ""),
+        String(context?.metaDescription || ""),
+        String(context?.headings || ""),
+        String(context?.pageText || "").slice(0, 5000),
+      ].join("\n");
+  const recommendedTemplateIds = (Array.isArray(result?.recommendedTemplateIds) ? result.recommendedTemplateIds : [])
+    .map((item) => String(item || "").trim())
+    .filter((item) => LANDING_PAGE_TEMPLATE_CATALOG.some((template) => template.id === item))
+    .filter((item, index, list) => list.indexOf(item) === index);
+  const fallbackTemplateIds = inferLandingPageTemplateIdsFromContext({ pageText: sampleText });
+  const mergedTemplateIds = [
+    ...(recommendedTemplateIds.length ? recommendedTemplateIds : fallbackTemplateIds),
+    ...fallbackTemplateIds,
+  ].filter((item, index, list) => list.indexOf(item) === index).slice(0, 4);
+
+  return {
+    analysisSummary: String(result?.analysisSummary || result?.summary || "").trim()
+      || (typeof context === "string" ? context.slice(0, 240).trim() : String(context?.metaDescription || "").trim())
+      || String(context?.title || "").trim(),
+    audienceSummary: String(result?.audienceSummary || result?.audience || "").trim(),
+    valueProps: (Array.isArray(result?.valueProps) ? result.valueProps : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 4),
+    recommendedTemplateIds: mergedTemplateIds,
+    selectedTemplateId: String(result?.selectedTemplateId || mergedTemplateIds[0] || "").trim(),
+    templateReason: String(result?.templateReason || result?.whyRecommended || "").trim(),
+  };
+}
+
 function normalizeBatchUrlQaOutputFormat(value) {
   return value === BATCH_URL_QA_OUTPUT_FORMATS.txt
     ? BATCH_URL_QA_OUTPUT_FORMATS.txt
@@ -6982,6 +7975,283 @@ function resetAgentFlowBuilderState() {
 function resetBatchUrlQaBuilderState() {
   batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
   batchUrlQaActiveJob = null;
+}
+
+function buildLandingPageAnalysisPrompt(sourceBundle) {
+  const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
+  return [
+    `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+    "You are analyzing multi-source material so the user can choose a landing page template before generation.",
+    "Reply with one JSON object only.",
+    "Do not wrap the response in Markdown code fences.",
+    "Schema:",
+    '{"analysisSummary":"...","audienceSummary":"...","valueProps":["..."],"recommendedTemplateIds":["product-hero","product-hero-tech-explainer","saas-conversion","story-brand-narrative","editorial-magazine","event-campaign","comparison-buyer-guide","portfolio-showcase","case-study-success-story","feature-deep-dive","waitlist-launch-teaser","recruiting-careers"],"templateReason":"..."}',
+    "Rules:",
+    "1. Pick 2 to 4 recommendedTemplateIds and order them by best fit.",
+    "2. Stay grounded in the provided page context only.",
+    "3. `analysisSummary` should be 2 to 4 sentences.",
+    "4. `audienceSummary` should be one concise sentence.",
+    "5. `valueProps` should contain 2 to 4 short bullets.",
+    "6. `templateReason` should briefly explain why the top template fits this page.",
+    "7. Use only these template ids: product-hero, product-hero-tech-explainer, saas-conversion, story-brand-narrative, editorial-magazine, event-campaign, comparison-buyer-guide, portfolio-showcase, case-study-success-story, feature-deep-dive, waitlist-launch-teaser, recruiting-careers.",
+    contextBlock,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildLandingPageGenerationPrompt(sourceBundle, template, analysis) {
+  const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
+  const imageCandidates = collectImageCandidatesFromLandingPageSourceBundle(sourceBundle);
+  const preferredTheme = analysis?.themePreference === "light" ? "light" : "dark";
+  return [
+    `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+    "Generate a complete landing page as one HTML document.",
+    "Reply with one complete ```html``` code block only.",
+    "Do not add explanation before or after the code block.",
+    "The page must feel intentionally designed, not like a generic wireframe.",
+    "Use strong typography, layered backgrounds, and clear section hierarchy.",
+    "Preserve factual fidelity to the provided source context. Do not invent facts, metrics, integrations, or customer quotes.",
+    "Template selection is mandatory. Follow the selected template structure closely.",
+    `SELECTED TEMPLATE ID: ${template.id}`,
+    `SELECTED TEMPLATE LABEL: ${template.label}`,
+    `ONE-LINE TEMPLATE SUMMARY: ${template.oneLineSummary}`,
+    `SECTION OUTLINE: ${template.sectionOutline.join(" -> ")}`,
+    `PREFERRED VISUAL THEME: ${preferredTheme}`,
+    analysis?.analysisSummary ? `SOURCE ANALYSIS SUMMARY: ${analysis.analysisSummary}` : "",
+    analysis?.audienceSummary ? `TARGET AUDIENCE SUMMARY: ${analysis.audienceSummary}` : "",
+    Array.isArray(analysis?.valueProps) && analysis.valueProps.length
+      ? `VALUE PROPS:\n- ${analysis.valueProps.join("\n- ")}`
+      : "",
+    analysis?.templateReason ? `WHY THIS TEMPLATE FITS:\n${analysis.templateReason}` : "",
+    imageCandidates.length
+      ? `IMAGE CANDIDATES:\n${imageCandidates.slice(0, 8).map((item, index) => `${index + 1}. ${(item.alt || "").trim()} | ${(item.src || "").trim()}`).join("\n")}`
+      : "IMAGE CANDIDATES:\n(none available)",
+    "Requirements:",
+    "1. Output a full HTML document with inline CSS.",
+    "2. Build a responsive one-page layout that works on desktop and mobile.",
+    "3. Match the chosen template's section rhythm and information density.",
+    preferredTheme === "light"
+      ? "4. Use a light visual theme: bright surface backgrounds, dark readable text, and restrained accents."
+      : "4. Use a dark visual theme: deep backgrounds, high readability, and luminous accents without muddy contrast.",
+    "5. Make the page visually rich. Hero sections should include a strong visual area, and at least one additional section should include supporting media or an image-led composition.",
+    "6. If source images are available, use multiple of them where appropriate in <img src> or as background-image values. Do not rely on a single tiny image for the whole page.",
+    "7. If source images are limited, create image-forward compositions with large media frames, layered panels, badges, cards, diagrams, crops, or editorial figure blocks instead of empty placeholders.",
+    "8. Keep copy tight and landing-page oriented rather than article-like. Rewrite long source text into shorter headlines, decks, bullets, and captions.",
+    "9. Guard against layout breakage: long Chinese or English headlines must wrap cleanly, buttons must never overlap body copy, and CTA groups must stack or wrap on narrow widths.",
+    "10. Use resilient CSS: clamp() for large type where useful, max-width on text blocks, overflow-wrap:anywhere or word-break where needed, flex-wrap on button groups, and enough spacing between text and actions.",
+    "11. Do not position floating CTA buttons on top of paragraphs or headings unless there is a clearly reserved container area for them.",
+    "12. Every section should feel intentionally composed, with enough whitespace and visual hierarchy to avoid crowded text walls.",
+    "13. Use clear CTA treatment that matches the page type, but do not invent signup URLs or product names not grounded in the source.",
+    contextBlock,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildLandingPageRepairPrompt(sourceBundle, template, analysis, html) {
+  const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
+  const preferredTheme = analysis?.themePreference === "light" ? "light" : "dark";
+  return [
+    `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+    "You are repairing an already generated landing page HTML document.",
+    "Reply with one complete ```html``` code block only.",
+    "Do not add explanation before or after the code block.",
+    "Keep the same overall concept, factual content, and visual intent, but fix layout risks aggressively.",
+    `SELECTED TEMPLATE ID: ${template.id}`,
+    `SELECTED TEMPLATE LABEL: ${template.label}`,
+    `PREFERRED VISUAL THEME: ${preferredTheme}`,
+    "Primary repair goals:",
+    "1. Prevent oversized headlines from being clipped, cropped, or running underneath images.",
+    "2. Prevent any CTA button, badge, chip, or floating card from covering paragraphs or headings.",
+    "3. Ensure hero text and hero media each have dedicated space instead of overlapping.",
+    "4. Shorten overly long decks, eyebrow lines, and supporting copy when needed.",
+    "5. Add safer CSS for wrapping, max-width, grid sizing, and stacked mobile layouts.",
+    "6. If a side-by-side hero is too tight, reduce headline size, limit line length, or switch the hero to a taller stacked layout.",
+    "7. Avoid absolute positioning for important text and CTAs unless there is guaranteed safe empty space.",
+    "8. Preserve or improve image density without sacrificing readability.",
+    "Return repaired HTML only.",
+    contextBlock,
+    "CURRENT HTML TO REPAIR:",
+    String(html || "").trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function hasLandingPageBuilderProvidedSources(draft) {
+  const urls = parseLandingPageBuilderUrls(draft.urlsText);
+  return Boolean(
+    draft.includeCurrentPage
+    || urls.length
+    || String(draft.extraText || "").trim()
+    || attachedDocuments.length
+    || attachedBrowserTabs.length
+    || includedGithubSources.length
+  );
+}
+
+async function loadLandingPageBuilderSourceContext(draft) {
+  if (!hasLandingPageBuilderProvidedSources(draft)) {
+    throw new Error(tl("landingPageBuilderNeedSource"));
+  }
+
+  const urlContexts = [];
+  const urls = parseLandingPageBuilderUrls(draft.urlsText);
+  for (const url of urls) {
+    const result = await runtimeMessage({ type: "landing-page:get-url-context", url });
+    if (!result?.ok || !result.context) {
+      throw new Error(result?.error || tl("streamingFailed"));
+    }
+    urlContexts.push(result.context);
+  }
+
+  return {
+    currentPageContext: draft.includeCurrentPage ? await getAggregatedPageContext({}) : null,
+    urlContexts,
+    extraText: String(draft.extraText || "").trim(),
+    attachedDocumentsContext: getAttachedDocumentsContext(),
+    browserTabsContext: attachedBrowserTabs.map((item) => summarizeBrowserTabContext(item)).filter(Boolean).join("\n\n---\n\n"),
+    githubContext: await getSelectedGithubContext(),
+  };
+}
+
+async function analyzeLandingPageBuilderSource() {
+  const draft = ensureLandingPageBuilderDraft();
+  const model = resolveUsableModelForTask({
+    userMessage: tl("landingPageBuilderPrompt"),
+  });
+  if (!model) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
+
+  draft.isAnalyzing = true;
+  draft.sourceBundle = null;
+  draft.analysisSummary = "";
+  draft.audienceSummary = "";
+  draft.valueProps = [];
+  draft.recommendedTemplateIds = [];
+  draft.selectedTemplateId = "";
+  draft.templateReason = "";
+  clearLandingPageBuilderGeneratedResult(draft);
+  renderShell();
+  setStatus(tl("landingPageBuilderAnalyzing"));
+
+  try {
+    const sourceBundle = await loadLandingPageBuilderSourceContext(draft);
+    const response = await runGenerate(buildLandingPageAnalysisPrompt(sourceBundle), model);
+    const parsed = parseStructuredJsonResponse(response) || {};
+    const normalized = normalizeLandingPageAnalysisResult(parsed, renderLandingPageSourceBundleBlock(sourceBundle));
+    draft.sourceBundle = sourceBundle;
+    draft.analysisSummary = normalized.analysisSummary;
+    draft.audienceSummary = normalized.audienceSummary;
+    draft.valueProps = normalized.valueProps;
+    draft.recommendedTemplateIds = normalized.recommendedTemplateIds;
+    draft.selectedTemplateId = normalized.selectedTemplateId;
+    draft.templateReason = normalized.templateReason;
+    setStatus(tl("landingPageBuilderAnalysisReady"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error));
+  } finally {
+    draft.isAnalyzing = false;
+    renderShell();
+  }
+}
+
+async function generateLandingPageFromBuilder() {
+  const draft = ensureLandingPageBuilderDraft();
+  if (!draft.sourceBundle || !draft.recommendedTemplateIds.length) {
+    setStatus(tl("landingPageBuilderNeedAnalysis"));
+    return;
+  }
+  const template = getLocalizedLandingPageTemplateCatalog().find((item) => item.id === draft.selectedTemplateId) || null;
+  if (!template) {
+    setStatus(tl("landingPageBuilderSelectTemplate"));
+    return;
+  }
+
+  const model = resolveUsableModelForTask({
+    userMessage: tl("starter_landingPageBuilder"),
+  });
+  if (!model) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
+
+  draft.isGenerating = true;
+  clearLandingPageBuilderGeneratedResult(draft);
+  renderShell();
+  setStatus(tl("landingPageBuilderGenerating"));
+
+  try {
+    const response = await runGenerate(buildLandingPageGenerationPrompt(draft.sourceBundle, template, draft), model);
+    let html = extractHtmlDocumentFromText(response);
+    if (!html) {
+      throw new Error(tl("noHtmlToExport"));
+    }
+    setStatus(tl("landingPageBuilderRepairing"));
+    const repairedResponse = await runGenerate(buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html), model);
+    const repairedHtml = extractHtmlDocumentFromText(repairedResponse);
+    if (repairedHtml) {
+      html = repairedHtml;
+    }
+    html = await repairHtmlImagesForDownload(html);
+    draft.generatedHtml = html;
+    draft.generatedFileName = buildLandingPageBuilderHtmlFilename(draft, template);
+    draft.generatedTemplateId = template.id;
+    chatMessages.push({
+      id: Date.now(),
+      role: "user",
+      content: `${tl("starter_landingPageBuilder")} · ${template.label}`,
+    });
+    chatMessages.push({
+      id: Date.now() + 1,
+      role: "assistant",
+      content: String(response || "").trim(),
+    });
+    draft.isGenerating = false;
+    renderShell();
+    renderMessages();
+    scheduleConversationSave();
+    setStatus(tl("landingPageBuilderGenerated"));
+  } catch (error) {
+    draft.isGenerating = false;
+    renderShell();
+    setStatus(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function downloadLandingPageBuilderHtml() {
+  const draft = ensureLandingPageBuilderDraft();
+  if (!draft.generatedHtml) {
+    setStatus(tl("noHtmlToExport"));
+    return;
+  }
+  const filename = draft.generatedFileName || buildLandingPageBuilderHtmlFilename(
+    draft,
+    getLocalizedLandingPageTemplateCatalog().find((item) => item.id === draft.generatedTemplateId)
+  );
+  draft.generatedFileName = filename;
+  downloadTextBlob(filename, draft.generatedHtml, "text/html;charset=utf-8");
+  setStatus(tl("htmlDownloaded", { file: filename }));
+}
+
+async function copyLandingPageBuilderHtml() {
+  const draft = ensureLandingPageBuilderDraft();
+  if (!draft.generatedHtml) {
+    setStatus(tl("noHtmlToExport"));
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(draft.generatedHtml);
+    setStatus(tl("landingPageBuilderCopiedHtml"));
+  } catch (_error) {
+    setStatus(tl("copyFailed"));
+  }
 }
 
 function ensureCustomStarterBuilderDraft() {
@@ -7080,7 +8350,7 @@ function normalizeAgentFlowOutputStepIds(value, steps = []) {
 }
 
 function getFlowBaseStarterEntries(pageCopilot = currentPageCopilot) {
-  return getActiveStarterEntries(pageCopilot).filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder && !starter.isAgentFlow);
+  return getActiveStarterEntries(pageCopilot).filter((starter) => !starter.isCustomStarterBuilder && !starter.isLandingPageBuilder && !starter.isAgentFlowBuilder && !starter.isAgentFlow);
 }
 
 function getFlowStarterStepLabel(step, pageCopilot = currentPageCopilot) {
@@ -8210,6 +9480,7 @@ function openCustomStarterBuilderFromFollowup(actionLabel) {
   customStarterBuilderOpen = true;
   agentFlowBuilderOpen = false;
   batchUrlQaBuilderOpen = false;
+  landingPageBuilderOpen = false;
   includePickerOpen = false;
   localDocumentPickerOpen = false;
   browserTabPickerOpen = false;
@@ -11034,7 +12305,7 @@ function renderShell() {
   const activeStarterEntries = getFilteredActiveStarterEntries(currentPageCopilot);
   const visibleStarterEntries = isPanelMaximized
     ? activeStarterEntries
-    : activeStarterEntries.filter((starter) => !starter.isCustomStarterBuilder && !starter.isAgentFlowBuilder);
+    : activeStarterEntries.filter((starter) => !starter.isAgentFlowBuilder);
   const starterHoverTipsEnabled = currentConfig?.starterHoverTipsEnabled !== false;
   const teamsInlineActionEnabled = currentConfig?.teamsInlineActionEnabled !== false;
   const pageContextControlLabel = hasConversationStarted() ? tl("contextLabelAfter") : tl("contextLabelBefore");
@@ -11233,6 +12504,7 @@ function renderShell() {
                   starter.isSuggestedFollowup ? "is-suggested-followup" : "",
                   starter.isCustomStarter ? "is-custom" : "",
                   starter.isCustomStarterBuilder ? "is-custom-builder" : "",
+                  starter.isLandingPageBuilder ? "is-agent-flow-builder" : "",
                   starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
                   starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
                   starter.isAgentFlow ? "is-agent-flow" : "",
@@ -11240,7 +12512,7 @@ function renderShell() {
                 ].filter(Boolean).join(" ");
                 const prefix = starter.isRecommended
                   ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
-                  : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder
+                  : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder || starter.isLandingPageBuilder
                     ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
                   : starter.isCustomStarter || starter.isCustomStarterBuilder
                     ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
@@ -11262,6 +12534,7 @@ function renderShell() {
       ${showGithubIncludePanel ? renderIncludePicker() : ""}
       ${renderBrowserTabPicker()}
       ${renderLocalDocumentPicker()}
+      ${renderLandingPageBuilder()}
       ${renderCustomStarterBuilder()}
       ${renderAgentFlowBuilder()}
       ${renderBatchUrlQaBuilder()}
@@ -11313,6 +12586,15 @@ function renderShell() {
     if (discussion instanceof HTMLElement) {
       window.requestAnimationFrame(() => {
         discussion.scrollTop = discussion.scrollHeight;
+      });
+    }
+  }
+
+  if (landingPageBuilderOpen) {
+    const urlField = host.querySelector('[data-role="landing-page-urls"]');
+    if (urlField instanceof HTMLTextAreaElement) {
+      window.requestAnimationFrame(() => {
+        urlField.focus();
       });
     }
   }
@@ -11649,6 +12931,169 @@ function renderBrowserTabPicker() {
           <div class="ollama-quick-picker-selection-count">${escapeHtml(tl("selectedCount", { count: browserTabSelections.length }))}</div>
           <button class="ollama-quick-secondary" type="button" data-action="close-browser-tab-picker">${escapeHtml(tl("cancelSelection"))}</button>
           <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="browser-tab-apply-selection">${escapeHtml(tl("addSelection"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderLandingPageBuilder() {
+  if (!landingPageBuilderOpen) {
+    return "";
+  }
+
+  const draft = ensureLandingPageBuilderDraft();
+  const templates = getLocalizedLandingPageTemplateCatalog();
+  const recommendedIds = draft.recommendedTemplateIds.length
+    ? draft.recommendedTemplateIds
+    : templates.map((item) => item.id);
+  const selectedTemplate = templates.find((item) => item.id === draft.selectedTemplateId)
+    || templates.find((item) => item.id === recommendedIds[0])
+    || templates[0];
+
+  const cards = recommendedIds
+    .map((templateId) => templates.find((item) => item.id === templateId))
+    .filter(Boolean)
+    .map((template) => {
+      const isSelected = selectedTemplate?.id === template.id;
+      return `
+        <button class="ollama-quick-landing-page-template-card ${isSelected ? "is-selected" : ""}" type="button" data-action="select-landing-page-template" data-template-id="${escapeHtml(template.id)}">
+          <img class="ollama-quick-landing-page-template-image" src="${template.previewImage}" alt="${escapeHtml(template.label)}" />
+          <span class="ollama-quick-landing-page-template-copy">
+            <span class="ollama-quick-landing-page-template-title">${escapeHtml(template.label)}</span>
+            <span class="ollama-quick-landing-page-template-summary">${escapeHtml(template.oneLineSummary)}</span>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
+
+  const valuePropItems = draft.valueProps.length
+    ? `<ul class="ollama-quick-landing-page-analysis-list">${draft.valueProps.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : "";
+  const visualTags = Array.isArray(selectedTemplate?.visualTags) ? selectedTemplate.visualTags : [];
+  const hasGeneratedHtml = Boolean(draft.generatedHtml);
+  const attachedSummaryParts = [];
+  if (attachedDocuments.length) {
+    attachedSummaryParts.push(`${attachedDocuments.length} ${tl("attachedFileLabel")}`);
+  }
+  if (attachedBrowserTabs.length) {
+    attachedSummaryParts.push(`${attachedBrowserTabs.length} tabs`);
+  }
+  if (includedGithubSources.length) {
+    attachedSummaryParts.push(`${includedGithubSources.length} GitHub`);
+  }
+  const attachedSummary = attachedSummaryParts.length ? attachedSummaryParts.join(" · ") : "";
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-landing-page-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("landingPageBuilderTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("landingPageBuilderHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-landing-page-builder" aria-label="${escapeHtml(tl("cancelSelection"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form ollama-quick-landing-page-form">
+          <div class="ollama-quick-landing-page-source-grid">
+            <div class="ollama-quick-custom-starter-field">
+              <span>${escapeHtml(tl("landingPageBuilderSourceLabel"))}</span>
+              <div class="ollama-quick-landing-page-source-toggle is-stack">
+                <span class="ollama-quick-landing-page-toggle-label">${escapeHtml(tl("landingPageBuilderSourceCurrent"))}</span>
+                <button class="ollama-quick-secondary ${draft.includeCurrentPage ? "is-active" : ""}" type="button" data-action="set-landing-page-current-page" data-include-current-page="true">${escapeHtml(tl("landingPageBuilderSourceCurrentInclude"))}</button>
+                <button class="ollama-quick-secondary ${draft.includeCurrentPage ? "" : "is-active"}" type="button" data-action="set-landing-page-current-page" data-include-current-page="false">${escapeHtml(tl("landingPageBuilderSourceCurrentExclude"))}</button>
+              </div>
+              <label class="ollama-quick-custom-starter-field">
+                <span>${escapeHtml(tl("landingPageBuilderSourceUrl"))}</span>
+                <textarea class="ollama-quick-custom-starter-textarea ollama-quick-landing-page-textarea" data-role="landing-page-urls" placeholder="${escapeHtml(tl("landingPageBuilderUrlPlaceholder"))}">${escapeHtml(draft.urlsText)}</textarea>
+              </label>
+              <label class="ollama-quick-custom-starter-field">
+                <span>${escapeHtml(tl("landingPageBuilderTextLabel"))}</span>
+                <textarea class="ollama-quick-custom-starter-textarea ollama-quick-landing-page-textarea is-notes" data-role="landing-page-text" placeholder="${escapeHtml(tl("landingPageBuilderTextPlaceholder"))}">${escapeHtml(draft.extraText)}</textarea>
+              </label>
+              <label class="ollama-quick-custom-starter-field">
+                <span>${escapeHtml(tl("landingPageBuilderThemeLabel"))}</span>
+                <div class="ollama-quick-landing-page-theme-toggle">
+                  <button class="ollama-quick-secondary ${draft.themePreference === "dark" ? "is-active" : ""}" type="button" data-action="set-landing-page-theme" data-theme-preference="dark">${escapeHtml(tl("landingPageBuilderThemeDark"))}</button>
+                  <button class="ollama-quick-secondary ${draft.themePreference === "light" ? "is-active" : ""}" type="button" data-action="set-landing-page-theme" data-theme-preference="light">${escapeHtml(tl("landingPageBuilderThemeLight"))}</button>
+                </div>
+              </label>
+              <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("landingPageBuilderSourceSummaryCurrent"))}</div>
+              <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("landingPageBuilderAttachedSummary"))}${attachedSummary ? ` ${escapeHtml(attachedSummary)}` : ""}</div>
+            </div>
+            <div class="ollama-quick-landing-page-analysis-surface">
+              <div class="ollama-quick-landing-page-analysis-title">${escapeHtml(tl("landingPageBuilderAnalysisTitle"))}</div>
+              ${draft.analysisSummary
+                ? `
+                  <div class="ollama-quick-landing-page-analysis-copy">${escapeHtml(draft.analysisSummary)}</div>
+                  ${draft.audienceSummary ? `<div class="ollama-quick-landing-page-analysis-audience">${escapeHtml(draft.audienceSummary)}</div>` : ""}
+                  ${valuePropItems}
+                `
+                : `<div class="ollama-quick-github-empty">${escapeHtml(tl("landingPageBuilderNoAnalysis"))}</div>`
+              }
+            </div>
+          </div>
+          <div class="ollama-quick-landing-page-template-section">
+            <div class="ollama-quick-landing-page-section-head">
+              <div class="ollama-quick-landing-page-section-title">${escapeHtml(tl("landingPageBuilderRecommendedTitle"))}</div>
+              <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="analyze-landing-page-source" ${draft.isAnalyzing || draft.isGenerating ? "disabled" : ""}>${escapeHtml(tl(draft.isAnalyzing ? "landingPageBuilderAnalyzing" : "landingPageBuilderAnalyze"))}</button>
+            </div>
+            <div class="ollama-quick-landing-page-template-grid">
+              ${cards}
+            </div>
+          </div>
+          ${selectedTemplate ? `
+            <div class="ollama-quick-landing-page-selected-panel">
+              <div class="ollama-quick-landing-page-selected-preview">
+                <img class="ollama-quick-landing-page-selected-image" src="${selectedTemplate.previewImage}" alt="${escapeHtml(selectedTemplate.label)}" />
+              </div>
+              <div class="ollama-quick-landing-page-selected-copy">
+                <div class="ollama-quick-landing-page-section-title">${escapeHtml(tl("landingPageBuilderSelectedTitle"))}</div>
+                <div class="ollama-quick-landing-page-selected-name">${escapeHtml(selectedTemplate.label)}</div>
+                <div class="ollama-quick-landing-page-selected-summary">${escapeHtml(selectedTemplate.oneLineSummary)}</div>
+                <div class="ollama-quick-landing-page-meta-block">
+                  <div class="ollama-quick-landing-page-meta-label">${escapeHtml(tl("landingPageBuilderBestFor"))}</div>
+                  <div class="ollama-quick-landing-page-meta-value">${escapeHtml(selectedTemplate.recommendedFor)}</div>
+                </div>
+                <div class="ollama-quick-landing-page-meta-block">
+                  <div class="ollama-quick-landing-page-meta-label">${escapeHtml(tl("landingPageBuilderSectionOutline"))}</div>
+                  <div class="ollama-quick-landing-page-outline-list">${selectedTemplate.sectionOutline.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+                </div>
+                <div class="ollama-quick-landing-page-meta-block">
+                  <div class="ollama-quick-landing-page-meta-label">${escapeHtml(tl("landingPageBuilderVisualTags"))}</div>
+                  <div class="ollama-quick-landing-page-outline-list">${visualTags.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+                </div>
+                ${draft.templateReason ? `
+                  <div class="ollama-quick-landing-page-meta-block">
+                    <div class="ollama-quick-landing-page-meta-label">${escapeHtml(tl("landingPageBuilderWhyFit"))}</div>
+                    <div class="ollama-quick-landing-page-meta-value">${escapeHtml(draft.templateReason)}</div>
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          ` : ""}
+          ${hasGeneratedHtml ? `
+            <div class="ollama-quick-landing-page-result-panel">
+              <div class="ollama-quick-landing-page-section-head">
+                <div>
+                  <div class="ollama-quick-landing-page-section-title">${escapeHtml(tl("landingPageBuilderResultTitle"))}</div>
+                  <div class="ollama-quick-landing-page-selected-summary">${escapeHtml(tl("landingPageBuilderResultReady"))}</div>
+                </div>
+                <div class="ollama-quick-landing-page-result-actions">
+                  <button class="ollama-quick-secondary" type="button" data-action="copy-landing-page-builder-html">${escapeHtml(tl("landingPageBuilderCopyHtml"))}</button>
+                  <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="download-landing-page-builder-html">${escapeHtml(tl("landingPageBuilderDownloadHtml"))}</button>
+                </div>
+              </div>
+              <div class="ollama-quick-landing-page-result-file">${escapeHtml(draft.generatedFileName || tl("downloadHtml"))}</div>
+            </div>
+          ` : ""}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-landing-page-builder">${escapeHtml(tl("cancelSelection"))}</button>
+          ${hasGeneratedHtml ? `<button class="ollama-quick-secondary" type="button" data-action="download-landing-page-builder-html">${escapeHtml(tl("landingPageBuilderDownloadHtml"))}</button>` : ""}
+          <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="generate-landing-page-from-builder" ${draft.isGenerating || draft.isAnalyzing ? "disabled" : ""}>${escapeHtml(tl(draft.isGenerating ? "landingPageBuilderGenerating" : "landingPageBuilderGenerate"))}</button>
         </div>
       </section>
     </div>
@@ -12729,6 +14174,82 @@ async function toggleQuickConfigFlag(configKey, enabledStatusKey, disabledStatus
   setStatus(tl(nextValue ? enabledStatusKey : disabledStatusKey));
 }
 
+async function updateStarterPreferenceConfig(patch) {
+  const result = await runtimeMessage({ type: "ollama:set-config", config: patch });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("loadConfigFailed"));
+  }
+
+  currentConfig = {
+    ...(currentConfig || {}),
+    ...(result.config || {}),
+    ...patch,
+  };
+
+  renderShell();
+}
+
+async function setStarterSortMode(sortMode) {
+  await updateStarterPreferenceConfig({
+    starterSortMode: normalizeStarterSortMode(sortMode),
+  });
+}
+
+async function togglePinnedStarter(starterId) {
+  const pinnedIds = getStarterPinnedIds();
+  const nextPinnedIds = pinnedIds.includes(starterId)
+    ? pinnedIds.filter((id) => id !== starterId)
+    : [starterId, ...pinnedIds];
+  await updateStarterPreferenceConfig({ starterPinnedIds: nextPinnedIds });
+}
+
+function buildStarterManualOrder(entries = getActiveStarterEntries(currentPageCopilot)) {
+  const knownIds = entries.map((entry) => entry.id);
+  const manualOrder = getStarterManualOrder().filter((id) => knownIds.includes(id));
+  const missingIds = getSortedStarterEntries(entries.filter((entry) => !manualOrder.includes(entry.id)), "recommended")
+    .map((entry) => entry.id);
+  return [...manualOrder, ...missingIds];
+}
+
+async function moveStarterWithinManualOrder(starterId, direction) {
+  const entries = getActiveStarterEntries(currentPageCopilot).filter((entry) => entry.showInPopup !== false);
+  const order = buildStarterManualOrder(entries);
+  const index = order.indexOf(starterId);
+  if (index < 0) {
+    return;
+  }
+
+  const targetIndex = direction === "earlier"
+    ? Math.max(0, index - 1)
+    : Math.min(order.length - 1, index + 1);
+  if (targetIndex === index) {
+    return;
+  }
+
+  const nextOrder = [...order];
+  const [moved] = nextOrder.splice(index, 1);
+  nextOrder.splice(targetIndex, 0, moved);
+  await updateStarterPreferenceConfig({ starterManualOrder: nextOrder });
+}
+
+async function recordStarterUsage(starterId) {
+  const nextMap = {
+    ...getStarterLastUsedMap(),
+    [starterId]: new Date().toISOString(),
+  };
+  const result = await runtimeMessage({
+    type: "ollama:set-config",
+    config: { starterLastUsedAt: nextMap },
+  });
+  if (result?.ok) {
+    currentConfig = {
+      ...(currentConfig || {}),
+      ...(result.config || {}),
+      starterLastUsedAt: nextMap,
+    };
+  }
+}
+
 async function handleClick(event) {
   const target = event.target;
   if (!(target instanceof Element)) {
@@ -13344,6 +14865,7 @@ async function handleClick(event) {
     if (!starter) {
       return;
     }
+    recordStarterUsage(starter.id).catch(() => {});
 
     if (starter.isSuggestedFollowup) {
       pendingSuggestedStarterAction = {
@@ -13362,6 +14884,7 @@ async function handleClick(event) {
       customStarterBuilderOpen = true;
       agentFlowBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -13376,6 +14899,7 @@ async function handleClick(event) {
       agentFlowBuilderOpen = true;
       customStarterBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -13389,6 +14913,7 @@ async function handleClick(event) {
       batchUrlQaShouldFocusUrls = true;
       customStarterBuilderOpen = false;
       agentFlowBuilderOpen = false;
+      landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -13396,6 +14921,19 @@ async function handleClick(event) {
         resetBatchUrlQaBuilderState();
       }
       loadBatchUrlQaActiveJob().catch(() => {});
+      renderShell();
+      return;
+    }
+
+    if (starter.id === "builtin:landingPageBuilder") {
+      landingPageBuilderOpen = true;
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      resetLandingPageBuilderState();
       renderShell();
       return;
     }
@@ -13465,6 +15003,22 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "close-landing-page-builder") {
+    const draft = ensureLandingPageBuilderDraft();
+    if (draft.isGenerating) {
+      const shouldClose = await requestConfirmation(tl("landingPageBuilderCloseGeneratingMessage"), {
+        title: tl("landingPageBuilderCloseGeneratingTitle"),
+        confirmLabel: tl("landingPageBuilderCloseGeneratingConfirm"),
+      });
+      if (!shouldClose) {
+        return;
+      }
+    }
+    landingPageBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
   if (action === "close-agent-flow-builder") {
     agentFlowBuilderOpen = false;
     renderShell();
@@ -13483,6 +15037,68 @@ async function handleClick(event) {
     loadBatchUrlQaActiveJob().catch(() => {});
     loadBatchUrlQaWorkFolderStatus().catch(() => {});
     renderShell();
+    return;
+  }
+
+  if (action === "toggle-landing-page-current-page") {
+    const draft = ensureLandingPageBuilderDraft();
+    draft.includeCurrentPage = !draft.includeCurrentPage;
+    clearLandingPageBuilderGeneratedResult(draft);
+    renderShell();
+    return;
+  }
+
+  if (action === "set-landing-page-current-page") {
+    const draft = ensureLandingPageBuilderDraft();
+    draft.includeCurrentPage = actionNode.dataset.includeCurrentPage !== "false";
+    clearLandingPageBuilderGeneratedResult(draft);
+    renderShell();
+    return;
+  }
+
+  if (action === "set-landing-page-theme") {
+    const draft = ensureLandingPageBuilderDraft();
+    draft.themePreference = actionNode.dataset.themePreference === "light" ? "light" : "dark";
+    clearLandingPageBuilderGeneratedResult(draft);
+    renderShell();
+    return;
+  }
+
+  if (action === "analyze-landing-page-source") {
+    if (isGenerating) {
+      return;
+    }
+    await analyzeLandingPageBuilderSource();
+    return;
+  }
+
+  if (action === "select-landing-page-template") {
+    const templateId = String(actionNode.dataset.templateId || "").trim();
+    if (!templateId) {
+      return;
+    }
+    const draft = ensureLandingPageBuilderDraft();
+    draft.selectedTemplateId = templateId;
+    clearLandingPageBuilderGeneratedResult(draft);
+    renderShell();
+    return;
+  }
+
+  if (action === "generate-landing-page-from-builder") {
+    if (isGenerating) {
+      return;
+    }
+    await generateLandingPageFromBuilder();
+    return;
+  }
+
+  if (action === "download-landing-page-builder-html") {
+    downloadLandingPageBuilderHtml();
+    return;
+  }
+
+  if (action === "copy-landing-page-builder-html") {
+    await copyLandingPageBuilderHtml();
     return;
   }
 
@@ -14191,6 +15807,20 @@ function handleInput(event) {
     return;
   }
 
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "landing-page-urls") {
+    const draft = ensureLandingPageBuilderDraft();
+    draft.urlsText = target.value;
+    clearLandingPageBuilderGeneratedResult(draft);
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "landing-page-text") {
+    const draft = ensureLandingPageBuilderDraft();
+    draft.extraText = target.value;
+    clearLandingPageBuilderGeneratedResult(draft);
+    return;
+  }
+
   if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-urls") {
     ensureBatchUrlQaBuilderDraft().urls = target.value;
     return;
@@ -14805,6 +16435,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     changes.geminiApiKeyConfigured ||
     changes.azureOpenAiApiKeyConfigured ||
     changes.customStarters ||
+    changes.starterSortMode ||
+    changes.starterPinnedIds ||
+    changes.starterManualOrder ||
+    changes.starterLastUsedAt ||
     changes.starterHoverTipsEnabled ||
     changes.teamsInlineActionEnabled
   ) {

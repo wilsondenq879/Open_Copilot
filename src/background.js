@@ -5849,6 +5849,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, file: await fetchBinaryAttachmentFromUrl(String(message.url || "")) });
         return;
       }
+      case "landing-page:get-url-context": {
+        sendResponse({ ok: true, context: await getPageContextFromUrl(String(message.url || "")) });
+        return;
+      }
       case "web:search": {
         sendResponse({ ok: true, ...(await searchWebResults(message || {})) });
         return;

@@ -27,6 +27,7 @@
 12. [Local Work Folder and Drive Sync](./local-work-folder-and-drive-sync.md)
 13. [Settings and Provider Config](./settings-and-provider-config.md)
 14. [Popup Model Selection](./popup-model-selection.md)
+15. [Landing Page Template Selector And Generation Flow](./landing-page-template-selector-and-generation-flow.md)
 
 ## 主要原始碼對照
 
@@ -51,6 +52,7 @@
 | Task Reminders | 聊天面板 | 從聊天抽 task，儲存 reminder，做 alarm/notification |
 | Local / Drive Sync | settings + export | 本機資料夾與 Google Drive app data 同步 |
 | Batch URL QA | 聊天面板 workflow + settings logs | 批次讀網址、產生 grounded FAQ、輸出單一 JSONL、記錄 job 狀態 |
+| Landing Page Builder | 聊天面板 starter workflow | 分析來源頁面、顯示帶圖 template selector、依選定版型生成 landing page |
 | Notifications | settings | Telegram / LINE / Teams / Slack / Discord 測試與完成通知 |
 | UI Localization | popup + settings + in-page panel | `uiLanguage` 控制介面語言，`replyLanguage` 控制模型回覆語言 |
 | Teams Inline Action | Microsoft Teams 頁面 | hover 訊息時顯示 `Send to Open Copilot` 動作 |

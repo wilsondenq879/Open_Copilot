@@ -2522,6 +2522,10 @@ let activeProviderTab = "ollama";
 let activeSettingsView = "general";
 let currentCustomStarters = [];
 let currentHiddenBuiltinStarterIds = [];
+let currentStarterSortMode = "recommended";
+let currentStarterPinnedIds = [];
+let currentStarterManualOrder = [];
+let currentStarterLastUsedAt = {};
 let currentUiLanguage = "zh-TW";
 let currentReplyLanguage = "zh-TW";
 let currentSelectedModel = "";
@@ -2557,6 +2561,7 @@ let starterFlowEditorState = {
   draft: null,
 };
 const SETTINGS_THEME_OPTIONS = new Set(["system", "dark", "light"]);
+const STARTER_SORT_MODES = ["recommended", "recently-used", "a-z", "manual"];
 const SYSTEM_THEME_MEDIA_QUERY = typeof window.matchMedia === "function"
   ? window.matchMedia("(prefers-color-scheme: light)")
   : null;
@@ -3006,8 +3011,17 @@ Object.assign(OPTION_I18N["zh-TW"], {
   builtinSkillDuplicated: "已複製內建 skill：{name}",
   duplicateBuiltinFlow: "複製成我的 Flow",
   builtinFlowDuplicated: "已複製內建 Flow：{name}",
-  popupVisibilityShown: "工具列顯示",
-  popupVisibilityHidden: "工具列隱藏",
+    popupVisibilityShown: "工具列顯示",
+    popupVisibilityHidden: "工具列隱藏",
+    starterLibrarySortLabel: "排序",
+    starterSortRecommended: "推薦優先",
+    starterSortRecentlyUsed: "最近使用",
+    starterSortAZ: "名稱 A-Z",
+    starterSortManual: "自訂順序",
+    starterPin: "加入收藏",
+    starterUnpin: "取消收藏",
+    starterMoveEarlier: "往前移",
+    starterMoveLater: "往後移",
   });
 
 Object.assign(OPTION_I18N.en, {
@@ -3087,6 +3101,15 @@ Object.assign(OPTION_I18N.en, {
   builtinFlowDuplicated: "Duplicated built-in flow: {name}",
   popupVisibilityShown: "Shown In Toolbar",
   popupVisibilityHidden: "Hidden From Toolbar",
+  starterLibrarySortLabel: "Sort",
+  starterSortRecommended: "Recommended",
+  starterSortRecentlyUsed: "Recently Used",
+  starterSortAZ: "Name A-Z",
+  starterSortManual: "Manual",
+  starterPin: "Favorite",
+  starterUnpin: "Unfavorite",
+  starterMoveEarlier: "Move earlier",
+  starterMoveLater: "Move later",
 });
 
 Object.assign(OPTION_I18N["zh-TW"], {
@@ -3784,6 +3807,7 @@ function renderStarterCardMarkup(starter, {
   includeDeleteButton = true,
   includeOpenButton = false,
   isBuiltin = false,
+  includeOrderControls = false,
 } = {}) {
   const orderedScopes = [...starter.scopes].sort((left, right) => {
     const leftIndex = STARTER_SCOPE_ORDER.indexOf(left);
@@ -3800,6 +3824,11 @@ function renderStarterCardMarkup(starter, {
     return leftIndex - rightIndex;
   });
 
+  const isPinned = currentStarterPinnedIds.includes(starter.id);
+  const manualOrder = getResolvedStarterManualOrder();
+  const manualIndex = manualOrder.indexOf(starter.id);
+  const showManualControls = includeOrderControls && currentStarterSortMode === "manual";
+
   return `
     <article class="starter-preview-card ${includeOpenButton ? "is-clickable" : ""}" ${includeOpenButton ? `data-action="${starter.mode === "flow" ? "open-flow-detail" : "open-skill-detail"}" data-starter-id="${escapeHtml(starter.id)}"` : ""}>
       <div class="starter-preview-head">
@@ -3810,6 +3839,9 @@ function renderStarterCardMarkup(starter, {
         <div class="starter-preview-actions">
           <div class="starter-preview-mode">${escapeHtml(getModeLabel(starter.mode))}</div>
           ${isBuiltin ? `<div class="starter-preview-lock">${escapeHtml(t("builtinSkillBadge"))}</div>` : `<div class="starter-preview-lock">${escapeHtml(t("customSkillBadge"))}</div>`}
+          ${includeOrderControls ? `<button class="secondary-button starter-preview-order-action ${isPinned ? "is-active" : ""}" type="button" data-action="toggle-starter-pin" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t(isPinned ? "starterUnpin" : "starterPin"))}</button>` : ""}
+          ${showManualControls ? `<button class="secondary-button starter-preview-order-action" type="button" data-action="move-starter-earlier" data-starter-id="${escapeHtml(starter.id)}" ${manualIndex <= 0 ? "disabled" : ""}>${escapeHtml(t("starterMoveEarlier"))}</button>` : ""}
+          ${showManualControls ? `<button class="secondary-button starter-preview-order-action" type="button" data-action="move-starter-later" data-starter-id="${escapeHtml(starter.id)}" ${manualIndex < 0 || manualIndex >= manualOrder.length - 1 ? "disabled" : ""}>${escapeHtml(t("starterMoveLater"))}</button>` : ""}
           <button class="secondary-button starter-preview-visibility ${starter.showInPopup !== false ? "is-on" : "is-off"}" type="button" data-action="toggle-popup-visibility" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t(starter.showInPopup !== false ? "popupVisibilityShown" : "popupVisibilityHidden"))}</button>
           ${includeOpenButton ? `<button class="secondary-button starter-preview-edit" type="button" data-action="${starter.mode === "flow" ? "open-flow-detail" : "open-skill-detail"}" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("openDetailsButton"))}</button>` : ""}
           ${includeEditButton && starter.mode === "flow" ? `<button class="secondary-button starter-preview-edit" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>` : ""}
@@ -4348,6 +4380,74 @@ function getSkillLibraryEntries() {
   }))];
 }
 
+function normalizeStarterSortMode(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return STARTER_SORT_MODES.includes(normalized) ? normalized : "recommended";
+}
+
+function getStarterUsageTimestamp(starterId) {
+  const raw = currentStarterLastUsedAt?.[starterId];
+  const timestamp = typeof raw === "number" ? raw : Date.parse(String(raw || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function compareRecommendedSkillEntries(left, right) {
+  const leftBuiltin = Boolean(left?.isBuiltin);
+  const rightBuiltin = Boolean(right?.isBuiltin);
+  if (leftBuiltin !== rightBuiltin) {
+    return leftBuiltin ? -1 : 1;
+  }
+  return String(left?.label || "").localeCompare(String(right?.label || ""), currentUiLanguage || "en", { sensitivity: "base" });
+}
+
+function compareSkillEntriesBySortMode(left, right, sortMode = currentStarterSortMode) {
+  if (sortMode === "recently-used") {
+    const usageDiff = getStarterUsageTimestamp(right.id) - getStarterUsageTimestamp(left.id);
+    if (usageDiff !== 0) {
+      return usageDiff;
+    }
+  } else if (sortMode === "a-z") {
+    const labelDiff = String(left?.label || "").localeCompare(String(right?.label || ""), currentUiLanguage || "en", { sensitivity: "base" });
+    if (labelDiff !== 0) {
+      return labelDiff;
+    }
+  } else if (sortMode === "manual") {
+    const leftIndex = currentStarterManualOrder.indexOf(left.id);
+    const rightIndex = currentStarterManualOrder.indexOf(right.id);
+    const leftKnown = leftIndex >= 0;
+    const rightKnown = rightIndex >= 0;
+    if (leftKnown && rightKnown && leftIndex !== rightIndex) {
+      return leftIndex - rightIndex;
+    }
+    if (leftKnown !== rightKnown) {
+      return leftKnown ? -1 : 1;
+    }
+  }
+  return compareRecommendedSkillEntries(left, right);
+}
+
+function getSortedSkillLibraryEntries() {
+  const entries = getSkillLibraryEntries();
+  return [...entries].sort((left, right) => {
+    const leftPinned = currentStarterPinnedIds.includes(left.id);
+    const rightPinned = currentStarterPinnedIds.includes(right.id);
+    if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1;
+    }
+    return compareSkillEntriesBySortMode(left, right, currentStarterSortMode);
+  });
+}
+
+function getResolvedStarterManualOrder() {
+  const visibleIds = getSkillLibraryEntries().map((entry) => entry.id);
+  const known = currentStarterManualOrder.filter((id) => visibleIds.includes(id));
+  const missing = getSkillLibraryEntries()
+    .filter((entry) => !known.includes(entry.id))
+    .sort(compareRecommendedSkillEntries)
+    .map((entry) => entry.id);
+  return [...known, ...missing];
+}
+
 function renderCustomStarterLibraryMeta() {
   const skillCountNode = document.getElementById("customStartersCount");
   if (skillCountNode) {
@@ -4464,10 +4564,15 @@ function renderCustomStartersPreview() {
   const skillNode = document.getElementById("customStartersPreview");
   const flowNode = document.getElementById("agentFlowsPreview");
   const builtinFlowNode = document.getElementById("builtinFlowTemplatesPreview");
+  const starterSortNode = document.getElementById("starterLibrarySortMode");
   renderCustomStarterLibraryMeta();
 
+  if (starterSortNode instanceof HTMLSelectElement) {
+    starterSortNode.value = normalizeStarterSortMode(currentStarterSortMode);
+  }
+
   if (skillNode) {
-    const starters = getSkillLibraryEntries();
+    const starters = getSortedSkillLibraryEntries();
     if (!starters.length) {
       skillNode.className = "starter-preview-list empty-state";
       skillNode.textContent = t("noCustomStarters");
@@ -4479,6 +4584,7 @@ function renderCustomStartersPreview() {
           includeDeleteButton: !starter.isBuiltin,
           includeOpenButton: true,
           isBuiltin: Boolean(starter.isBuiltin),
+          includeOrderControls: true,
         }))
         .join("");
     }
@@ -4821,6 +4927,9 @@ async function persistCustomStarters(starters) {
     config: {
       customStarters: starters,
       hiddenBuiltinStarterIds: currentHiddenBuiltinStarterIds,
+      starterSortMode: currentStarterSortMode,
+      starterPinnedIds: currentStarterPinnedIds,
+      starterManualOrder: currentStarterManualOrder,
     },
   });
 
@@ -5256,6 +5365,16 @@ async function loadConfig() {
     currentHiddenBuiltinStarterIds = Array.isArray(result.config.hiddenBuiltinStarterIds)
       ? result.config.hiddenBuiltinStarterIds.map((item) => String(item || "").trim()).filter(Boolean)
       : [];
+    currentStarterSortMode = normalizeStarterSortMode(result.config.starterSortMode);
+    currentStarterPinnedIds = Array.isArray(result.config.starterPinnedIds)
+      ? result.config.starterPinnedIds.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    currentStarterManualOrder = Array.isArray(result.config.starterManualOrder)
+      ? result.config.starterManualOrder.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    currentStarterLastUsedAt = result.config.starterLastUsedAt && typeof result.config.starterLastUsedAt === "object"
+      ? result.config.starterLastUsedAt
+      : {};
     renderCustomStartersPreview();
     renderBatchUrlQaJobs();
     applySettingsTheme(settingsTheme);
@@ -5318,6 +5437,7 @@ async function saveConfig() {
   const taskExtractionWindowDays = normalizeTaskExtractionWindowDays(document.getElementById("taskExtractionWindowDays").value);
   const starterHoverTipsEnabled = document.getElementById("starterHoverTipsEnabled").checked;
   const teamsInlineActionEnabled = document.getElementById("teamsInlineActionEnabled").checked;
+  const starterSortMode = normalizeStarterSortMode(document.getElementById("starterLibrarySortMode")?.value);
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const multiPerspectiveProfiles = document.getElementById("multiPerspectiveProfiles").value.trim();
   currentUiLanguage = uiLanguage;
@@ -5377,6 +5497,9 @@ async function saveConfig() {
       taskExtractionWindowDays,
       starterHoverTipsEnabled,
       teamsInlineActionEnabled,
+      starterSortMode,
+      starterPinnedIds: currentStarterPinnedIds,
+      starterManualOrder: currentStarterManualOrder,
       systemPrompt,
       multiPerspectiveProfiles,
       customStarters: currentCustomStarters,
@@ -5587,6 +5710,17 @@ document.getElementById("customStartersInput").addEventListener("input", () => {
   refreshCustomStarterJsonValidation({ silentEmpty: true });
 });
 
+document.getElementById("starterLibrarySortMode").addEventListener("change", async (event) => {
+  try {
+    currentStarterSortMode = normalizeStarterSortMode(event.target.value);
+    renderCustomStartersPreview();
+    await persistCustomStarters(currentCustomStarters);
+    setStatus(t("saveSuccess"));
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
 document.getElementById("validateStartersJsonButton").addEventListener("click", () => {
   const validation = refreshCustomStarterJsonValidation();
   setStatus(validation.message, !validation.ok);
@@ -5694,6 +5828,40 @@ async function handleStarterPreviewAction(event) {
       await persistCustomStarters(currentCustomStarters);
       closeFlowDetail();
       setStatus(t("builtinFlowDuplicated", { name: starter.label }));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
+  if (actionNode.dataset.action === "toggle-starter-pin") {
+    try {
+      currentStarterPinnedIds = currentStarterPinnedIds.includes(starterId)
+        ? currentStarterPinnedIds.filter((item) => item !== starterId)
+        : [starterId, ...currentStarterPinnedIds];
+      renderCustomStartersPreview();
+      await persistCustomStarters(currentCustomStarters);
+      setStatus(t("saveSuccess"));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+    return;
+  }
+
+  if (actionNode.dataset.action === "move-starter-earlier" || actionNode.dataset.action === "move-starter-later") {
+    try {
+      const resolvedOrder = getResolvedStarterManualOrder();
+      const currentIndex = resolvedOrder.indexOf(starterId);
+      if (currentIndex < 0) {
+        return;
+      }
+      const targetIndex = actionNode.dataset.action === "move-starter-earlier"
+        ? Math.max(0, currentIndex - 1)
+        : Math.min(resolvedOrder.length - 1, currentIndex + 1);
+      currentStarterManualOrder = moveArrayItem(resolvedOrder, currentIndex, targetIndex);
+      renderCustomStartersPreview();
+      await persistCustomStarters(currentCustomStarters);
+      setStatus(t("saveSuccess"));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
     }
