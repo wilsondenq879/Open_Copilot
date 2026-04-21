@@ -417,7 +417,7 @@ const STARTER_VISION_BUILTIN_KEY_SET = new Set([
 const STARTER_VISION_KEYWORD_PATTERN = /(image|images|screenshot|screen shot|visual|vision|ux|ui|layout|readability|clarity|contrast|spacing|hierarchy|design|圖片|图像|影像|截圖|截图|畫面|界面|介面|視覺|视觉|版面|排版|可讀性|可读性|對比|对比|設計|设计|清楚)/i;
 const HTML_LAYOUT_GUARD_CSS = [
   "html { overflow-x: hidden; }",
-  "body { max-width: 100%; overflow-x: hidden; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }",
+  "body { width: 100%; max-width: 100%; overflow-x: hidden; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }",
   "*, *::before, *::after { box-sizing: border-box; }",
   "main, section, article, header, footer, aside, div { min-width: 0; }",
   "img, picture, video, canvas, svg { display: block; max-width: 100%; }",
@@ -429,6 +429,19 @@ const HTML_LAYOUT_GUARD_CSS = [
   ".edge-ai-html-visual-fallback { display: grid; place-items: center; min-height: clamp(220px, 36vw, 420px); padding: clamp(24px, 4vw, 48px); border-radius: 32px; background: linear-gradient(135deg, rgba(238,244,255,0.96), rgba(226,239,255,0.88)); color: rgba(28,34,48,0.72); text-align: center; }",
   ".edge-ai-html-visual-fallback strong { display: block; font-size: clamp(1.1rem, 1.8vw, 1.5rem); color: rgba(18,24,38,0.88); }",
   ".edge-ai-html-visual-fallback span { display: block; margin-top: 0.75rem; font-size: clamp(0.92rem, 1.2vw, 1rem); line-height: 1.7; max-width: 34ch; }",
+  ".edge-ai-wide-canvas { width: min(calc(100vw - clamp(28px, 5vw, 96px)), 1600px) !important; max-width: min(calc(100vw - clamp(28px, 5vw, 96px)), 1600px) !important; margin-inline: auto !important; }",
+  ".edge-ai-wide-section { padding-inline: clamp(18px, 3.6vw, 42px) !important; }",
+  ".edge-ai-wide-canvas.edge-ai-wide-canvas-editorial { width: min(calc(100vw - clamp(24px, 4vw, 72px)), 1680px) !important; max-width: min(calc(100vw - clamp(24px, 4vw, 72px)), 1680px) !important; }",
+  ".edge-ai-safe-split-layout { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)) !important; gap: clamp(28px, 4vw, 56px) !important; align-items: start !important; }",
+  ".edge-ai-safe-split-layout.edge-ai-wide-hero-layout { grid-template-columns: minmax(28rem, 0.96fr) minmax(32rem, 1.24fr) !important; }",
+  ".edge-ai-safe-split-layout > * { min-width: 0 !important; max-width: 100% !important; }",
+  ".edge-ai-safe-text-column { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }",
+  ".edge-ai-safe-split-layout > .edge-ai-safe-text-column { min-width: min(100%, 22rem) !important; max-width: min(100%, 48rem) !important; justify-self: start !important; align-self: start !important; }",
+  ".edge-ai-promote-story-lead { grid-column: 1 / -1 !important; width: min(100%, 64rem) !important; max-width: min(100%, 64rem) !important; margin-bottom: clamp(18px, 3vw, 40px) !important; justify-self: start !important; }",
+  ".edge-ai-safe-heading { display: block; max-width: min(100%, 24ch) !important; overflow-wrap: anywhere !important; word-break: normal !important; }",
+  ".edge-ai-safe-heading.edge-ai-safe-heading-cjk { max-width: min(100%, 22ch) !important; word-break: keep-all !important; line-break: strict !important; }",
+  ".edge-ai-safe-media { min-width: min(100%, 24rem) !important; }",
+  ".edge-ai-safe-actions { display: flex !important; flex-wrap: wrap !important; gap: clamp(12px, 1.6vw, 18px) !important; align-items: flex-start !important; }",
   "h1, h2, h3, h4, h5, h6, p, li, blockquote, a, span { max-width: 100%; overflow-wrap: anywhere; }",
   "h1, h2, h3 { text-wrap: balance; }",
   "p, li, blockquote { text-wrap: pretty; }",
@@ -439,15 +452,19 @@ const HTML_LAYOUT_GUARD_CSS = [
   "button, .button, [class*=\"button\"], [class*=\"cta\"] { max-width: 100%; white-space: normal; }",
   "[class*=\"actions\"], [class*=\"cta-group\"], [class*=\"button-group\"], [class*=\"buttonGroup\"], [class*=\"hero-actions\"], [class*=\"heroActions\"] { display: flex; flex-wrap: wrap; gap: clamp(12px, 1.6vw, 18px); align-items: flex-start; }",
   "[class*=\"hero\"] > *, [class*=\"hero\"] [class*=\"content\"], [class*=\"hero\"] [class*=\"copy\"], [class*=\"hero\"] [class*=\"text\"] { min-width: 0; max-width: 100%; }",
-  "[class*=\"hero\"] [class*=\"content\"], [class*=\"hero\"] [class*=\"copy\"], [class*=\"hero\"] [class*=\"text\"], [class*=\"headline\"], [class*=\"title\"] { max-width: min(100%, 18ch); }",
+  "[class*=\"hero\"] [class*=\"content\"], [class*=\"hero\"] [class*=\"copy\"], [class*=\"hero\"] [class*=\"text\"] { max-width: min(100%, 48rem); }",
+  "[class*=\"section-title\"], [class*=\"sectionTitle\"] { max-width: none !important; width: 100% !important; }",
+  "[class*=\"sidebar\"], [class*=\"aside\"], [class*=\"rail\"], [class*=\"meta\"] { min-width: 0; max-width: 100%; }",
   "[style*=\"position:absolute\"] { max-width: 100%; }",
   ":lang(zh), :lang(ja), :lang(ko) { word-break: keep-all; line-break: loose; }",
   "[class*=\"grid\"], [class*=\"split\"], [class*=\"hero\"], [class*=\"layout\"], [class*=\"panel\"], [class*=\"feature\"] { min-width: 0; }",
   "@media (max-width: 1200px) {",
   "  [class*=\"split\"], [class*=\"two-column\"], [class*=\"twoColumn\"], [class*=\"hero-grid\"], [class*=\"heroGrid\"], [class*=\"feature-grid\"], [class*=\"featureGrid\"], [class*=\"media-grid\"], [class*=\"mediaGrid\"], [class*=\"content-grid\"], [class*=\"contentGrid\"] {",
-  "    grid-template-columns: 1fr !important;",
-  "    flex-direction: column !important;",
+    "    grid-template-columns: 1fr !important;",
+    "    flex-direction: column !important;",
   "  }",
+  "  .edge-ai-wide-canvas, .edge-ai-wide-canvas.edge-ai-wide-canvas-editorial { width: min(calc(100vw - clamp(20px, 4vw, 40px)), 100%) !important; max-width: min(calc(100vw - clamp(20px, 4vw, 40px)), 100%) !important; }",
+  "  .edge-ai-safe-split-layout, .edge-ai-safe-split-layout.edge-ai-wide-hero-layout { grid-template-columns: 1fr !important; }",
   "  h1 { font-size: clamp(2rem, 11vw, 4.2rem) !important; }",
   "  h2 { font-size: clamp(1.6rem, 7vw, 3rem) !important; }",
   "}",
@@ -670,6 +687,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateProductHero",
     summaryKey: "landingPageTemplateProductHeroSummary",
     recommendedForKey: "landingPageTemplateProductHeroRecommendedFor",
+    canvasMode: "wide-hero",
+    layoutGuidance: [
+      "Use a broad desktop canvas with confident gutters rather than a narrow centered article column.",
+      "Give both the headline block and the primary media block generous width in the hero.",
+    ],
     sectionOutline: ["Hero", "Core Value Props", "Feature Highlights", "Visual Showcase", "CTA"],
     visualTags: ["visual-first", "concise", "bold"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#67d6ff", accentSoft: "rgba(103,214,255,0.35)", title: "Product Hero", layout: "hero" }),
@@ -679,6 +701,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateProductHeroTechExplainer",
     summaryKey: "landingPageTemplateProductHeroTechExplainerSummary",
     recommendedForKey: "landingPageTemplateProductHeroTechExplainerRecommendedFor",
+    canvasMode: "wide-hero-tech",
+    layoutGuidance: [
+      "Use a wide information-rich canvas with strong split sections, not a magazine-like narrow lead column.",
+      "Reserve enough width for diagrams, tables, and explanatory copy to coexist without crushing the text.",
+    ],
     sectionOutline: ["Hero", "What It Is", "Problem Scenarios", "Core Technologies", "Comparison", "FAQ", "CTA"],
     visualTags: ["technical", "structured", "high-density"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#7ef0c8", accentSoft: "rgba(126,240,200,0.35)", title: "Tech Explainer", layout: "tech" }),
@@ -688,6 +715,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateSaasConversion",
     summaryKey: "landingPageTemplateSaasConversionSummary",
     recommendedForKey: "landingPageTemplateSaasConversionRecommendedFor",
+    canvasMode: "wide-conversion",
+    layoutGuidance: [
+      "Use a wide conversion canvas where hero copy, proof, and product visuals feel spacious and easy to scan.",
+      "Do not trap the core signup narrative inside a thin center strip.",
+    ],
     sectionOutline: ["Hero", "Social Proof", "Features", "Use Cases", "FAQ", "CTA"],
     visualTags: ["conversion", "proof", "cta-driven"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8fb1ff", accentSoft: "rgba(143,177,255,0.35)", title: "SaaS Conversion", layout: "conversion" }),
@@ -697,6 +729,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateStoryBrandNarrative",
     summaryKey: "landingPageTemplateStoryBrandNarrativeSummary",
     recommendedForKey: "landingPageTemplateStoryBrandNarrativeRecommendedFor",
+    canvasMode: "cinematic-wide",
+    layoutGuidance: [
+      "Use a cinematic wide canvas with larger breathing room and image-led sections.",
+      "Text can be elegant and inset, but the page should still feel expansive rather than article-width.",
+    ],
     sectionOutline: ["Hero", "Worldview", "Story Blocks", "Values", "Signature Offering", "CTA"],
     visualTags: ["narrative", "emotional", "brand-led"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffc889", accentSoft: "rgba(255,200,137,0.35)", title: "Brand Narrative", layout: "story" }),
@@ -706,6 +743,12 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateEditorialMagazine",
     summaryKey: "landingPageTemplateEditorialMagazineSummary",
     recommendedForKey: "landingPageTemplateEditorialMagazineRecommendedFor",
+    canvasMode: "editorial-spread",
+    layoutGuidance: [
+      "Use a wide editorial spread with near-full-width media and broad story columns.",
+      "Only metadata, chips, or short pull quotes may live in a narrow rail; the headline, standfirst, and main summary must stay in a broad content block.",
+      "If the lead image becomes tall or dominant, stack the story lead above it instead of compressing the headline into a vertical strip.",
+    ],
     sectionOutline: ["Feature Hero", "Key Angle", "Story Blocks", "Pull Quote / Sidebar", "Visual Spread", "CTA"],
     visualTags: ["editorial", "feature-story", "image-led"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffb184", accentSoft: "rgba(255,177,132,0.35)", title: "Editorial", layout: "editorial" }),
@@ -715,6 +758,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateEventCampaign",
     summaryKey: "landingPageTemplateEventCampaignSummary",
     recommendedForKey: "landingPageTemplateEventCampaignRecommendedFor",
+    canvasMode: "wide-campaign",
+    layoutGuidance: [
+      "Use a wide, energetic campaign canvas with bold hero space and roomy milestone sections.",
+      "Key dates and badges can float in compact cards, but the main pitch must remain wide and readable.",
+    ],
     sectionOutline: ["Hero", "Hook", "Agenda / Milestones", "Highlights", "Proof / FAQ", "CTA"],
     visualTags: ["campaign", "urgent", "cta-led"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8bd5ff", accentSoft: "rgba(139,213,255,0.35)", title: "Campaign", layout: "event" }),
@@ -724,6 +772,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateComparisonBuyerGuide",
     summaryKey: "landingPageTemplateComparisonBuyerGuideSummary",
     recommendedForKey: "landingPageTemplateComparisonBuyerGuideRecommendedFor",
+    canvasMode: "wide-comparison",
+    layoutGuidance: [
+      "Use a broad comparison canvas so tables and criteria cards can span comfortably across desktop.",
+      "Avoid squeezing comparison or decision content into narrow stacked columns when wider tracks are available.",
+    ],
     sectionOutline: ["Hero", "Decision Criteria", "Comparison Table", "Best Fit Scenarios", "FAQ", "CTA"],
     visualTags: ["comparison", "decision-making", "structured"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#98b7ff", accentSoft: "rgba(152,183,255,0.35)", title: "Comparison", layout: "comparison" }),
@@ -733,6 +786,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplatePortfolioShowcase",
     summaryKey: "landingPageTemplatePortfolioShowcaseSummary",
     recommendedForKey: "landingPageTemplatePortfolioShowcaseRecommendedFor",
+    canvasMode: "gallery-wide",
+    layoutGuidance: [
+      "Use a near-full-width showcase canvas with generous galleries and project cards.",
+      "Do not center the whole portfolio inside a narrow reading column.",
+    ],
     sectionOutline: ["Hero", "Featured Work", "Project Grid", "Process / Tools", "About", "CTA"],
     visualTags: ["showcase", "gallery", "visual-led"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#f2a8ff", accentSoft: "rgba(242,168,255,0.35)", title: "Portfolio", layout: "portfolio" }),
@@ -742,6 +800,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateCaseStudySuccessStory",
     summaryKey: "landingPageTemplateCaseStudySuccessStorySummary",
     recommendedForKey: "landingPageTemplateCaseStudySuccessStoryRecommendedFor",
+    canvasMode: "wide-case-study",
+    layoutGuidance: [
+      "Use a wide case-study canvas where the challenge, approach, and outcome blocks have clear lateral separation.",
+      "Metrics and proof cards can sit in side panels, but the lead narrative should remain broad and easy to read.",
+    ],
     sectionOutline: ["Hero", "Challenge", "Approach", "Proof / Metrics", "Outcome", "CTA"],
     visualTags: ["proof", "results", "trust-building"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#7ee0ff", accentSoft: "rgba(126,224,255,0.35)", title: "Case Study", layout: "case-study" }),
@@ -751,6 +814,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateFeatureDeepDive",
     summaryKey: "landingPageTemplateFeatureDeepDiveSummary",
     recommendedForKey: "landingPageTemplateFeatureDeepDiveRecommendedFor",
+    canvasMode: "wide-feature",
+    layoutGuidance: [
+      "Use a wide product-detail canvas so feature explanations and supporting media can sit side by side safely.",
+      "Keep single-feature storytelling focused, but do not collapse it into a thin editorial rail.",
+    ],
     sectionOutline: ["Hero", "Core Capability", "How It Works", "Scenarios", "Specs / FAQ", "CTA"],
     visualTags: ["focused", "single-feature", "detailed"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#79f0d3", accentSoft: "rgba(121,240,211,0.35)", title: "Feature Dive", layout: "feature-dive" }),
@@ -760,6 +828,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateWaitlistLaunchTeaser",
     summaryKey: "landingPageTemplateWaitlistLaunchTeaserSummary",
     recommendedForKey: "landingPageTemplateWaitlistLaunchTeaserRecommendedFor",
+    canvasMode: "wide-teaser",
+    layoutGuidance: [
+      "Even for a short teaser page, keep the desktop hero broad and visually expansive.",
+      "Short copy should feel punchy and premium, not stranded inside a thin central column.",
+    ],
     sectionOutline: ["Hero", "Teaser Proof", "Why Join Early", "Launch Timeline", "Waitlist CTA"],
     visualTags: ["launch", "teaser", "short-form"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#ffd36e", accentSoft: "rgba(255,211,110,0.35)", title: "Waitlist", layout: "waitlist" }),
@@ -769,6 +842,11 @@ const LANDING_PAGE_TEMPLATE_CATALOG = [
     labelKey: "landingPageTemplateRecruitingCareers",
     summaryKey: "landingPageTemplateRecruitingCareersSummary",
     recommendedForKey: "landingPageTemplateRecruitingCareersRecommendedFor",
+    canvasMode: "wide-careers",
+    layoutGuidance: [
+      "Use a wide careers canvas so mission, culture, and role cards can breathe.",
+      "Open roles and hiring flow blocks should use full or near-full-width sections rather than a skinny article column.",
+    ],
     sectionOutline: ["Hero", "Why Join", "Open Roles", "Team / Culture", "Hiring Flow", "CTA"],
     visualTags: ["recruiting", "team", "opportunity"],
     previewImage: createLandingPageTemplatePreviewSvg({ accent: "#8ac5ff", accentSoft: "rgba(138,197,255,0.35)", title: "Careers", layout: "careers" }),
@@ -1123,6 +1201,7 @@ const CONTENT_I18N = {
     landingPageBuilderGenerate: "生成 Landing Page",
     landingPageBuilderGenerating: "生成中...",
     landingPageBuilderRepairing: "正在修正版面...",
+    landingPageBuilderStabilizing: "正在重建高穩定版面...",
     landingPageBuilderThemeLabel: "輸出主題",
     landingPageBuilderThemeDark: "Dark",
     landingPageBuilderThemeLight: "Light",
@@ -1142,7 +1221,10 @@ const CONTENT_I18N = {
     landingPageBuilderCloseGeneratingConfirm: "仍然關閉",
     landingPageBuilderSourceSummaryCurrent: "你可以決定是否把目前停留頁面一起納入，再搭配網址、補充文字與已附加來源一起分析。",
     landingPageBuilderAttachedSummary: "已附加的文件、Browser Tabs、GitHub Sources 也會一併納入。",
+    landingPageBuilderAllTemplatesTitle: "全部模板",
     landingPageBuilderRecommendedTitle: "推薦模板",
+    landingPageBuilderRecommendedHint: "AI 建議 {count} 種，但全部模板都可以選。",
+    landingPageBuilderRecommendedBadge: "AI 建議",
     landingPageBuilderSelectedTitle: "已選模板",
     landingPageBuilderAnalysisTitle: "頁面分析",
     landingPageBuilderWhyFit: "為什麼適合",
@@ -1721,6 +1803,7 @@ const CONTENT_I18N = {
     landingPageBuilderGenerate: "Generate Landing Page",
     landingPageBuilderGenerating: "Generating...",
     landingPageBuilderRepairing: "Repairing layout...",
+    landingPageBuilderStabilizing: "Rebuilding stable layout...",
     landingPageBuilderThemeLabel: "Output Theme",
     landingPageBuilderThemeDark: "Dark",
     landingPageBuilderThemeLight: "Light",
@@ -1740,7 +1823,10 @@ const CONTENT_I18N = {
     landingPageBuilderCloseGeneratingConfirm: "Close Anyway",
     landingPageBuilderSourceSummaryCurrent: "Choose whether to include the current page, then combine it with pasted URLs, extra text, and attached sources for analysis.",
     landingPageBuilderAttachedSummary: "Attached documents, browser tabs, and GitHub sources will also be included automatically.",
+    landingPageBuilderAllTemplatesTitle: "All Templates",
     landingPageBuilderRecommendedTitle: "Recommended Templates",
+    landingPageBuilderRecommendedHint: "AI recommends {count}, but every template remains selectable.",
+    landingPageBuilderRecommendedBadge: "AI Pick",
     landingPageBuilderSelectedTitle: "Selected Template",
     landingPageBuilderAnalysisTitle: "Page Analysis",
     landingPageBuilderWhyFit: "Why It Fits",
@@ -6452,6 +6538,340 @@ function serializeHtmlDocument(doc) {
   return documentElement ? `<!doctype html>\n${documentElement.outerHTML}` : "";
 }
 
+function isCjkHeavyText(value) {
+  return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/.test(String(value || ""));
+}
+
+function isLongHeadlineText(value) {
+  const normalized = normalizeExtractedText(value);
+  if (!normalized) {
+    return false;
+  }
+  if (isCjkHeavyText(normalized)) {
+    return normalized.replace(/\s+/g, "").length >= 10;
+  }
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  return wordCount >= 6 || normalized.length >= 48;
+}
+
+function getHtmlElementHintText(element) {
+  if (!(element instanceof HTMLElement)) {
+    return "";
+  }
+  return [
+    element.tagName.toLowerCase(),
+    element.id || "",
+    typeof element.className === "string" ? element.className : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function getHtmlElementHintTokens(element) {
+  const hint = getHtmlElementHintText(element);
+  return new Set(
+    hint
+      .split(/[^a-z0-9]+/i)
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function elementLooksLikeVisualBlock(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const tokens = getHtmlElementHintTokens(element);
+  if ([
+    "media",
+    "image",
+    "visual",
+    "figure",
+    "photo",
+    "cover",
+    "graphic",
+    "poster",
+    "gallery",
+    "mockup",
+    "device",
+    "preview",
+    "video",
+    "illustration",
+  ].some((token) => tokens.has(token))) {
+    return true;
+  }
+  return Array.from(element.children).some((child) => (
+    child instanceof HTMLElement
+    && /^(img|picture|video|canvas|svg|figure)$/i.test(child.tagName)
+  ));
+}
+
+function elementLooksLikeTextBlock(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const tokens = getHtmlElementHintTokens(element);
+  if ([
+    "copy",
+    "content",
+    "text",
+    "body",
+    "lede",
+    "lead",
+    "headline",
+    "title",
+    "intro",
+    "description",
+    "caption",
+    "deck",
+  ].some((token) => tokens.has(token))) {
+    return true;
+  }
+  return Array.from(element.children).some((child) => (
+    child instanceof HTMLElement
+    && /^(h1|h2|h3|h4|p|ul|ol|blockquote)$/i.test(child.tagName)
+  )) && !elementLooksLikeVisualBlock(element);
+}
+
+function elementLooksLikeLayoutContainer(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const hint = getHtmlElementHintText(element);
+  if (/^(main|article)$/i.test(element.tagName)) {
+    return false;
+  }
+  if (/(container|wrapper|shell|page|site|canvas|surface|main|app|frame|root)/.test(hint)) {
+    return false;
+  }
+  if (/(hero|split|grid|layout|wrap|columns|editorial|magazine|feature|story|spotlight|showcase|lead|panel|stage|cluster)/.test(hint)) {
+    return true;
+  }
+  const children = Array.from(element.children).filter((child) => child instanceof HTMLElement);
+  if (children.some((child) => /^(section|article|header|footer|main)$/i.test(child.tagName))) {
+    return false;
+  }
+  return children.length >= 2
+    && children.some((child) => elementLooksLikeVisualBlock(child))
+    && children.some((child) => elementLooksLikeTextBlock(child));
+}
+
+function elementLooksLikeCanvasContainer(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const hint = getHtmlElementHintText(element);
+  if (/(container|wrapper|shell|page|frame|site|canvas|surface|main|content|inner|app)/.test(hint)) {
+    return true;
+  }
+  return /^(main|article)$/i.test(element.tagName)
+    || Array.from(element.children).filter((child) => child instanceof HTMLElement).some((child) => /^(section|article|header)$/i.test(child.tagName));
+}
+
+function elementIsPageShell(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const hint = getHtmlElementHintText(element);
+  if (/^(body|main|article)$/i.test(element.tagName)) {
+    return true;
+  }
+  return /(container|wrapper|shell|page|site|canvas|surface|main|app|frame|root)/.test(hint);
+}
+
+function elementLooksLikeNarrowRail(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const tokens = getHtmlElementHintTokens(element);
+  return [
+    "sidebar",
+    "aside",
+    "rail",
+    "meta",
+    "kicker",
+    "eyebrow",
+    "details",
+    "facts",
+    "tags",
+  ].some((token) => tokens.has(token));
+}
+
+function elementCanBeSafeTextColumn(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = element.tagName.toLowerCase();
+  if (!/^(div|article|aside)$/i.test(tagName)) {
+    return false;
+  }
+
+  const tokens = getHtmlElementHintTokens(element);
+  if ([
+    "section",
+    "card",
+    "grid",
+    "list",
+    "faq",
+    "timeline",
+    "item",
+    "panel",
+    "feature",
+    "summary",
+  ].some((token) => tokens.has(token))) {
+    return false;
+  }
+
+  return [
+    "copy",
+    "content",
+    "text",
+    "body",
+    "lede",
+    "lead",
+    "intro",
+    "deck",
+    "caption",
+    "meta",
+    "aside",
+  ].some((token) => tokens.has(token));
+}
+
+function findClosestHtmlAncestor(node, predicate, maxDepth = 6) {
+  let current = node instanceof HTMLElement ? node : node?.parentElement;
+  let depth = 0;
+  while (current && depth < maxDepth) {
+    if (predicate(current)) {
+      return current;
+    }
+    current = current.parentElement;
+    depth += 1;
+  }
+  return null;
+}
+
+function markHtmlElementClass(element, className) {
+  if (element instanceof HTMLElement && className) {
+    element.classList.add(className);
+  }
+}
+
+function applyHtmlLayoutSafetyPass(html) {
+  const documentHtml = String(html || "");
+  if (!documentHtml) {
+    return documentHtml;
+  }
+
+  const doc = parseHtmlDocument(documentHtml);
+  if (!(doc instanceof Document)) {
+    return documentHtml;
+  }
+
+  const body = doc.body;
+  if (body?.hasAttribute("data-edge-ai-layout-safe")) {
+    return serializeHtmlDocument(doc) || documentHtml;
+  }
+  body?.setAttribute("data-edge-ai-layout-safe", "true");
+
+  const topLevelCandidates = Array.from(body?.children || []).filter((element) => element instanceof HTMLElement);
+  const canvasCandidates = topLevelCandidates.filter((element) => elementLooksLikeCanvasContainer(element));
+  const mainCanvas = doc.querySelector("main, article");
+  if (mainCanvas instanceof HTMLElement && !canvasCandidates.includes(mainCanvas)) {
+    canvasCandidates.unshift(mainCanvas);
+  }
+  const finalCanvasCandidates = canvasCandidates.length
+    ? canvasCandidates
+    : topLevelCandidates.length === 1
+      ? [topLevelCandidates[0]]
+      : [];
+  finalCanvasCandidates.forEach((element) => {
+    markHtmlElementClass(element, "edge-ai-wide-canvas");
+    const hint = getHtmlElementHintText(element);
+    if (/(editorial|magazine|story|feature)/.test(hint)) {
+      markHtmlElementClass(element, "edge-ai-wide-canvas-editorial");
+    }
+  });
+
+  Array.from(doc.querySelectorAll("section, article, header")).forEach((element) => {
+    if (!(element instanceof HTMLElement)) {
+      return;
+    }
+    const parent = element.parentElement;
+    if (parent instanceof HTMLElement && parent.classList.contains("edge-ai-wide-canvas")) {
+      markHtmlElementClass(element, "edge-ai-wide-section");
+    }
+  });
+
+  Array.from(doc.querySelectorAll("h1, h2, h3")).forEach((heading) => {
+    if (!(heading instanceof HTMLElement)) {
+      return;
+    }
+    const text = normalizeExtractedText(heading.textContent || "");
+    if (!isLongHeadlineText(text)) {
+      return;
+    }
+
+    markHtmlElementClass(heading, "edge-ai-safe-heading");
+    if (isCjkHeavyText(text)) {
+      markHtmlElementClass(heading, "edge-ai-safe-heading-cjk");
+    }
+
+    const textColumn = findClosestHtmlAncestor(
+      heading.parentElement,
+      (element) => element !== body && elementLooksLikeTextBlock(element),
+      4,
+    ) || heading.parentElement;
+    const safeTextColumn = elementCanBeSafeTextColumn(textColumn) ? textColumn : null;
+    if (safeTextColumn) {
+      markHtmlElementClass(safeTextColumn, "edge-ai-safe-text-column");
+    }
+
+    const layoutContainer = findClosestHtmlAncestor(
+      safeTextColumn || textColumn,
+      (element) => element !== body && !elementIsPageShell(element) && elementLooksLikeLayoutContainer(element),
+      6,
+    );
+    if (layoutContainer && layoutContainer.children.length >= 2) {
+      markHtmlElementClass(layoutContainer, "edge-ai-safe-split-layout");
+      if (elementLooksLikeVisualBlock(layoutContainer) || /hero|feature|lead|story|editorial|spotlight/.test(getHtmlElementHintText(layoutContainer))) {
+        markHtmlElementClass(layoutContainer, "edge-ai-wide-hero-layout");
+      }
+      Array.from(layoutContainer.children).forEach((child) => {
+        if (!(child instanceof HTMLElement)) {
+          return;
+        }
+        if (elementLooksLikeVisualBlock(child)) {
+          markHtmlElementClass(child, "edge-ai-safe-media");
+        }
+        if (elementLooksLikeTextBlock(child) && elementCanBeSafeTextColumn(child)) {
+          markHtmlElementClass(child, "edge-ai-safe-text-column");
+        }
+      });
+
+      const narrowRail = findClosestHtmlAncestor(
+        safeTextColumn || textColumn,
+        (element) => element !== layoutContainer && elementLooksLikeNarrowRail(element),
+        4,
+      );
+      if (safeTextColumn && (narrowRail || elementLooksLikeNarrowRail(safeTextColumn))) {
+        markHtmlElementClass(safeTextColumn, "edge-ai-promote-story-lead");
+      }
+    }
+  });
+
+  Array.from(doc.querySelectorAll("div, nav, section, header, footer")).forEach((element) => {
+    if (!(element instanceof HTMLElement)) {
+      return;
+    }
+    const hint = getHtmlElementHintText(element);
+    if (/(actions|cta-group|button-group|buttongroup|hero-actions|heroactions|cta|buttons)/.test(hint)) {
+      markHtmlElementClass(element, "edge-ai-safe-actions");
+    }
+  });
+
+  return serializeHtmlDocument(doc) || documentHtml;
+}
+
 function getHtmlImageQueryNodes(doc) {
   if (!(doc instanceof Document)) {
     return [];
@@ -6656,7 +7076,8 @@ function extractHtmlDocumentFromText(rawText) {
   for (const candidate of candidates) {
     const normalized = normalizeHtmlDocument(candidate);
     if (normalized) {
-      return injectHtmlMermaidRuntime(injectHtmlLayoutGuardStyles(normalized));
+      const guarded = injectHtmlLayoutGuardStyles(applyHtmlLayoutSafetyPass(normalized));
+      return injectHtmlMermaidRuntime(guarded);
     }
   }
 
@@ -8018,7 +8439,11 @@ function buildLandingPageGenerationPrompt(sourceBundle, template, analysis) {
     `SELECTED TEMPLATE ID: ${template.id}`,
     `SELECTED TEMPLATE LABEL: ${template.label}`,
     `ONE-LINE TEMPLATE SUMMARY: ${template.oneLineSummary}`,
+    `TEMPLATE CANVAS MODE: ${String(template.canvasMode || "wide-canvas").trim()}`,
     `SECTION OUTLINE: ${template.sectionOutline.join(" -> ")}`,
+    Array.isArray(template.layoutGuidance) && template.layoutGuidance.length
+      ? `TEMPLATE LAYOUT GUIDANCE:\n- ${template.layoutGuidance.join("\n- ")}`
+      : "",
     `PREFERRED VISUAL THEME: ${preferredTheme}`,
     analysis?.analysisSummary ? `SOURCE ANALYSIS SUMMARY: ${analysis.analysisSummary}` : "",
     analysis?.audienceSummary ? `TARGET AUDIENCE SUMMARY: ${analysis.audienceSummary}` : "",
@@ -8036,22 +8461,27 @@ function buildLandingPageGenerationPrompt(sourceBundle, template, analysis) {
     preferredTheme === "light"
       ? "4. Use a light visual theme: bright surface backgrounds, dark readable text, and restrained accents."
       : "4. Use a dark visual theme: deep backgrounds, high readability, and luminous accents without muddy contrast.",
-    "5. Make the page visually rich. Hero sections should include a strong visual area, and at least one additional section should include supporting media or an image-led composition.",
-    "6. If source images are available, use multiple of them where appropriate in <img src> or as background-image values. Do not rely on a single tiny image for the whole page.",
-    "7. If source images are limited, create image-forward compositions with large media frames, layered panels, badges, cards, diagrams, crops, or editorial figure blocks instead of empty placeholders.",
-    "8. Keep copy tight and landing-page oriented rather than article-like. Rewrite long source text into shorter headlines, decks, bullets, and captions.",
-    "9. Guard against layout breakage: long Chinese or English headlines must wrap cleanly, buttons must never overlap body copy, and CTA groups must stack or wrap on narrow widths.",
-    "10. Use resilient CSS: clamp() for large type where useful, max-width on text blocks, overflow-wrap:anywhere or word-break where needed, flex-wrap on button groups, and enough spacing between text and actions.",
-    "11. Do not position floating CTA buttons on top of paragraphs or headings unless there is a clearly reserved container area for them.",
-    "12. Every section should feel intentionally composed, with enough whitespace and visual hierarchy to avoid crowded text walls.",
-    "13. Use clear CTA treatment that matches the page type, but do not invent signup URLs or product names not grounded in the source.",
+    "5. On desktop, do not trap the whole landing page inside a narrow 65% to 70% article column. Use a broad canvas, typically around 86vw to 96vw with sensible gutters, and a max width often around 1360px to 1600px unless the chosen template clearly calls for something tighter.",
+    "6. Make the page visually rich. Hero sections should include a strong visual area, and at least one additional section should include supporting media or an image-led composition.",
+    "7. If source images are available, use multiple of them where appropriate in <img src> or as background-image values. Do not rely on a single tiny image for the whole page.",
+    "8. If source images are limited, create image-forward compositions with large media frames, layered panels, badges, cards, diagrams, crops, or editorial figure blocks instead of empty placeholders.",
+    "9. Keep copy tight and landing-page oriented rather than article-like. Rewrite long source text into shorter headlines, decks, bullets, and captions.",
+    "10. Guard against layout breakage: long Chinese or English headlines must wrap cleanly, buttons must never overlap body copy, and CTA groups must stack or wrap on narrow widths.",
+    "11. Use resilient CSS: clamp() for large type where useful, max-width on text blocks, overflow-wrap:anywhere or word-break where needed, flex-wrap on button groups, and enough spacing between text and actions.",
+    "12. Never place a full headline, deck, or paragraph inside a narrow sidebar rail. Any text-heavy column should stay roughly 22rem / 352px or wider on desktop; otherwise switch that section to a wider or stacked layout.",
+    "13. For editorial or magazine-style compositions, metadata chips may live in a narrow rail, but the main headline, standfirst, and summary must sit in a broad content block. Do not create one-character-per-line Chinese headlines.",
+    "14. When building split layouts, prefer safe desktop tracks such as minmax(420px, 1fr) and ensure media cannot crush the text column into a poster-like sliver.",
+    "15. Avoid giant empty side gutters. If the page feels visually stranded in the center, widen the main canvas or use more decisive full-bleed and near-full-bleed sections.",
+    "16. Do not position floating CTA buttons on top of paragraphs or headings unless there is a clearly reserved container area for them.",
+    "17. Every section should feel intentionally composed, with enough whitespace and visual hierarchy to avoid crowded text walls.",
+    "18. Use clear CTA treatment that matches the page type, but do not invent signup URLs or product names not grounded in the source.",
     contextBlock,
   ]
     .filter(Boolean)
     .join("\n\n");
 }
 
-function buildLandingPageRepairPrompt(sourceBundle, template, analysis, html) {
+function buildLandingPageRepairPrompt(sourceBundle, template, analysis, html, audit = null) {
   const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
   const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
   const preferredTheme = analysis?.themePreference === "light" ? "light" : "dark";
@@ -8063,16 +8493,24 @@ function buildLandingPageRepairPrompt(sourceBundle, template, analysis, html) {
     "Keep the same overall concept, factual content, and visual intent, but fix layout risks aggressively.",
     `SELECTED TEMPLATE ID: ${template.id}`,
     `SELECTED TEMPLATE LABEL: ${template.label}`,
+    `TEMPLATE CANVAS MODE: ${String(template.canvasMode || "wide-canvas").trim()}`,
+    Array.isArray(template.layoutGuidance) && template.layoutGuidance.length
+      ? `TEMPLATE LAYOUT GUIDANCE:\n- ${template.layoutGuidance.join("\n- ")}`
+      : "",
     `PREFERRED VISUAL THEME: ${preferredTheme}`,
+    audit?.summary ? `AUDIT SUMMARY: ${audit.summary}` : "",
+    renderLandingPageAuditIssuesBlock(audit),
     "Primary repair goals:",
     "1. Prevent oversized headlines from being clipped, cropped, or running underneath images.",
     "2. Prevent any CTA button, badge, chip, or floating card from covering paragraphs or headings.",
     "3. Ensure hero text and hero media each have dedicated space instead of overlapping.",
-    "4. Shorten overly long decks, eyebrow lines, and supporting copy when needed.",
-    "5. Add safer CSS for wrapping, max-width, grid sizing, and stacked mobile layouts.",
-    "6. If a side-by-side hero is too tight, reduce headline size, limit line length, or switch the hero to a taller stacked layout.",
-    "7. Avoid absolute positioning for important text and CTAs unless there is guaranteed safe empty space.",
-    "8. Preserve or improve image density without sacrificing readability.",
+    "4. If a long CJK headline sits in a narrow sidebar, rail, or editorial column, move it into a wider content block or convert that section to a stacked layout.",
+    "5. If the whole page sits in an unnecessarily narrow centered canvas, widen the main wrapper so the desktop layout feels like a real landing page rather than an article column.",
+    "6. Shorten overly long decks, eyebrow lines, and supporting copy when needed.",
+    "7. Add safer CSS for wrapping, max-width, minmax-based grid sizing, wider desktop canvases, and stacked mobile layouts.",
+    "8. If a side-by-side hero is too tight, reduce headline size, limit line length, widen the text column, widen the overall canvas, or switch the hero to a taller stacked layout.",
+    "9. Avoid absolute positioning for important text and CTAs unless there is guaranteed safe empty space.",
+    "10. Preserve or improve image density without sacrificing readability.",
     "Return repaired HTML only.",
     contextBlock,
     "CURRENT HTML TO REPAIR:",
@@ -8080,6 +8518,128 @@ function buildLandingPageRepairPrompt(sourceBundle, template, analysis, html) {
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function buildLandingPageLayoutAuditPrompt(sourceBundle, template, analysis, html) {
+  const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
+  return [
+    `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+    "You are auditing a generated landing page HTML document for layout and composition problems before it is shipped.",
+    "Reply with one JSON object only.",
+    "Do not wrap the response in Markdown code fences.",
+    "Schema:",
+    '{"pass":true,"riskLevel":"low","summary":"...","issues":[{"id":"...","severity":"high","title":"...","detail":"...","repairInstruction":"..."}]}',
+    `SELECTED TEMPLATE ID: ${template.id}`,
+    `SELECTED TEMPLATE LABEL: ${template.label}`,
+    `TEMPLATE CANVAS MODE: ${String(template.canvasMode || "wide-canvas").trim()}`,
+    Array.isArray(template.layoutGuidance) && template.layoutGuidance.length
+      ? `TEMPLATE LAYOUT GUIDANCE:\n- ${template.layoutGuidance.join("\n- ")}`
+      : "",
+    analysis?.analysisSummary ? `SOURCE ANALYSIS SUMMARY: ${analysis.analysisSummary}` : "",
+    "Audit priorities:",
+    "1. Detect if the page is trapped in a narrow centered article column instead of a real landing-page canvas.",
+    "2. Detect if any long Chinese headline, standfirst, or paragraph is being squeezed into a narrow rail, sidebar, or poster-like column.",
+    "3. Detect if any image, card, or floating block visually covers or competes with a main heading or body copy.",
+    "4. Detect if the primary story lead is visually weaker than side cards or if the page hierarchy feels inverted.",
+    "5. Detect oversized empty gutters, awkward whitespace imbalance, or compositions where a small text block sits beside an overly tall image slab.",
+    "6. Detect if timeline, fact cards, or sidebar modules dominate more than the actual main narrative.",
+    "Rules:",
+    "1. Set `pass` to false if there is any meaningful desktop-layout problem.",
+    "2. Use `riskLevel` as one of low, medium, high.",
+    "3. Return 0 to 6 issues.",
+    "4. `repairInstruction` must be concrete and directly usable for a repair step.",
+    "5. Focus on composition, width, overlap, hierarchy, and readability. Ignore tiny polish issues.",
+    contextBlock,
+    "CURRENT HTML TO AUDIT:",
+    String(html || "").trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildLandingPageStabilityFallbackPrompt(sourceBundle, template, analysis, audit, previousHtml) {
+  const replyLanguage = currentConfig?.replyLanguage || "zh-TW";
+  const contextBlock = renderLandingPageSourceBundleBlock(sourceBundle);
+  const preferredTheme = analysis?.themePreference === "light" ? "light" : "dark";
+  return [
+    `Reply language: ${replyLanguage}. Always answer in this language unless the user explicitly asks for another language.`,
+    "Generate a replacement landing page HTML document that prioritizes layout stability over visual experimentation.",
+    "Reply with one complete ```html``` code block only.",
+    "Do not add explanation before or after the code block.",
+    "This is a stability fallback. Favor reliability, hierarchy, and readable structure over fancy composition.",
+    `SELECTED TEMPLATE ID: ${template.id}`,
+    `SELECTED TEMPLATE LABEL: ${template.label}`,
+    `TEMPLATE CANVAS MODE: ${String(template.canvasMode || "wide-canvas").trim()}`,
+    Array.isArray(template.layoutGuidance) && template.layoutGuidance.length
+      ? `TEMPLATE LAYOUT GUIDANCE:\n- ${template.layoutGuidance.join("\n- ")}`
+      : "",
+    `PREFERRED VISUAL THEME: ${preferredTheme}`,
+    analysis?.analysisSummary ? `SOURCE ANALYSIS SUMMARY: ${analysis.analysisSummary}` : "",
+    analysis?.audienceSummary ? `TARGET AUDIENCE SUMMARY: ${analysis.audienceSummary}` : "",
+    Array.isArray(analysis?.valueProps) && analysis.valueProps.length
+      ? `VALUE PROPS:\n- ${analysis.valueProps.join("\n- ")}`
+      : "",
+    audit?.summary ? `FAILED LAYOUT AUDIT SUMMARY: ${audit.summary}` : "",
+    renderLandingPageAuditIssuesBlock(audit),
+    "Fallback requirements:",
+    "1. Use a broad but conservative desktop canvas, usually around 88vw to 94vw with clear side gutters.",
+    "2. Default to a stable vertical flow of sections. Only use two columns when both columns remain comfortably wide; otherwise stack them.",
+    "3. The first screen must have one dominant headline block and one supporting visual block. If the visual is tall or noisy, place the text above it instead of beside it.",
+    "4. Never place the main headline, standfirst, or key summary in a narrow rail, sidebar, badge strip, or timeline column.",
+    "5. Avoid absolute positioning, sticky positioning, floating overlays, decorative overlaps, and experimental editorial crops.",
+    "6. Avoid tiny pills, chips, or side modules becoming more visually dominant than the main narrative.",
+    "7. If the source is news, weather, or editorial content, prefer a strong lead block followed by safe cards, timelines, and supporting visual panels.",
+    "8. Keep CSS simple and defensive: one main wrapper, roomy sections, safe grids, generous gaps, and obvious hierarchy.",
+    "9. If there is any doubt about composition stability, choose the simpler layout.",
+    "10. Preserve factual fidelity and keep the page recognizably aligned with the selected template, but prioritize stability over aesthetics.",
+    contextBlock,
+    "PREVIOUS UNSTABLE HTML:",
+    String(previousHtml || "").trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function normalizeLandingPageLayoutAuditResult(result) {
+  const issues = (Array.isArray(result?.issues) ? result.issues : [])
+    .map((item, index) => ({
+      id: String(item?.id || `issue-${index + 1}`).trim() || `issue-${index + 1}`,
+      severity: ["low", "medium", "high"].includes(String(item?.severity || "").trim().toLowerCase())
+        ? String(item.severity).trim().toLowerCase()
+        : "medium",
+      title: String(item?.title || "").trim(),
+      detail: String(item?.detail || "").trim(),
+      repairInstruction: String(item?.repairInstruction || item?.repair || "").trim(),
+    }))
+    .filter((item) => item.title || item.detail || item.repairInstruction)
+    .slice(0, 6);
+
+  const riskLevel = ["low", "medium", "high"].includes(String(result?.riskLevel || "").trim().toLowerCase())
+    ? String(result.riskLevel).trim().toLowerCase()
+    : (issues.some((item) => item.severity === "high") ? "high" : issues.length ? "medium" : "low");
+
+  return {
+    pass: Boolean(result?.pass) && !issues.some((item) => item.severity === "high"),
+    riskLevel,
+    summary: String(result?.summary || "").trim(),
+    issues,
+  };
+}
+
+function renderLandingPageAuditIssuesBlock(audit) {
+  const issues = Array.isArray(audit?.issues) ? audit.issues : [];
+  if (!issues.length) {
+    return "";
+  }
+  return [
+    "AUDIT FINDINGS TO FIX:",
+    ...issues.map((issue, index) => [
+      `${index + 1}. [${String(issue.severity || "medium").toUpperCase()}] ${String(issue.title || issue.id || `Issue ${index + 1}`).trim()}`,
+      issue.detail ? `Problem: ${issue.detail}` : "",
+      issue.repairInstruction ? `Repair: ${issue.repairInstruction}` : "",
+    ].filter(Boolean).join("\n")),
+  ].join("\n\n");
 }
 
 function hasLandingPageBuilderProvidedSources(draft) {
@@ -8162,6 +8722,11 @@ async function analyzeLandingPageBuilderSource() {
   }
 }
 
+async function auditLandingPageHtmlLayout(sourceBundle, template, draft, html, model) {
+  const response = await runGenerate(buildLandingPageLayoutAuditPrompt(sourceBundle, template, draft, html), model);
+  return normalizeLandingPageLayoutAuditResult(parseStructuredJsonResponse(response) || {});
+}
+
 async function generateLandingPageFromBuilder() {
   const draft = ensureLandingPageBuilderDraft();
   if (!draft.sourceBundle || !draft.recommendedTemplateIds.length) {
@@ -8193,12 +8758,54 @@ async function generateLandingPageFromBuilder() {
     if (!html) {
       throw new Error(tl("noHtmlToExport"));
     }
-    setStatus(tl("landingPageBuilderRepairing"));
-    const repairedResponse = await runGenerate(buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html), model);
-    const repairedHtml = extractHtmlDocumentFromText(repairedResponse);
-    if (repairedHtml) {
+    let assistantMessageContent = String(response || "").trim();
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const audit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
+      if (audit.pass || (!audit.issues.length && audit.riskLevel === "low")) {
+        break;
+      }
+
+      setStatus(tl("landingPageBuilderRepairing"));
+      const repairedResponse = await runGenerate(
+        buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, audit),
+        model,
+      );
+      const repairedHtml = extractHtmlDocumentFromText(repairedResponse);
+      if (!repairedHtml) {
+        break;
+      }
       html = repairedHtml;
+      assistantMessageContent = String(repairedResponse || "").trim() || assistantMessageContent;
     }
+
+    let finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
+    if (!finalAudit.pass || finalAudit.riskLevel === "high") {
+      setStatus(tl("landingPageBuilderStabilizing"));
+      const fallbackResponse = await runGenerate(
+        buildLandingPageStabilityFallbackPrompt(draft.sourceBundle, template, draft, finalAudit, html),
+        model,
+      );
+      const fallbackHtml = extractHtmlDocumentFromText(fallbackResponse);
+      if (fallbackHtml) {
+        html = fallbackHtml;
+        assistantMessageContent = String(fallbackResponse || "").trim() || assistantMessageContent;
+        finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
+        if (!finalAudit.pass && finalAudit.issues.length) {
+          setStatus(tl("landingPageBuilderRepairing"));
+          const finalRepairResponse = await runGenerate(
+            buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, finalAudit),
+            model,
+          );
+          const finalRepairHtml = extractHtmlDocumentFromText(finalRepairResponse);
+          if (finalRepairHtml) {
+            html = finalRepairHtml;
+            assistantMessageContent = String(finalRepairResponse || "").trim() || assistantMessageContent;
+          }
+        }
+      }
+    }
+
     html = await repairHtmlImagesForDownload(html);
     draft.generatedHtml = html;
     draft.generatedFileName = buildLandingPageBuilderHtmlFilename(draft, template);
@@ -8211,7 +8818,7 @@ async function generateLandingPageFromBuilder() {
     chatMessages.push({
       id: Date.now() + 1,
       role: "assistant",
-      content: String(response || "").trim(),
+      content: assistantMessageContent,
     });
     draft.isGenerating = false;
     renderShell();
@@ -12945,22 +13552,29 @@ function renderLandingPageBuilder() {
   const draft = ensureLandingPageBuilderDraft();
   const templates = getLocalizedLandingPageTemplateCatalog();
   const recommendedIds = draft.recommendedTemplateIds.length
-    ? draft.recommendedTemplateIds
-    : templates.map((item) => item.id);
+    ? draft.recommendedTemplateIds.filter((templateId, index, list) => templateId && list.indexOf(templateId) === index)
+    : [];
+  const recommendedIdSet = new Set(recommendedIds);
+  const orderedTemplates = [
+    ...templates.filter((item) => recommendedIdSet.has(item.id)),
+    ...templates.filter((item) => !recommendedIdSet.has(item.id)),
+  ];
   const selectedTemplate = templates.find((item) => item.id === draft.selectedTemplateId)
     || templates.find((item) => item.id === recommendedIds[0])
     || templates[0];
 
-  const cards = recommendedIds
-    .map((templateId) => templates.find((item) => item.id === templateId))
-    .filter(Boolean)
+  const cards = orderedTemplates
     .map((template) => {
       const isSelected = selectedTemplate?.id === template.id;
+      const isRecommended = recommendedIdSet.has(template.id);
       return `
-        <button class="ollama-quick-landing-page-template-card ${isSelected ? "is-selected" : ""}" type="button" data-action="select-landing-page-template" data-template-id="${escapeHtml(template.id)}">
+        <button class="ollama-quick-landing-page-template-card ${isSelected ? "is-selected" : ""} ${isRecommended ? "is-recommended" : ""}" type="button" data-action="select-landing-page-template" data-template-id="${escapeHtml(template.id)}">
           <img class="ollama-quick-landing-page-template-image" src="${template.previewImage}" alt="${escapeHtml(template.label)}" />
           <span class="ollama-quick-landing-page-template-copy">
-            <span class="ollama-quick-landing-page-template-title">${escapeHtml(template.label)}</span>
+            <span class="ollama-quick-landing-page-template-title-row">
+              <span class="ollama-quick-landing-page-template-title">${escapeHtml(template.label)}</span>
+              ${isRecommended ? `<span class="ollama-quick-landing-page-template-badge">${escapeHtml(tl("landingPageBuilderRecommendedBadge"))}</span>` : ""}
+            </span>
             <span class="ollama-quick-landing-page-template-summary">${escapeHtml(template.oneLineSummary)}</span>
           </span>
         </button>
@@ -13037,7 +13651,10 @@ function renderLandingPageBuilder() {
           </div>
           <div class="ollama-quick-landing-page-template-section">
             <div class="ollama-quick-landing-page-section-head">
-              <div class="ollama-quick-landing-page-section-title">${escapeHtml(tl("landingPageBuilderRecommendedTitle"))}</div>
+              <div class="ollama-quick-landing-page-section-head-copy">
+                <div class="ollama-quick-landing-page-section-title">${escapeHtml(tl("landingPageBuilderAllTemplatesTitle"))}</div>
+                ${recommendedIds.length ? `<div class="ollama-quick-landing-page-section-note">${escapeHtml(tl("landingPageBuilderRecommendedHint", { count: recommendedIds.length }))}</div>` : ""}
+              </div>
               <button class="ollama-quick-primary ollama-quick-picker-add" type="button" data-action="analyze-landing-page-source" ${draft.isAnalyzing || draft.isGenerating ? "disabled" : ""}>${escapeHtml(tl(draft.isAnalyzing ? "landingPageBuilderAnalyzing" : "landingPageBuilderAnalyze"))}</button>
             </div>
             <div class="ollama-quick-landing-page-template-grid">

@@ -2836,6 +2836,17 @@
   gap: 10px;
 }
 
+.ollama-quick-landing-page-section-head-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.ollama-quick-landing-page-section-note {
+  color: rgba(219, 232, 251, 0.68);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .ollama-quick-landing-page-template-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2870,6 +2881,11 @@
     0 0 0 1px rgba(126, 233, 255, 0.08);
 }
 
+.ollama-quick-landing-page-template-card.is-recommended:not(.is-selected) {
+  border-color: rgba(255, 204, 123, 0.26);
+  background: linear-gradient(180deg, rgba(27, 23, 12, 0.78), rgba(13, 18, 31, 0.82));
+}
+
 .ollama-quick-landing-page-template-image,
 .ollama-quick-landing-page-selected-image {
   display: block;
@@ -2885,12 +2901,31 @@
   gap: 3px;
 }
 
+.ollama-quick-landing-page-template-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .ollama-quick-landing-page-template-title,
 .ollama-quick-landing-page-selected-name {
   color: #f7fbff;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.ollama-quick-landing-page-template-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 204, 123, 0.3);
+  background: rgba(255, 204, 123, 0.12);
+  color: #ffd99a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .ollama-quick-landing-page-template-summary {
