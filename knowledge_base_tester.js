@@ -384,6 +384,12 @@ function createRequestHeaders(extraHeaders = {}) {
   };
 }
 
+function formatOllamaEmbeddingForbiddenError(status, responseText = "") {
+  const compact = String(responseText || "").replace(/\s+/g, " ").trim();
+  const suffix = compact ? ` Server said: ${compact}` : "";
+  return `Ollama embedding request failed: ${status}${suffix}\nOllama 有回應，但遠端主機、反向代理或權限設定拒絕了 POST /api/embed。這通常不是 chunk 內容本身的問題。請檢查 Ollama embedding URL、OLLAMA_ORIGINS，以及前面的 proxy / firewall 是否允許 POST /api/embed。`;
+}
+
 function buildIsolatedRunPreamble() {
   return [
     "這是一個全新的獨立測試回合。",
@@ -1031,6 +1037,9 @@ async function createOllamaEmbeddings(inputs, config) {
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    if (response.status === 403) {
+      throw new Error(formatOllamaEmbeddingForbiddenError(response.status, text));
+    }
     throw new Error(`Ollama embedding request failed: ${response.status}${text ? `\n${text}` : ""}`);
   }
   const data = await response.json();
@@ -1388,6 +1397,9 @@ function explainAzureError(error) {
     return `${message}\n請確認 Ollama 正在執行，而且 Open Copilot 的 selected model 有設定。`;
   }
   if (message.startsWith("Ollama embedding request failed:")) {
+    if (message.includes("POST /api/embed")) {
+      return message;
+    }
     return `${message}\n請確認 Ollama 正在執行，而且 Settings 裡已設定可用的 Ollama embedding model。`;
   }
   if (message.startsWith("LM Studio request failed:")) {

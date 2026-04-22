@@ -7911,6 +7911,9 @@ function createDefaultLandingPageBuilderDraft() {
     templateReason: "",
     isAnalyzing: false,
     isGenerating: false,
+    generationStage: "",
+    generationDetail: "",
+    generationMessageId: "",
     generatedHtml: "",
     generatedFileName: "",
     generatedTemplateId: "",
@@ -7946,6 +7949,9 @@ function ensureLandingPageBuilderDraft() {
     landingPageBuilderDraft.valueProps = [];
   }
   landingPageBuilderDraft.themePreference = landingPageBuilderDraft.themePreference === "light" ? "light" : "dark";
+  landingPageBuilderDraft.generationStage = String(landingPageBuilderDraft.generationStage || "");
+  landingPageBuilderDraft.generationDetail = String(landingPageBuilderDraft.generationDetail || "");
+  landingPageBuilderDraft.generationMessageId = String(landingPageBuilderDraft.generationMessageId || "");
   landingPageBuilderDraft.generatedHtml = String(landingPageBuilderDraft.generatedHtml || "");
   landingPageBuilderDraft.generatedFileName = String(landingPageBuilderDraft.generatedFileName || "");
   landingPageBuilderDraft.generatedTemplateId = String(landingPageBuilderDraft.generatedTemplateId || "");
@@ -7953,6 +7959,9 @@ function ensureLandingPageBuilderDraft() {
 }
 
 function clearLandingPageBuilderGeneratedResult(draft = ensureLandingPageBuilderDraft()) {
+  draft.generationStage = "";
+  draft.generationDetail = "";
+  draft.generationMessageId = "";
   draft.generatedHtml = "";
   draft.generatedFileName = "";
   draft.generatedTemplateId = "";
@@ -7966,6 +7975,237 @@ function buildLandingPageBuilderHtmlFilename(draft, template) {
     || "landing-page"
   ).trim();
   return `${timestampForFile(new Date())}-${sanitizeFileSegment(sourceTitle, "landing-page")}.html`;
+}
+
+function isHtmlOutputStarter(starter) {
+  const starterKey = String(starter?.starterKey || starter?.id || "").trim().replace(/^builtin:/, "");
+  return starterKey === "landingHtml";
+}
+
+function getHtmlGenerationCopy() {
+  const isZh = getUiLanguage().toLowerCase().startsWith("zh");
+  return isZh
+    ? {
+        title: "HTML 生成進度",
+        running: "生成中",
+        ready: "已完成",
+        failed: "失敗",
+        landingHtmlPreparing: "正在整理目前頁面與附加內容，準備生成 HTML。",
+        landingHtmlGenerating: "模型正在生成版面與 HTML，對話框不再直接貼出原始碼。",
+        landingHtmlPackaging: "正在整理 HTML 資源，讓下載結果更穩定。",
+        landingHtmlReady: "HTML 已生成完成，可以直接下載，不再把原始碼整段貼到聊天室。",
+        landingHtmlNoHtml: "模型已回覆，但沒有產出可下載的 HTML。",
+        landingPageDrafting: "正在依模板建立 landing page 初稿。",
+        landingPageAuditing: "正在檢查版面穩定性與閱讀性。",
+        landingPageRepairing: "正在修正版面，避免文字被擠壓或互相覆蓋。",
+        landingPageStabilizing: "正在重建較穩定的版面版本。",
+        landingPageFinalizing: "正在整理最終 HTML 檔案。",
+        landingPageReady: "Landing page HTML 已生成完成，現在可以直接下載或複製。",
+        landingPageStepSource: "整理內容",
+        landingPageStepGenerate: "建立初稿",
+        landingPageStepAudit: "檢查版面",
+        landingPageStepRepair: "修正版面",
+        landingPageStepFinalize: "完成輸出",
+        htmlStepSource: "整理內容",
+        htmlStepGenerate: "生成版面",
+        htmlStepFinalize: "封裝 HTML",
+      }
+    : {
+        title: "HTML Generation Progress",
+        running: "Running",
+        ready: "Ready",
+        failed: "Failed",
+        landingHtmlPreparing: "Preparing the current page and attached context for HTML generation.",
+        landingHtmlGenerating: "The model is generating the layout and HTML. Raw source will stay out of the chat.",
+        landingHtmlPackaging: "Packaging the HTML so the downloaded result is more reliable.",
+        landingHtmlReady: "The HTML is ready to download without pasting the full source into the chat.",
+        landingHtmlNoHtml: "The model replied, but no downloadable HTML was produced.",
+        landingPageDrafting: "Creating the first landing-page draft from the selected template.",
+        landingPageAuditing: "Checking layout stability and readability.",
+        landingPageRepairing: "Repairing layout issues so text and media do not collide.",
+        landingPageStabilizing: "Rebuilding a more stable layout variant.",
+        landingPageFinalizing: "Preparing the final HTML output.",
+        landingPageReady: "The landing page HTML is ready to download or copy.",
+        landingPageStepSource: "Prepare source",
+        landingPageStepGenerate: "Draft layout",
+        landingPageStepAudit: "Audit layout",
+        landingPageStepRepair: "Repair layout",
+        landingPageStepFinalize: "Finalize output",
+        htmlStepSource: "Prepare source",
+        htmlStepGenerate: "Generate layout",
+        htmlStepFinalize: "Package HTML",
+      };
+}
+
+function getLandingHtmlGenerationSteps() {
+  const copy = getHtmlGenerationCopy();
+  return [
+    { id: "source", label: copy.htmlStepSource },
+    { id: "generate", label: copy.htmlStepGenerate },
+    { id: "finalize", label: copy.htmlStepFinalize },
+  ];
+}
+
+function getLandingPageBuilderGenerationSteps() {
+  const copy = getHtmlGenerationCopy();
+  return [
+    { id: "generate", label: copy.landingPageStepGenerate },
+    { id: "audit", label: copy.landingPageStepAudit },
+    { id: "repair", label: copy.landingPageStepRepair },
+    { id: "finalize", label: copy.landingPageStepFinalize },
+  ];
+}
+
+function createHtmlGenerationJob({ title = "", steps = [], detail = "" } = {}) {
+  const normalizedSteps = Array.isArray(steps) ? steps.filter((item) => item?.id && item?.label) : [];
+  return {
+    title: String(title || "").trim() || getHtmlGenerationCopy().title,
+    status: "running",
+    detail: String(detail || "").trim(),
+    summary: "",
+    currentStepId: normalizedSteps[0]?.id || "",
+    completedStepIds: [],
+    steps: normalizedSteps,
+    rawText: "",
+    fileName: "",
+  };
+}
+
+function updateHtmlGenerationMessage(messageId, updater) {
+  const message = getChatMessageById(messageId);
+  if (!message?.htmlGenerationJob) {
+    return null;
+  }
+  updater(message.htmlGenerationJob, message);
+  scheduleMessagesRender();
+  scheduleConversationSave();
+  return message;
+}
+
+function setHtmlGenerationJobStage(messageId, stageId, detail, options = {}) {
+  updateHtmlGenerationMessage(messageId, (job, message) => {
+    const steps = Array.isArray(job.steps) ? job.steps : [];
+    const targetIndex = Math.max(0, steps.findIndex((step) => step.id === stageId));
+    if (steps[targetIndex]) {
+      job.currentStepId = steps[targetIndex].id;
+      job.completedStepIds = steps.slice(0, targetIndex).map((step) => step.id);
+    }
+    if (typeof detail === "string") {
+      job.detail = detail.trim();
+    }
+    if (typeof options.status === "string") {
+      job.status = options.status;
+    }
+    if (typeof options.summary === "string") {
+      job.summary = options.summary.trim();
+      message.content = job.summary;
+    }
+    if (typeof options.fileName === "string") {
+      job.fileName = options.fileName.trim();
+      message.generatedFileName = job.fileName;
+    }
+    if (typeof options.generatedHtml === "string") {
+      message.generatedHtml = options.generatedHtml;
+    }
+    if (options.status === "complete") {
+      job.completedStepIds = steps.map((step) => step.id);
+      job.currentStepId = steps[steps.length - 1]?.id || job.currentStepId;
+      job.rawText = "";
+    }
+  });
+}
+
+function setHtmlGenerationJobError(messageId, errorText) {
+  updateHtmlGenerationMessage(messageId, (job, message) => {
+    const errorMessage = String(errorText || "").trim();
+    job.status = "error";
+    job.summary = errorMessage;
+    job.detail = errorMessage;
+    job.rawText = "";
+    message.content = `Error: ${errorMessage}`;
+  });
+}
+
+function renderHtmlGenerationProgressPanel(job, options = {}) {
+  if (!job || typeof job !== "object") {
+    return "";
+  }
+
+  const copy = getHtmlGenerationCopy();
+  const steps = Array.isArray(job.steps) ? job.steps : [];
+  const completedIds = new Set(Array.isArray(job.completedStepIds) ? job.completedStepIds : []);
+  const activeStepId = String(job.currentStepId || "");
+  const completedCount = steps.filter((step) => completedIds.has(step.id)).length;
+  const baseProgress = steps.length
+    ? (completedCount + (job.status === "complete" ? 0 : (job.status === "running" && activeStepId ? 0.45 : 0))) / steps.length
+    : 0;
+  const progressValue = job.status === "complete"
+    ? 100
+    : Math.max(8, Math.min(96, Math.round(baseProgress * 100)));
+  const statusLabel = job.status === "complete"
+    ? copy.ready
+    : job.status === "error"
+      ? copy.failed
+      : copy.running;
+  const summary = String(job.summary || job.detail || "").trim();
+  const stateClass = job.status === "complete" ? "is-complete" : job.status === "error" ? "is-error" : "is-running";
+  const compactClass = options.compact ? "is-compact" : "";
+  const stepMarkup = steps
+    .map((step) => {
+      const stepClass = completedIds.has(step.id)
+        ? "is-done"
+        : step.id === activeStepId && job.status !== "complete"
+          ? "is-active"
+          : "";
+      return `
+        <div class="ollama-quick-html-generation-step ${stepClass}">
+          <span class="ollama-quick-html-generation-step-dot"></span>
+          <span class="ollama-quick-html-generation-step-label">${escapeHtml(step.label)}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="ollama-quick-html-generation-card ${stateClass} ${compactClass}">
+      <div class="ollama-quick-html-generation-head">
+        <div class="ollama-quick-html-generation-title">${escapeHtml(job.title || copy.title)}</div>
+        <div class="ollama-quick-html-generation-status">${escapeHtml(statusLabel)}</div>
+      </div>
+      <div class="ollama-quick-html-generation-bar" aria-hidden="true">
+        <span style="width:${progressValue}%"></span>
+      </div>
+      ${summary ? `<div class="ollama-quick-html-generation-summary">${escapeHtml(summary)}</div>` : ""}
+      ${stepMarkup ? `<div class="ollama-quick-html-generation-steps">${stepMarkup}</div>` : ""}
+      ${job.fileName ? `<div class="ollama-quick-html-generation-file">${escapeHtml(job.fileName)}</div>` : ""}
+    </section>
+  `;
+}
+
+function renderLandingPageBuilderProgressPanel(draft, template) {
+  if (!draft?.isGenerating) {
+    return "";
+  }
+  const copy = getHtmlGenerationCopy();
+  const steps = getLandingPageBuilderGenerationSteps();
+  const currentIndex = Math.max(0, steps.findIndex((step) => step.id === String(draft.generationStage || "generate")));
+  return renderHtmlGenerationProgressPanel({
+    title: `${tl("starter_landingPageBuilder")} · ${template?.label || tl("landingPageBuilderTitle")}`,
+    status: "running",
+    detail: String(draft.generationDetail || "").trim() || copy.landingPageDrafting,
+    currentStepId: String(draft.generationStage || "generate").trim() || "generate",
+    completedStepIds: steps.slice(0, currentIndex).map((step) => step.id),
+    steps,
+    fileName: String(draft.generatedFileName || "").trim(),
+  }, { compact: true });
+}
+
+function syncLandingPageBuilderProgress(draft, messageId, stageId, detail, options = {}) {
+  draft.generationStage = stageId;
+  draft.generationDetail = String(detail || "").trim();
+  draft.generationMessageId = String(messageId || "");
+  renderShell();
+  setHtmlGenerationJobStage(messageId, stageId, detail, options);
 }
 
 function collectImageCandidatesFromLandingPageSourceBundle(sourceBundle) {
@@ -8751,22 +8991,46 @@ async function generateLandingPageFromBuilder() {
   clearLandingPageBuilderGeneratedResult(draft);
   renderShell();
   setStatus(tl("landingPageBuilderGenerating"));
+  const copy = getHtmlGenerationCopy();
+  const baseMessageId = Date.now();
+  const assistantMessageId = baseMessageId + 1;
+  chatMessages.push({
+    id: baseMessageId,
+    role: "user",
+    content: `${tl("starter_landingPageBuilder")} · ${template.label}`,
+  });
+  chatMessages.push({
+    id: assistantMessageId,
+    role: "assistant",
+    content: "",
+    generatedHtml: "",
+    htmlGenerationJob: createHtmlGenerationJob({
+      title: `${tl("starter_landingPageBuilder")} · ${template.label}`,
+      steps: getLandingPageBuilderGenerationSteps(),
+      detail: copy.landingPageDrafting,
+    }),
+  });
+  draft.generationMessageId = String(assistantMessageId);
+  renderMessages();
+  scheduleConversationSave();
 
   try {
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "generate", copy.landingPageDrafting);
     const response = await runGenerate(buildLandingPageGenerationPrompt(draft.sourceBundle, template, draft), model);
     let html = extractHtmlDocumentFromText(response);
     if (!html) {
       throw new Error(tl("noHtmlToExport"));
     }
-    let assistantMessageContent = String(response || "").trim();
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
       const audit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
       if (audit.pass || (!audit.issues.length && audit.riskLevel === "low")) {
         break;
       }
 
       setStatus(tl("landingPageBuilderRepairing"));
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageRepairing);
       const repairedResponse = await runGenerate(
         buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, audit),
         model,
@@ -8776,12 +9040,13 @@ async function generateLandingPageFromBuilder() {
         break;
       }
       html = repairedHtml;
-      assistantMessageContent = String(repairedResponse || "").trim() || assistantMessageContent;
     }
 
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
     let finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
     if (!finalAudit.pass || finalAudit.riskLevel === "high") {
       setStatus(tl("landingPageBuilderStabilizing"));
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageStabilizing);
       const fallbackResponse = await runGenerate(
         buildLandingPageStabilityFallbackPrompt(draft.sourceBundle, template, draft, finalAudit, html),
         model,
@@ -8789,10 +9054,11 @@ async function generateLandingPageFromBuilder() {
       const fallbackHtml = extractHtmlDocumentFromText(fallbackResponse);
       if (fallbackHtml) {
         html = fallbackHtml;
-        assistantMessageContent = String(fallbackResponse || "").trim() || assistantMessageContent;
+        syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
         finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
         if (!finalAudit.pass && finalAudit.issues.length) {
           setStatus(tl("landingPageBuilderRepairing"));
+          syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageRepairing);
           const finalRepairResponse = await runGenerate(
             buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, finalAudit),
             model,
@@ -8800,35 +9066,39 @@ async function generateLandingPageFromBuilder() {
           const finalRepairHtml = extractHtmlDocumentFromText(finalRepairResponse);
           if (finalRepairHtml) {
             html = finalRepairHtml;
-            assistantMessageContent = String(finalRepairResponse || "").trim() || assistantMessageContent;
           }
         }
       }
     }
 
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "finalize", copy.landingPageFinalizing);
     html = await repairHtmlImagesForDownload(html);
     draft.generatedHtml = html;
     draft.generatedFileName = buildLandingPageBuilderHtmlFilename(draft, template);
     draft.generatedTemplateId = template.id;
-    chatMessages.push({
-      id: Date.now(),
-      role: "user",
-      content: `${tl("starter_landingPageBuilder")} · ${template.label}`,
-    });
-    chatMessages.push({
-      id: Date.now() + 1,
-      role: "assistant",
-      content: assistantMessageContent,
+    setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingPageReady, {
+      status: "complete",
+      summary: copy.landingPageReady,
+      generatedHtml: html,
+      fileName: draft.generatedFileName,
     });
     draft.isGenerating = false;
+    draft.generationStage = "";
+    draft.generationDetail = "";
+    draft.generationMessageId = "";
     renderShell();
     renderMessages();
     scheduleConversationSave();
     setStatus(tl("landingPageBuilderGenerated"));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     draft.isGenerating = false;
+    draft.generationStage = "";
+    draft.generationDetail = "";
+    draft.generationMessageId = "";
     renderShell();
-    setStatus(error instanceof Error ? error.message : String(error));
+    setHtmlGenerationJobError(assistantMessageId, message);
+    setStatus(message);
   }
 }
 
@@ -11625,7 +11895,8 @@ async function downloadMessageHtml(messageId) {
     throw new Error(tl("messageNotFound"));
   }
 
-  const html = await repairHtmlImagesForDownload(extractHtmlDocumentFromText(message.content));
+  const directHtml = String(message.generatedHtml || "").trim();
+  const html = directHtml || await repairHtmlImagesForDownload(extractHtmlDocumentFromText(message.content));
   if (!html) {
     throw new Error(tl("noHtmlToExport"));
   }
@@ -12656,7 +12927,9 @@ function renderMessages() {
     .map((message) => {
       try {
         const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
-        const isTypingAssistant = message.role === "assistant" && !message.flowRun && !message.content.trim() && isGenerating;
+        const hasHtmlGenerationPanel = message.role === "assistant" && message.htmlGenerationJob;
+        const isTypingAssistant = message.role === "assistant" && !message.flowRun && !message.htmlGenerationJob && !message.content.trim() && isGenerating;
+        const isHtmlGenerationRunning = hasHtmlGenerationPanel && message.htmlGenerationJob.status === "running";
         const messageIndex = getMessageIndexById(message.id);
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
@@ -12665,6 +12938,9 @@ function renderMessages() {
         const body =
           hasAgentFlowPanel
             ? renderAgentFlowPanel(message.flowRun)
+            :
+          hasHtmlGenerationPanel
+            ? renderHtmlGenerationProgressPanel(message.htmlGenerationJob)
             :
           isTypingAssistant
             ? `
@@ -12686,11 +12962,14 @@ function renderMessages() {
             : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>${messageAttachments}`;
         const hasDraftCodeBlock = message.role === "assistant" && !isTypingAssistant ? hasStarterDraftCodeBlock(message) : false;
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
-        const downloadableHtml = message.role === "assistant" && !isTypingAssistant ? extractHtmlDocumentFromText(message.content) : "";
+        const downloadableHtml = message.role === "assistant" && !isTypingAssistant
+          ? String(message.generatedHtml || "").trim() || extractHtmlDocumentFromText(message.content)
+          : "";
         const showSaveStarterButton = !hasDraftCodeBlock && (
           parsedStarterDrafts.length || (
             message.role === "assistant" &&
             !isTypingAssistant &&
+            !hasHtmlGenerationPanel &&
             (
               looksLikeStarterDraftText(message.content) ||
               (previousUserMessage && isStarterBuilderRequest(previousUserMessage.content))
@@ -12708,7 +12987,7 @@ function renderMessages() {
         } else if (showSaveStarterButton) {
           actionButtons.push(`<button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${message.id}">${escapeHtml(tl("saveStarter"))}</button>`);
         }
-        if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length) {
+        if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length && !isHtmlGenerationRunning) {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
@@ -13691,6 +13970,7 @@ function renderLandingPageBuilder() {
               </div>
             </div>
           ` : ""}
+          ${draft.isGenerating && selectedTemplate ? renderLandingPageBuilderProgressPanel(draft, selectedTemplate) : ""}
           ${hasGeneratedHtml ? `
             <div class="ollama-quick-landing-page-result-panel">
               <div class="ollama-quick-landing-page-section-head">
@@ -16744,8 +17024,26 @@ async function sendCurrentPrompt(options = {}) {
     return true;
   }
 
-  chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
-  chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
+  const isHtmlStarter = isHtmlOutputStarter(pendingStarter);
+  const copy = getHtmlGenerationCopy();
+  const baseMessageId = Date.now();
+  const assistantMessageId = baseMessageId + 1;
+  chatMessages.push({ id: baseMessageId, role: "user", content: displayMessage, attachments: outgoingAttachments });
+  chatMessages.push(
+    isHtmlStarter
+      ? {
+          id: assistantMessageId,
+          role: "assistant",
+          content: "",
+          generatedHtml: "",
+          htmlGenerationJob: createHtmlGenerationJob({
+            title: pendingStarter?.label || copy.title,
+            steps: getLandingHtmlGenerationSteps(),
+            detail: copy.landingHtmlPreparing,
+          }),
+        }
+      : { id: assistantMessageId, role: "assistant", content: "" }
+  );
   isGenerating = true;
   renderShell();
   renderMessages();
@@ -16762,6 +17060,20 @@ async function sendCurrentPrompt(options = {}) {
 
   try {
     await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments, contextOptions }), effectiveModel);
+    if (isHtmlStarter) {
+      setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingHtmlPackaging);
+      const assistantMessage = getChatMessageById(assistantMessageId);
+      const rawResponse = String(assistantMessage?.htmlGenerationJob?.rawText || "").trim();
+      const html = await repairHtmlImagesForDownload(extractHtmlDocumentFromText(rawResponse));
+      if (!html) {
+        throw new Error(copy.landingHtmlNoHtml);
+      }
+      setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingHtmlReady, {
+        status: "complete",
+        summary: copy.landingHtmlReady,
+        generatedHtml: html,
+      });
+    }
     imageAttachments.forEach((item) => {
       if (item.previewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(item.previewUrl);
@@ -16781,7 +17093,11 @@ async function sendCurrentPrompt(options = {}) {
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    if (isHtmlStarter) {
+      setHtmlGenerationJobError(assistantMessageId, message);
+    } else {
+      chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    }
     renderShell();
     renderMessages();
     isGenerating = false;
@@ -16843,6 +17159,18 @@ function updateAssistantDraft(text) {
 
   const last = chatMessages[chatMessages.length - 1];
   if (last.role !== "assistant") {
+    return;
+  }
+
+  if (last.htmlGenerationJob) {
+    last.htmlGenerationJob.rawText = text;
+    if (last.htmlGenerationJob.status === "running" && last.htmlGenerationJob.currentStepId === "source") {
+      last.htmlGenerationJob.currentStepId = "generate";
+      last.htmlGenerationJob.completedStepIds = ["source"];
+      last.htmlGenerationJob.detail = getHtmlGenerationCopy().landingHtmlGenerating;
+    }
+    scheduleMessagesRender();
+    scheduleConversationSave();
     return;
   }
 
