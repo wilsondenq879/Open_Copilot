@@ -227,12 +227,14 @@
 - starter AI editor
 - Agent Flow builder / runner
 - multi-perspective prompt 與輸出
+- HTML / PowerPoint 匯出型 starters
 
 適合這樣描述：
 
 - `改 starter 推薦邏輯`
 - `改 Agent Flow 執行`
 - `改多視角 synthesis`
+- `改 HTML / PowerPoint 簡報輸出`
 
 ### GitHub 相關能力
 
@@ -351,6 +353,8 @@
   - 附件與 context 規則
 - `spec/starters-and-agent-flows.md`
   - starter / flow 定義
+- `spec/powerpoint-starter-and-export.md`
+  - PowerPoint starter、`.pptx` 匯出契約與 smoke test flow
 - `spec/multi-perspective-analysis.md`
   - 多視角分析流程
 - `spec/local-work-folder-and-drive-sync.md`

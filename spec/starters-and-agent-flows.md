@@ -25,6 +25,13 @@ Agent Flows 則是把多個 starter 串成一條可重複執行的流程。
 - Agent flow
 - Perspective starter
 
+### Built-in Export Starters
+
+- `landingHtml`
+  - 輸出可直接開啟的單頁 HTML 簡報
+- `landingPowerPoint`
+  - 輸出 slide JSON，並由前端封裝成可下載的 `.pptx`
+
 ## UI 契約
 
 ### In-page Starter Toolbar

@@ -354,6 +354,7 @@ let taskInboxExpanded = false;
 let isTaskRailCollapsed = false;
 let taskInboxView = "candidates";
 let pendingStarterExecution = null;
+let pendingPowerPointThemeExecution = null;
 let pendingSuggestedStarterAction = null;
 let activeSearchCompositionRole = "";
 let confirmDialogState = null;
@@ -895,6 +896,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     docExecutiveBrief: "把文件濃縮成適合快速決策閱讀的高層摘要。",
     docOutline: "把目前內容重新整理成結構清楚的大綱。",
     landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
+    landingPowerPoint: "把目前內容整理成可下載的 PowerPoint 簡報。",
     bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
     catalystMap: "整理推動事件、觸發因子與可能影響路徑。",
     pricedIn: "判斷市場是否已經把某些預期反映進價格。",
@@ -957,6 +959,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     docExecutiveBrief: "Turn the document into a concise, decision-friendly brief.",
     docOutline: "Reorganize the current content into a clearer outline.",
     landingHtml: "Turn the current material into a single downloadable HTML page.",
+    landingPowerPoint: "Turn the current material into a downloadable PowerPoint deck.",
     bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
     catalystMap: "Map the events, triggers, and likely impact paths around a topic.",
     pricedIn: "Judge whether expectations already seem reflected in the price.",
@@ -996,15 +999,15 @@ const CUSTOM_STARTER_SCOPE_ALIASES = {
   finance: "market",
 };
 const PAGE_COPILOT_STARTERS = {
-  article: ["pageSummary", "landingHtml", "articleTimeline", "articleBiasCheck", "reflectionArticle", "multiPerspective"],
+  article: ["pageSummary", "landingHtml", "landingPowerPoint", "articleTimeline", "articleBiasCheck", "reflectionArticle", "multiPerspective"],
   code: ["codeExplain", "codeRiskReview", "codeTeachBack", "multiPerspective"],
   email: ["emailSummary", "translatePage"],
   github: ["githubRepoPurpose", "githubSummary", "githubReviewFocus", "githubNextSteps"],
   collaboration: ["chatWeeklyDigest", "chatActionItems", "pageSummary"],
-  document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "landingPageBuilder", "docOutline", "pageSummary", "translatePage"],
+  document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "landingPowerPoint", "landingPageBuilder", "docOutline", "pageSummary", "translatePage"],
   market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
   entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
-  generic: ["pageSummary", "landingPageBuilder", "landingHtml", "translatePage", "multiPerspective"],
+  generic: ["pageSummary", "landingPageBuilder", "landingHtml", "landingPowerPoint", "translatePage", "multiPerspective"],
 };
 const CONTENT_I18N = {
   "zh-TW": {
@@ -1040,13 +1043,17 @@ const CONTENT_I18N = {
     openSettings: "開啟設定",
     downloadMarkdown: "下載 MD",
     downloadHtml: "下載 HTML",
+    downloadPowerPoint: "下載 PPTX",
     loadLatestChat: "載入最近",
     exportMarkdownSuccess: "已下載 Markdown：{file}",
     exportMarkdownFailed: "下載 Markdown 失敗。",
     htmlDownloaded: "已下載 HTML：{file}",
     exportHtmlFailed: "下載 HTML 失敗。",
+    powerPointDownloaded: "已下載 PowerPoint：{file}",
+    exportPowerPointFailed: "下載 PowerPoint 失敗。",
     noConversationToExport: "目前沒有可匯出的對話內容。",
     noHtmlToExport: "這則回覆沒有可下載的 HTML。",
+    noPowerPointToExport: "這則回覆沒有可下載的 PowerPoint。",
     saveMarkdownToFolderSuccess: "已儲存對話 Markdown：{file}",
     workFolderNotConfigured: "尚未設定本機資料夾。",
     workFolderPermissionMissing: "本機資料夾權限失效，請到設定重新選擇一次。",
@@ -1311,6 +1318,14 @@ const CONTENT_I18N = {
     sentDocumentAttachment: "文件",
     sentGithubSource: "GitHub",
     sentWebSearch: "網路搜尋",
+    powerPointThemePromptTitle: "PowerPoint 設計風格",
+    powerPointThemePromptBody: "生成投影片前，先確認你要深色還是淺色設計。",
+    powerPointThemeDark: "深色",
+    powerPointThemeLight: "淺色",
+    powerPointThemeCancel: "取消",
+    powerPointThemeReadyDark: "已選擇深色 PowerPoint 設計，開始生成投影片。",
+    powerPointThemeReadyLight: "已選擇淺色 PowerPoint 設計，開始生成投影片。",
+    powerPointThemeSourceBlend: "這次 PowerPoint 會同時整合目前頁面與附加分頁內容。",
     attachedFiles: "已附加 {items}。",
     pastedImage: "已從剪貼簿貼上圖片。",
     typePromptOrAttach: "請先輸入問題，或附加圖片 / 文字檔。",
@@ -1383,6 +1398,7 @@ const CONTENT_I18N = {
     starter_docExecutiveBrief: "整理決策摘要",
     starter_docOutline: "重整文件大綱",
     starter_landingHtml: "將網頁內容整理成html簡報",
+    starter_landingPowerPoint: "將網頁內容整理成PowerPoint",
     starter_bullVsBear: "多空觀點分析",
     starter_catalystMap: "整理事件催化因素",
     starter_pricedIn: "判斷是否已反映在價格",
@@ -1413,6 +1429,7 @@ const CONTENT_I18N = {
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingPageBuilderPrompt: "請先幫我分析這個來源頁面適合哪一種 landing page 模板。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
+    landingPowerPointPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可下載成 PowerPoint 的投影片規格。請嚴格遵守以下要求：1. 只回覆單一 ```json``` code block，不要加前後說明 2. JSON 根物件固定為 {\"title\": string, \"theme\": {...}, \"slides\": [...] } 3. `theme` 可包含 `backgroundColor`、`textColor`、`accentColor`，顏色請用 `#RRGGBB` 4. `slides` 請控制在 5 到 8 張，每張投影片盡量聚焦一個重點，不要塞長文 5. 每張 slide 只能使用這些欄位：`title`、`subtitle`、`body`、`bullets`、`imageUrl`、`imageAlt`、`notes`、`sourceUrl`、`layout` 6. `layout` 只能是 `title`、`content`、`image-left`、`image-right` 其中之一 7. `bullets` 必須是字串陣列，每點都要短而有資訊密度 8. 若有可用的來源圖片，`imageUrl` 必須直接使用來源圖片 URL；不要捏造網址、不要生成新圖片 9. 若沒有可用圖片，就省略 `imageUrl`，改用純文字投影片 10. 內容必須忠於來源，不可補寫不存在的事實 11. 如果我加入了多個分頁，請先整合共同主題與差異，再整理成一致的簡報故事線 12. 若來源包含圖表、流程、時間線等複雜資訊，請把圖表重寫成簡潔文字重點與 bullets，不要輸出 Mermaid、不要輸出 HTML 13. 每張 slide 的 `title`、`subtitle`、`body`、`bullets`、`notes` 都請使用{language} 14. 請讓第一張像封面或 executive summary，最後一張像結論或 next steps 15. 若某張投影片沒有合適內容，就不要硬湊空洞句子。請只輸出合法 JSON。",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
     reflectionArticlePrompt: "請依照這個網頁內容生成一篇心得文。先簡短整理重點，再用自然、有觀點的語氣寫出閱讀心得、啟發與可延伸思考。請使用{language}輸出，避免只是逐段重述原文。",
     emailSummaryPrompt: "請摘要目前可見的 email 內容。若這是單封信，請整理：1. 主旨與背景 2. 關鍵重點 3. 需要回覆或跟進的事項 4. 重要的人名、時間、連結或附件線索。若這是信件串，請整理 thread 的最新狀態與待處理事項。若目前畫面其實是撰寫中的草稿，請改成摘要草稿目的、核心訊息與仍缺少的資訊。若頁面只顯示部分內容，請明確說明你是根據可見內容整理。請使用{language}回答。",
@@ -1657,13 +1674,17 @@ const CONTENT_I18N = {
     openSettings: "Open settings",
     downloadMarkdown: "Download MD",
     downloadHtml: "Download HTML",
+    downloadPowerPoint: "Download PPTX",
     loadLatestChat: "Load latest",
     exportMarkdownSuccess: "Downloaded Markdown: {file}",
     exportMarkdownFailed: "Failed to download Markdown.",
     htmlDownloaded: "Downloaded HTML: {file}",
     exportHtmlFailed: "Failed to download HTML.",
+    powerPointDownloaded: "Downloaded PowerPoint: {file}",
+    exportPowerPointFailed: "Failed to download PowerPoint.",
     noConversationToExport: "There is no conversation to export yet.",
     noHtmlToExport: "This response does not contain downloadable HTML.",
+    noPowerPointToExport: "This response does not contain downloadable PowerPoint.",
     saveMarkdownToFolderSuccess: "Saved chat Markdown: {file}",
     workFolderNotConfigured: "No local work folder is configured yet.",
     workFolderPermissionMissing: "Local work folder permission is unavailable. Please reselect the folder in Settings.",
@@ -1928,6 +1949,14 @@ const CONTENT_I18N = {
     sentDocumentAttachment: "Document",
     sentGithubSource: "GitHub",
     sentWebSearch: "Web Search",
+    powerPointThemePromptTitle: "PowerPoint Theme",
+    powerPointThemePromptBody: "Before generating slides, choose whether the deck should use a dark or light design.",
+    powerPointThemeDark: "Dark",
+    powerPointThemeLight: "Light",
+    powerPointThemeCancel: "Cancel",
+    powerPointThemeReadyDark: "Dark PowerPoint design selected. Starting slide generation.",
+    powerPointThemeReadyLight: "Light PowerPoint design selected. Starting slide generation.",
+    powerPointThemeSourceBlend: "This PowerPoint will combine the current page with the attached browser tabs.",
     attachedFiles: "Attached {items}.",
     pastedImage: "Pasted image from clipboard.",
     typePromptOrAttach: "Type a prompt or attach an image or text file first.",
@@ -2000,6 +2029,7 @@ const CONTENT_I18N = {
     starter_docExecutiveBrief: "Executive Brief",
     starter_docOutline: "Rebuild Document Outline",
     starter_landingHtml: "Make HTML",
+    starter_landingPowerPoint: "Make PowerPoint",
     starter_bullVsBear: "Bull vs Bear",
     starter_catalystMap: "Catalyst Map",
     starter_pricedIn: "Priced In?",
@@ -2030,6 +2060,7 @@ const CONTENT_I18N = {
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingPageBuilderPrompt: "Please analyze this source page and help me choose the best landing page template first.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
+    landingPowerPointPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a PowerPoint-ready slide specification. Follow these rules strictly: 1. Reply with one complete ```json``` code block only, with no explanation before or after it 2. The root JSON object must be {\"title\": string, \"theme\": {...}, \"slides\": [...] } 3. `theme` may contain `backgroundColor`, `textColor`, and `accentColor`, each using `#RRGGBB` format 4. Keep the deck to about 5 to 8 slides, with each slide focused on one main point instead of dense prose 5. Each slide may use only these fields: `title`, `subtitle`, `body`, `bullets`, `imageUrl`, `imageAlt`, `notes`, `sourceUrl`, `layout` 6. `layout` must be one of `title`, `content`, `image-left`, or `image-right` 7. `bullets` must be an array of strings, with each point concise and meaningful 8. If source images are available, `imageUrl` must use those real source image URLs directly; do not invent URLs and do not generate new images 9. If no usable images are available, omit `imageUrl` and make the slide text-first 10. Stay faithful to the source material and do not invent facts 11. If I added multiple tabs, synthesize their shared theme and differences before turning them into one coherent slide story 12. If the source includes charts, timelines, or process diagrams, rewrite them into concise slide text and bullets instead of Mermaid or HTML 13. Write every slide's `title`, `subtitle`, `body`, `bullets`, and `notes` in {language} 14. Make the first slide feel like a cover or executive summary, and the last slide feel like a conclusion or next steps 15. If a slide does not have enough grounded material, do not pad it with vague filler. Output valid JSON only.",
     translationPrompt: "Translate this page into {language}.",
     reflectionArticlePrompt: "Write a reflection article based on this page. Start with a brief recap of the key points, then write thoughtful takeaways, insights, and possible follow-up ideas in a natural voice. Respond in {language}, and do not just restate the page section by section.",
     emailSummaryPrompt: "Summarize the currently visible email content. If this is a single email, cover: 1. Subject and background 2. Key points 3. Needed replies or follow-ups 4. Important people, dates, links, or attachment clues. If this is a thread, summarize the latest state of the conversation and outstanding actions. If the visible page is actually a draft email, summarize the draft's purpose, main message, and what information is still missing. If only part of the email is visible, say clearly that the summary is based only on visible content. Respond in {language}.",
@@ -6323,6 +6354,9 @@ function resolveStarterExecutionPlan(starter, preferredModel = "") {
   const suggestedModel = String(preferredModel || resolved.model || resolved.quickModel).trim();
   return {
     starter,
+    contextOptions: starter?.contextOptions && typeof starter.contextOptions === "object"
+      ? { ...starter.contextOptions }
+      : {},
     routeKind: resolved.kind,
     quickModel: resolved.quickModel,
     suggestedModel,
@@ -6337,6 +6371,28 @@ function setPendingStarterExecution(plan) {
 
 function clearPendingStarterExecution() {
   pendingStarterExecution = null;
+}
+
+function setPendingPowerPointThemeExecution(plan) {
+  pendingPowerPointThemeExecution = plan || null;
+}
+
+function clearPendingPowerPointThemeExecution() {
+  pendingPowerPointThemeExecution = null;
+}
+
+function buildPowerPointThemeContextOptions(themePreference, plan = null) {
+  const normalizedTheme = String(themePreference || "").trim().toLowerCase() === "light" ? "light" : "dark";
+  const baseOptions = plan?.contextOptions && typeof plan.contextOptions === "object"
+    ? { ...plan.contextOptions }
+    : {};
+  const hasAttachedTabs = attachedBrowserTabs.length > 0;
+  return {
+    ...baseOptions,
+    powerPointThemePreference: normalizedTheme,
+    forceIncludeCurrentPageContext: hasAttachedTabs || baseOptions.forceIncludeCurrentPageContext === true,
+    forceCombineCurrentPageAndBrowserTabs: hasAttachedTabs,
+  };
 }
 
 function normalizeStarterDraftCollection(parsedValue) {
@@ -7646,6 +7702,10 @@ function getStarterPrompt(starterKey) {
     return tl("landingHtmlPrompt", { language: getTargetLanguageLabel() });
   }
 
+  if (starterKey === "landingPowerPoint") {
+    return tl("landingPowerPointPrompt", { language: getTargetLanguageLabel() });
+  }
+
   if (starterKey === "landingPageBuilder") {
     return tl("landingPageBuilderPrompt");
   }
@@ -7911,6 +7971,9 @@ function createDefaultLandingPageBuilderDraft() {
     templateReason: "",
     isAnalyzing: false,
     isGenerating: false,
+    generationStage: "",
+    generationDetail: "",
+    generationMessageId: "",
     generatedHtml: "",
     generatedFileName: "",
     generatedTemplateId: "",
@@ -7946,6 +8009,9 @@ function ensureLandingPageBuilderDraft() {
     landingPageBuilderDraft.valueProps = [];
   }
   landingPageBuilderDraft.themePreference = landingPageBuilderDraft.themePreference === "light" ? "light" : "dark";
+  landingPageBuilderDraft.generationStage = String(landingPageBuilderDraft.generationStage || "");
+  landingPageBuilderDraft.generationDetail = String(landingPageBuilderDraft.generationDetail || "");
+  landingPageBuilderDraft.generationMessageId = String(landingPageBuilderDraft.generationMessageId || "");
   landingPageBuilderDraft.generatedHtml = String(landingPageBuilderDraft.generatedHtml || "");
   landingPageBuilderDraft.generatedFileName = String(landingPageBuilderDraft.generatedFileName || "");
   landingPageBuilderDraft.generatedTemplateId = String(landingPageBuilderDraft.generatedTemplateId || "");
@@ -7953,6 +8019,9 @@ function ensureLandingPageBuilderDraft() {
 }
 
 function clearLandingPageBuilderGeneratedResult(draft = ensureLandingPageBuilderDraft()) {
+  draft.generationStage = "";
+  draft.generationDetail = "";
+  draft.generationMessageId = "";
   draft.generatedHtml = "";
   draft.generatedFileName = "";
   draft.generatedTemplateId = "";
@@ -7966,6 +8035,283 @@ function buildLandingPageBuilderHtmlFilename(draft, template) {
     || "landing-page"
   ).trim();
   return `${timestampForFile(new Date())}-${sanitizeFileSegment(sourceTitle, "landing-page")}.html`;
+}
+
+function getStarterOutputArtifactType(starter) {
+  const starterKey = String(starter?.starterKey || starter?.id || "").trim().replace(/^builtin:/, "");
+  if (starterKey === "landingHtml") {
+    return "html";
+  }
+  if (starterKey === "landingPowerPoint") {
+    return "pptx";
+  }
+  return "";
+}
+
+function isHtmlOutputStarter(starter) {
+  return getStarterOutputArtifactType(starter) === "html";
+}
+
+function isPowerPointOutputStarter(starter) {
+  return getStarterOutputArtifactType(starter) === "pptx";
+}
+
+function getHtmlGenerationCopy() {
+  const isZh = getUiLanguage().toLowerCase().startsWith("zh");
+  return isZh
+    ? {
+        title: "HTML 生成進度",
+        running: "生成中",
+        ready: "已完成",
+        failed: "失敗",
+        landingHtmlPreparing: "正在整理目前頁面與附加內容，準備生成 HTML。",
+        landingHtmlGenerating: "模型正在生成版面與 HTML，對話框不再直接貼出原始碼。",
+        landingHtmlPackaging: "正在整理 HTML 資源，讓下載結果更穩定。",
+        landingHtmlReady: "HTML 已生成完成，可以直接下載，不再把原始碼整段貼到聊天室。",
+        landingHtmlNoHtml: "模型已回覆，但沒有產出可下載的 HTML。",
+        landingPowerPointPreparing: "正在整理目前頁面與附加內容，準備生成 PowerPoint。",
+        landingPowerPointGenerating: "模型正在整理投影片結構與內容，對話框不再直接貼出原始 JSON。",
+        landingPowerPointPackaging: "正在檢查投影片 JSON，準備匯出為 PowerPoint。",
+        landingPowerPointReady: "PowerPoint 已生成完成，可以直接下載 `.pptx`。",
+        landingPowerPointNoDeck: "模型已回覆，但沒有產出可下載的 PowerPoint 規格。",
+        landingPageDrafting: "正在依模板建立 landing page 初稿。",
+        landingPageAuditing: "正在檢查版面穩定性與閱讀性。",
+        landingPageRepairing: "正在修正版面，避免文字被擠壓或互相覆蓋。",
+        landingPageStabilizing: "正在重建較穩定的版面版本。",
+        landingPageFinalizing: "正在整理最終 HTML 檔案。",
+        landingPageReady: "Landing page HTML 已生成完成，現在可以直接下載或複製。",
+        landingPageStepSource: "整理內容",
+        landingPageStepGenerate: "建立初稿",
+        landingPageStepAudit: "檢查版面",
+        landingPageStepRepair: "修正版面",
+        landingPageStepFinalize: "完成輸出",
+        htmlStepSource: "整理內容",
+        htmlStepGenerate: "生成版面",
+        htmlStepFinalize: "封裝 HTML",
+        powerPointStepSource: "整理內容",
+        powerPointStepGenerate: "生成投影片",
+        powerPointStepFinalize: "封裝 PPTX",
+      }
+    : {
+        title: "HTML Generation Progress",
+        running: "Running",
+        ready: "Ready",
+        failed: "Failed",
+        landingHtmlPreparing: "Preparing the current page and attached context for HTML generation.",
+        landingHtmlGenerating: "The model is generating the layout and HTML. Raw source will stay out of the chat.",
+        landingHtmlPackaging: "Packaging the HTML so the downloaded result is more reliable.",
+        landingHtmlReady: "The HTML is ready to download without pasting the full source into the chat.",
+        landingHtmlNoHtml: "The model replied, but no downloadable HTML was produced.",
+        landingPowerPointPreparing: "Preparing the current page and attached context for PowerPoint generation.",
+        landingPowerPointGenerating: "The model is generating the slide structure and content. Raw JSON will stay out of the chat.",
+        landingPowerPointPackaging: "Validating the slide JSON and preparing a PowerPoint export.",
+        landingPowerPointReady: "The PowerPoint deck is ready to download as `.pptx`.",
+        landingPowerPointNoDeck: "The model replied, but no downloadable PowerPoint deck was produced.",
+        landingPageDrafting: "Creating the first landing-page draft from the selected template.",
+        landingPageAuditing: "Checking layout stability and readability.",
+        landingPageRepairing: "Repairing layout issues so text and media do not collide.",
+        landingPageStabilizing: "Rebuilding a more stable layout variant.",
+        landingPageFinalizing: "Preparing the final HTML output.",
+        landingPageReady: "The landing page HTML is ready to download or copy.",
+        landingPageStepSource: "Prepare source",
+        landingPageStepGenerate: "Draft layout",
+        landingPageStepAudit: "Audit layout",
+        landingPageStepRepair: "Repair layout",
+        landingPageStepFinalize: "Finalize output",
+        htmlStepSource: "Prepare source",
+        htmlStepGenerate: "Generate layout",
+        htmlStepFinalize: "Package HTML",
+        powerPointStepSource: "Prepare source",
+        powerPointStepGenerate: "Build slides",
+        powerPointStepFinalize: "Package PPTX",
+      };
+}
+
+function getLandingHtmlGenerationSteps() {
+  const copy = getHtmlGenerationCopy();
+  return [
+    { id: "source", label: copy.htmlStepSource },
+    { id: "generate", label: copy.htmlStepGenerate },
+    { id: "finalize", label: copy.htmlStepFinalize },
+  ];
+}
+
+function getLandingPowerPointGenerationSteps() {
+  const copy = getHtmlGenerationCopy();
+  return [
+    { id: "source", label: copy.powerPointStepSource },
+    { id: "generate", label: copy.powerPointStepGenerate },
+    { id: "finalize", label: copy.powerPointStepFinalize },
+  ];
+}
+
+function getLandingPageBuilderGenerationSteps() {
+  const copy = getHtmlGenerationCopy();
+  return [
+    { id: "generate", label: copy.landingPageStepGenerate },
+    { id: "audit", label: copy.landingPageStepAudit },
+    { id: "repair", label: copy.landingPageStepRepair },
+    { id: "finalize", label: copy.landingPageStepFinalize },
+  ];
+}
+
+function createHtmlGenerationJob({ title = "", steps = [], detail = "", artifactType = "html" } = {}) {
+  const normalizedSteps = Array.isArray(steps) ? steps.filter((item) => item?.id && item?.label) : [];
+  return {
+    title: String(title || "").trim() || getHtmlGenerationCopy().title,
+    artifactType: String(artifactType || "html").trim() || "html",
+    status: "running",
+    detail: String(detail || "").trim(),
+    summary: "",
+    currentStepId: normalizedSteps[0]?.id || "",
+    completedStepIds: [],
+    steps: normalizedSteps,
+    rawText: "",
+    fileName: "",
+  };
+}
+
+function updateHtmlGenerationMessage(messageId, updater) {
+  const message = getChatMessageById(messageId);
+  if (!message?.htmlGenerationJob) {
+    return null;
+  }
+  updater(message.htmlGenerationJob, message);
+  scheduleMessagesRender();
+  scheduleConversationSave();
+  return message;
+}
+
+function setHtmlGenerationJobStage(messageId, stageId, detail, options = {}) {
+  updateHtmlGenerationMessage(messageId, (job, message) => {
+    const steps = Array.isArray(job.steps) ? job.steps : [];
+    const targetIndex = Math.max(0, steps.findIndex((step) => step.id === stageId));
+    if (steps[targetIndex]) {
+      job.currentStepId = steps[targetIndex].id;
+      job.completedStepIds = steps.slice(0, targetIndex).map((step) => step.id);
+    }
+    if (typeof detail === "string") {
+      job.detail = detail.trim();
+    }
+    if (typeof options.status === "string") {
+      job.status = options.status;
+    }
+    if (typeof options.summary === "string") {
+      job.summary = options.summary.trim();
+      message.content = job.summary;
+    }
+    if (typeof options.fileName === "string") {
+      job.fileName = options.fileName.trim();
+      message.generatedFileName = job.fileName;
+    }
+    if (typeof options.generatedHtml === "string") {
+      message.generatedHtml = options.generatedHtml;
+    }
+    if (options.generatedDeckSpec && typeof options.generatedDeckSpec === "object") {
+      message.generatedDeckSpec = options.generatedDeckSpec;
+    }
+    if (typeof options.generatedArtifactType === "string") {
+      message.generatedArtifactType = options.generatedArtifactType.trim();
+    }
+    if (options.status === "complete") {
+      job.completedStepIds = steps.map((step) => step.id);
+      job.currentStepId = steps[steps.length - 1]?.id || job.currentStepId;
+      job.rawText = "";
+    }
+  });
+}
+
+function setHtmlGenerationJobError(messageId, errorText) {
+  updateHtmlGenerationMessage(messageId, (job, message) => {
+    const errorMessage = String(errorText || "").trim();
+    job.status = "error";
+    job.summary = errorMessage;
+    job.detail = errorMessage;
+    job.rawText = "";
+    message.content = `Error: ${errorMessage}`;
+  });
+}
+
+function renderHtmlGenerationProgressPanel(job, options = {}) {
+  if (!job || typeof job !== "object") {
+    return "";
+  }
+
+  const copy = getHtmlGenerationCopy();
+  const steps = Array.isArray(job.steps) ? job.steps : [];
+  const completedIds = new Set(Array.isArray(job.completedStepIds) ? job.completedStepIds : []);
+  const activeStepId = String(job.currentStepId || "");
+  const completedCount = steps.filter((step) => completedIds.has(step.id)).length;
+  const baseProgress = steps.length
+    ? (completedCount + (job.status === "complete" ? 0 : (job.status === "running" && activeStepId ? 0.45 : 0))) / steps.length
+    : 0;
+  const progressValue = job.status === "complete"
+    ? 100
+    : Math.max(8, Math.min(96, Math.round(baseProgress * 100)));
+  const statusLabel = job.status === "complete"
+    ? copy.ready
+    : job.status === "error"
+      ? copy.failed
+      : copy.running;
+  const summary = String(job.summary || job.detail || "").trim();
+  const stateClass = job.status === "complete" ? "is-complete" : job.status === "error" ? "is-error" : "is-running";
+  const compactClass = options.compact ? "is-compact" : "";
+  const stepMarkup = steps
+    .map((step) => {
+      const stepClass = completedIds.has(step.id)
+        ? "is-done"
+        : step.id === activeStepId && job.status !== "complete"
+          ? "is-active"
+          : "";
+      return `
+        <div class="ollama-quick-html-generation-step ${stepClass}">
+          <span class="ollama-quick-html-generation-step-dot"></span>
+          <span class="ollama-quick-html-generation-step-label">${escapeHtml(step.label)}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="ollama-quick-html-generation-card ${stateClass} ${compactClass}">
+      <div class="ollama-quick-html-generation-head">
+        <div class="ollama-quick-html-generation-title">${escapeHtml(job.title || copy.title)}</div>
+        <div class="ollama-quick-html-generation-status">${escapeHtml(statusLabel)}</div>
+      </div>
+      <div class="ollama-quick-html-generation-bar" aria-hidden="true">
+        <span style="width:${progressValue}%"></span>
+      </div>
+      ${summary ? `<div class="ollama-quick-html-generation-summary">${escapeHtml(summary)}</div>` : ""}
+      ${stepMarkup ? `<div class="ollama-quick-html-generation-steps">${stepMarkup}</div>` : ""}
+      ${job.fileName ? `<div class="ollama-quick-html-generation-file">${escapeHtml(job.fileName)}</div>` : ""}
+    </section>
+  `;
+}
+
+function renderLandingPageBuilderProgressPanel(draft, template) {
+  if (!draft?.isGenerating) {
+    return "";
+  }
+  const copy = getHtmlGenerationCopy();
+  const steps = getLandingPageBuilderGenerationSteps();
+  const currentIndex = Math.max(0, steps.findIndex((step) => step.id === String(draft.generationStage || "generate")));
+  return renderHtmlGenerationProgressPanel({
+    title: `${tl("starter_landingPageBuilder")} · ${template?.label || tl("landingPageBuilderTitle")}`,
+    status: "running",
+    detail: String(draft.generationDetail || "").trim() || copy.landingPageDrafting,
+    currentStepId: String(draft.generationStage || "generate").trim() || "generate",
+    completedStepIds: steps.slice(0, currentIndex).map((step) => step.id),
+    steps,
+    fileName: String(draft.generatedFileName || "").trim(),
+  }, { compact: true });
+}
+
+function syncLandingPageBuilderProgress(draft, messageId, stageId, detail, options = {}) {
+  draft.generationStage = stageId;
+  draft.generationDetail = String(detail || "").trim();
+  draft.generationMessageId = String(messageId || "");
+  renderShell();
+  setHtmlGenerationJobStage(messageId, stageId, detail, options);
 }
 
 function collectImageCandidatesFromLandingPageSourceBundle(sourceBundle) {
@@ -8751,22 +9097,46 @@ async function generateLandingPageFromBuilder() {
   clearLandingPageBuilderGeneratedResult(draft);
   renderShell();
   setStatus(tl("landingPageBuilderGenerating"));
+  const copy = getHtmlGenerationCopy();
+  const baseMessageId = Date.now();
+  const assistantMessageId = baseMessageId + 1;
+  chatMessages.push({
+    id: baseMessageId,
+    role: "user",
+    content: `${tl("starter_landingPageBuilder")} · ${template.label}`,
+  });
+  chatMessages.push({
+    id: assistantMessageId,
+    role: "assistant",
+    content: "",
+    generatedHtml: "",
+    htmlGenerationJob: createHtmlGenerationJob({
+      title: `${tl("starter_landingPageBuilder")} · ${template.label}`,
+      steps: getLandingPageBuilderGenerationSteps(),
+      detail: copy.landingPageDrafting,
+    }),
+  });
+  draft.generationMessageId = String(assistantMessageId);
+  renderMessages();
+  scheduleConversationSave();
 
   try {
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "generate", copy.landingPageDrafting);
     const response = await runGenerate(buildLandingPageGenerationPrompt(draft.sourceBundle, template, draft), model);
     let html = extractHtmlDocumentFromText(response);
     if (!html) {
       throw new Error(tl("noHtmlToExport"));
     }
-    let assistantMessageContent = String(response || "").trim();
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
       const audit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
       if (audit.pass || (!audit.issues.length && audit.riskLevel === "low")) {
         break;
       }
 
       setStatus(tl("landingPageBuilderRepairing"));
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageRepairing);
       const repairedResponse = await runGenerate(
         buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, audit),
         model,
@@ -8776,12 +9146,13 @@ async function generateLandingPageFromBuilder() {
         break;
       }
       html = repairedHtml;
-      assistantMessageContent = String(repairedResponse || "").trim() || assistantMessageContent;
     }
 
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
     let finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
     if (!finalAudit.pass || finalAudit.riskLevel === "high") {
       setStatus(tl("landingPageBuilderStabilizing"));
+      syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageStabilizing);
       const fallbackResponse = await runGenerate(
         buildLandingPageStabilityFallbackPrompt(draft.sourceBundle, template, draft, finalAudit, html),
         model,
@@ -8789,10 +9160,11 @@ async function generateLandingPageFromBuilder() {
       const fallbackHtml = extractHtmlDocumentFromText(fallbackResponse);
       if (fallbackHtml) {
         html = fallbackHtml;
-        assistantMessageContent = String(fallbackResponse || "").trim() || assistantMessageContent;
+        syncLandingPageBuilderProgress(draft, assistantMessageId, "audit", copy.landingPageAuditing);
         finalAudit = await auditLandingPageHtmlLayout(draft.sourceBundle, template, draft, html, model);
         if (!finalAudit.pass && finalAudit.issues.length) {
           setStatus(tl("landingPageBuilderRepairing"));
+          syncLandingPageBuilderProgress(draft, assistantMessageId, "repair", copy.landingPageRepairing);
           const finalRepairResponse = await runGenerate(
             buildLandingPageRepairPrompt(draft.sourceBundle, template, draft, html, finalAudit),
             model,
@@ -8800,35 +9172,39 @@ async function generateLandingPageFromBuilder() {
           const finalRepairHtml = extractHtmlDocumentFromText(finalRepairResponse);
           if (finalRepairHtml) {
             html = finalRepairHtml;
-            assistantMessageContent = String(finalRepairResponse || "").trim() || assistantMessageContent;
           }
         }
       }
     }
 
+    syncLandingPageBuilderProgress(draft, assistantMessageId, "finalize", copy.landingPageFinalizing);
     html = await repairHtmlImagesForDownload(html);
     draft.generatedHtml = html;
     draft.generatedFileName = buildLandingPageBuilderHtmlFilename(draft, template);
     draft.generatedTemplateId = template.id;
-    chatMessages.push({
-      id: Date.now(),
-      role: "user",
-      content: `${tl("starter_landingPageBuilder")} · ${template.label}`,
-    });
-    chatMessages.push({
-      id: Date.now() + 1,
-      role: "assistant",
-      content: assistantMessageContent,
+    setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingPageReady, {
+      status: "complete",
+      summary: copy.landingPageReady,
+      generatedHtml: html,
+      fileName: draft.generatedFileName,
     });
     draft.isGenerating = false;
+    draft.generationStage = "";
+    draft.generationDetail = "";
+    draft.generationMessageId = "";
     renderShell();
     renderMessages();
     scheduleConversationSave();
     setStatus(tl("landingPageBuilderGenerated"));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     draft.isGenerating = false;
+    draft.generationStage = "";
+    draft.generationDetail = "";
+    draft.generationMessageId = "";
     renderShell();
-    setStatus(error instanceof Error ? error.message : String(error));
+    setHtmlGenerationJobError(assistantMessageId, message);
+    setStatus(message);
   }
 }
 
@@ -11020,7 +11396,10 @@ function hasConversationStarted() {
   return chatMessages.some((message) => String(message?.role || "").toLowerCase() === "user");
 }
 
-function shouldIncludePageContext() {
+function shouldIncludePageContext(options = {}) {
+  if (options?.forceIncludeCurrentPageContext === true) {
+    return true;
+  }
   if (pageContextMode === "always") {
     return true;
   }
@@ -11047,8 +11426,9 @@ function getPageContextModeLabel(mode = pageContextMode) {
 
 async function buildPrompt(userMessage, options = {}) {
   const starterRequest = isStarterBuilderRequest(userMessage);
-  const includePageContext = shouldIncludePageContext();
-  const context = includePageContext ? await getAggregatedPageContext(options.contextOptions || {}) : null;
+  const promptContextOptions = options.contextOptions || {};
+  const includePageContext = shouldIncludePageContext(promptContextOptions);
+  const context = includePageContext ? await getAggregatedPageContext(promptContextOptions) : null;
   const githubPageContext = includePageContext && isGithubAdapterActive() ? getGithubPageMetadataContext() : "";
   const githubVisibleCodeContext = includePageContext && isGithubAdapterActive() ? getGithubVisibleCodeContext() : "";
   const githubContext = await getSelectedGithubContext();
@@ -11128,6 +11508,24 @@ async function buildPrompt(userMessage, options = {}) {
         "If the visible GitHub code is partial, analyze the visible portion first and clearly state that the analysis is based on visible diff or code only.",
       ].join("\n")
     : "";
+  const powerPointThemeInstruction = promptContextOptions.powerPointThemePreference
+    ? [
+        "POWERPOINT THEME PREFERENCE",
+        `The user explicitly chose a ${promptContextOptions.powerPointThemePreference === "light" ? "light" : "dark"} slide design.`,
+        promptContextOptions.powerPointThemePreference === "light"
+          ? "Use a light presentation theme with a light background, dark readable text, and a restrained accent color."
+          : "Use a dark presentation theme with a dark background, bright readable text, and a restrained accent color.",
+        "Reflect this preference in the JSON `theme` object and in the overall slide tone.",
+      ].join("\n")
+    : "";
+  const powerPointSourceBlendInstruction = promptContextOptions.forceCombineCurrentPageAndBrowserTabs && browserTabsContext
+    ? [
+        "POWERPOINT MULTI-SOURCE REQUIREMENT",
+        "Use BOTH CURRENT PAGE CONTEXT and BROWSER TAB CONTEXT for this PowerPoint request.",
+        "Do not ignore the current page just because attached browser tabs are present.",
+        "Synthesize the current page and the attached tabs into one coherent deck.",
+      ].join("\n")
+    : "";
 
   if (starterRequest) {
     return [
@@ -11152,6 +11550,8 @@ async function buildPrompt(userMessage, options = {}) {
     wrappedHistory,
     starterBuilderInstruction,
     githubContextInstruction,
+    powerPointThemeInstruction,
+    powerPointSourceBlendInstruction,
     `USER MESSAGE\n${userMessage}`,
   ]
     .filter(Boolean)
@@ -11323,6 +11723,903 @@ function downloadTextBlob(filename, contents, mimeType = "text/plain;charset=utf
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function downloadBinaryBlob(filename, bytes, mimeType = "application/octet-stream") {
+  const blob = new Blob([bytes], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+const POWERPOINT_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+const POWERPOINT_SLIDE_WIDTH = 12192000;
+const POWERPOINT_SLIDE_HEIGHT = 6858000;
+const POWERPOINT_NOTES_WIDTH = 6858000;
+const POWERPOINT_NOTES_HEIGHT = 9144000;
+const POWERPOINT_CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value & 1) ? (0xEDB88320 ^ (value >>> 1)) : (value >>> 1);
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function base64ToBytes(base64) {
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function escapeXml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function stripMarkdownForSlideText(value) {
+  return String(value || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizePowerPointText(value, fallback = "") {
+  const normalized = stripMarkdownForSlideText(value)
+    .replace(/\u0000/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  return normalized || fallback;
+}
+
+function normalizePowerPointColor(value, fallback) {
+  const normalized = String(value || "").trim().replace(/^#/, "").toUpperCase();
+  if (/^[0-9A-F]{6}$/.test(normalized)) {
+    return normalized;
+  }
+  if (/^[0-9A-F]{3}$/.test(normalized)) {
+    return normalized.split("").map((char) => char + char).join("");
+  }
+  return fallback;
+}
+
+function hexToPowerPointRgb(value) {
+  const normalized = normalizePowerPointColor(value, "000000");
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function powerPointRgbToHex(rgb) {
+  return [rgb.r, rgb.g, rgb.b]
+    .map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+}
+
+function mixPowerPointColors(baseColor, targetColor, ratio = 0.5) {
+  const clampedRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+  const base = hexToPowerPointRgb(baseColor);
+  const target = hexToPowerPointRgb(targetColor);
+  return powerPointRgbToHex({
+    r: (base.r * (1 - clampedRatio)) + (target.r * clampedRatio),
+    g: (base.g * (1 - clampedRatio)) + (target.g * clampedRatio),
+    b: (base.b * (1 - clampedRatio)) + (target.b * clampedRatio),
+  });
+}
+
+function getPowerPointRelativeLuminance(color) {
+  const { r, g, b } = hexToPowerPointRgb(color);
+  const transform = (channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return (0.2126 * transform(r)) + (0.7152 * transform(g)) + (0.0722 * transform(b));
+}
+
+function isPowerPointDarkColor(color) {
+  return getPowerPointRelativeLuminance(color) < 0.45;
+}
+
+function getPowerPointThemePalette(theme = {}) {
+  const background = normalizePowerPointColor(theme.backgroundColor, "0B1220");
+  const text = normalizePowerPointColor(theme.textColor, isPowerPointDarkColor(background) ? "EAF2FF" : "171717");
+  const accent = normalizePowerPointColor(theme.accentColor, "4EA8FF");
+  const darkBackground = isPowerPointDarkColor(background);
+  return {
+    background,
+    text,
+    accent,
+    isDarkBackground: darkBackground,
+    surface: darkBackground ? mixPowerPointColors(background, "FFFFFF", 0.12) : "FFFFFF",
+    surfaceAlt: darkBackground ? mixPowerPointColors(background, accent, 0.2) : mixPowerPointColors(background, accent, 0.08),
+    border: darkBackground ? mixPowerPointColors(accent, "FFFFFF", 0.28) : mixPowerPointColors(accent, background, 0.3),
+    mutedText: darkBackground ? mixPowerPointColors(text, background, 0.35) : mixPowerPointColors(text, background, 0.48),
+    softAccent: darkBackground ? mixPowerPointColors(accent, background, 0.55) : mixPowerPointColors(accent, "FFFFFF", 0.78),
+    strongAccentText: isPowerPointDarkColor(accent) ? "FFFFFF" : "171717",
+    imageFrame: darkBackground ? mixPowerPointColors(accent, background, 0.22) : mixPowerPointColors(accent, background, 0.12),
+  };
+}
+
+function normalizePowerPointLayout(value, hasImage = false, slideIndex = 0) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["title", "content", "image-left", "image-right"].includes(normalized)) {
+    return normalized;
+  }
+  if (slideIndex === 0) {
+    return "title";
+  }
+  return hasImage ? "image-right" : "content";
+}
+
+function normalizePowerPointBullets(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "").trim()
+      ? String(value).split(/\n+/)
+      : [];
+  return rawItems
+    .map((item) => normalizePowerPointText(item))
+    .filter(Boolean)
+    .slice(0, 7);
+}
+
+function buildPowerPointBodyLines(slide, maxBulletCount = 5) {
+  return [
+    slide.subtitle,
+    slide.body,
+    ...slide.bullets.slice(0, maxBulletCount).map((item) => `• ${item}`),
+  ]
+    .filter(Boolean)
+    .map((item) => clipPowerPointText(item, 120));
+}
+
+function clipPowerPointText(value, maxLength = 160) {
+  const normalized = normalizePowerPointText(value);
+  if (!normalized || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function getPowerPointSourceLabel(sourceUrl = "") {
+  const normalized = String(sourceUrl || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  try {
+    return new URL(normalized).hostname.replace(/^www\./i, "");
+  } catch (_error) {
+    return normalized;
+  }
+}
+
+function normalizePowerPointDeckSpec(value) {
+  const root = Array.isArray(value)
+    ? { slides: value }
+    : (value?.deck && typeof value.deck === "object" ? value.deck : value);
+  if (!root || typeof root !== "object") {
+    return null;
+  }
+  const slidesSource = Array.isArray(root.slides)
+    ? root.slides
+    : Array.isArray(root.pages)
+      ? root.pages
+      : [];
+  const slides = slidesSource
+    .map((item, index) => {
+      const title = normalizePowerPointText(item?.title || item?.headline || item?.name, index === 0 ? "Summary" : "");
+      const subtitle = normalizePowerPointText(item?.subtitle || item?.summary || item?.kicker);
+      const body = normalizePowerPointText(item?.body || item?.content || item?.text);
+      const bullets = normalizePowerPointBullets(item?.bullets || item?.points || item?.items);
+      const imageUrl = String(item?.imageUrl || item?.imageURL || item?.image || item?.imageSrc || "").trim();
+      const imageAlt = normalizePowerPointText(item?.imageAlt || item?.alt || item?.imageCaption);
+      const notes = normalizePowerPointText(item?.notes || item?.speakerNotes);
+      const sourceUrl = String(item?.sourceUrl || item?.url || "").trim();
+      const hasImage = /^https?:\/\//i.test(imageUrl) || /^data:/i.test(imageUrl);
+      if (!title && !subtitle && !body && !bullets.length && !hasImage) {
+        return null;
+      }
+      return {
+        title: title || `Slide ${index + 1}`,
+        subtitle,
+        body,
+        bullets,
+        imageUrl: hasImage ? imageUrl : "",
+        imageAlt,
+        notes,
+        sourceUrl,
+        layout: normalizePowerPointLayout(item?.layout, hasImage, index),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 10);
+
+  if (!slides.length) {
+    return null;
+  }
+
+  const title = normalizePowerPointText(root.title || root.name || slides[0]?.title, "Presentation");
+  const theme = root.theme && typeof root.theme === "object" ? root.theme : {};
+  return {
+    title,
+    theme: {
+      backgroundColor: normalizePowerPointColor(theme.backgroundColor || theme.background, "0B1220"),
+      textColor: normalizePowerPointColor(theme.textColor || theme.text, "EAF2FF"),
+      accentColor: normalizePowerPointColor(theme.accentColor || theme.accent || theme.primary, "4EA8FF"),
+    },
+    slides,
+  };
+}
+
+function extractPowerPointDeckSpecFromText(rawText) {
+  const candidates = collectLikelyJsonCandidates(String(rawText || ""));
+  for (const candidate of candidates) {
+    const parsed = parseStarterDraftCandidate(candidate);
+    const normalized = normalizePowerPointDeckSpec(parsed);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
+function buildPowerPointFilename(title = "", fallback = "presentation") {
+  const normalizedTitle = String(title || "").trim() || fallback;
+  return `${timestampForFile(new Date())}-${sanitizeFileSegment(normalizedTitle, fallback)}.pptx`;
+}
+
+function computeCrc32(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (let index = 0; index < bytes.length; index += 1) {
+    crc = POWERPOINT_CRC32_TABLE[(crc ^ bytes[index]) & 0xFF] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function concatUint8Arrays(chunks) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return result;
+}
+
+function createZipStore(entries) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = ((now.getHours() & 0x1F) << 11) | ((now.getMinutes() & 0x3F) << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = (((now.getFullYear() - 1980) & 0x7F) << 9) | (((now.getMonth() + 1) & 0x0F) << 5) | (now.getDate() & 0x1F);
+
+  entries.forEach((entry) => {
+    const nameBytes = encoder.encode(entry.name);
+    const dataBytes = entry.data instanceof Uint8Array ? entry.data : encoder.encode(String(entry.data || ""));
+    const crc32 = computeCrc32(dataBytes);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034B50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, dosTime, true);
+    localView.setUint16(12, dosDate, true);
+    localView.setUint32(14, crc32, true);
+    localView.setUint32(18, dataBytes.length, true);
+    localView.setUint32(22, dataBytes.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localView.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, dataBytes);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    centralView.setUint32(0, 0x02014B50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, dosTime, true);
+    centralView.setUint16(14, dosDate, true);
+    centralView.setUint32(16, crc32, true);
+    centralView.setUint32(20, dataBytes.length, true);
+    centralView.setUint32(24, dataBytes.length, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + dataBytes.length;
+  });
+
+  const centralDirectory = concatUint8Arrays(centralParts);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  endView.setUint32(0, 0x06054B50, true);
+  endView.setUint16(4, 0, true);
+  endView.setUint16(6, 0, true);
+  endView.setUint16(8, entries.length, true);
+  endView.setUint16(10, entries.length, true);
+  endView.setUint32(12, centralDirectory.length, true);
+  endView.setUint32(16, offset, true);
+  endView.setUint16(20, 0, true);
+
+  return concatUint8Arrays([...localParts, centralDirectory, end]);
+}
+
+function buildPowerPointContentTypesXml(slideCount, imageExtensions) {
+  const imageDefaults = Array.from(new Set(imageExtensions))
+    .map((extension) => `<Default Extension="${escapeXml(extension)}" ContentType="${extension === "png" ? "image/png" : extension === "gif" ? "image/gif" : "image/jpeg"}"/>`)
+    .join("");
+  const slideOverrides = Array.from({ length: slideCount }, (_item, index) => (
+    `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`
+  )).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  ${imageDefaults}
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  ${slideOverrides}
+</Types>`;
+}
+
+function buildPowerPointRootRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`;
+}
+
+function buildPowerPointPresentationXml(slideCount) {
+  const slideIdMarkup = Array.from({ length: slideCount }, (_item, index) => (
+    `<p:sldId id="${256 + index}" r:id="rId${index + 2}"/>`
+  )).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldMasterIdLst>
+    <p:sldMasterId id="2147483648" r:id="rId1"/>
+  </p:sldMasterIdLst>
+  <p:sldIdLst>${slideIdMarkup}</p:sldIdLst>
+  <p:sldSz cx="${POWERPOINT_SLIDE_WIDTH}" cy="${POWERPOINT_SLIDE_HEIGHT}" type="screen16x9"/>
+  <p:notesSz cx="${POWERPOINT_NOTES_WIDTH}" cy="${POWERPOINT_NOTES_HEIGHT}"/>
+  <p:defaultTextStyle/>
+</p:presentation>`;
+}
+
+function buildPowerPointPresentationRelsXml(slideCount) {
+  const slideRels = Array.from({ length: slideCount }, (_item, index) => (
+    `<Relationship Id="rId${index + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${index + 1}.xml"/>`
+  )).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+  ${slideRels}
+  <Relationship Id="rId${slideCount + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>
+</Relationships>`;
+}
+
+function buildPowerPointPresPropsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentationPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>`;
+}
+
+function buildPowerPointAppXml(slideCount) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>Open Copilot</Application>
+  <PresentationFormat>On-screen Show (16:9)</PresentationFormat>
+  <Slides>${slideCount}</Slides>
+  <Notes>0</Notes>
+  <HiddenSlides>0</HiddenSlides>
+  <MMClips>0</MMClips>
+  <ScaleCrop>false</ScaleCrop>
+  <HeadingPairs>
+    <vt:vector size="2" baseType="variant">
+      <vt:variant><vt:lpstr>Slides</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>${slideCount}</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="${slideCount}" baseType="lpstr">
+      ${Array.from({ length: slideCount }, (_item, index) => `<vt:lpstr>Slide ${index + 1}</vt:lpstr>`).join("")}
+    </vt:vector>
+  </TitlesOfParts>
+  <Company>Open Copilot</Company>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>false</SharedDoc>
+  <HyperlinksChanged>false</HyperlinksChanged>
+  <AppVersion>1.0</AppVersion>
+</Properties>`;
+}
+
+function buildPowerPointCoreXml(title) {
+  const created = new Date().toISOString();
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>${escapeXml(title)}</dc:title>
+  <dc:creator>Open Copilot</dc:creator>
+  <cp:lastModifiedBy>Open Copilot</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${created}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${created}</dcterms:modified>
+</cp:coreProperties>`;
+}
+
+function buildPowerPointSlideLayoutXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1">
+  <p:cSld name="Blank">
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr>
+        <a:xfrm>
+          <a:off x="0" y="0"/>
+          <a:ext cx="0" cy="0"/>
+          <a:chOff x="0" y="0"/>
+          <a:chExt cx="0" cy="0"/>
+        </a:xfrm>
+      </p:grpSpPr>
+    </p:spTree>
+  </p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sldLayout>`;
+}
+
+function buildPowerPointSlideLayoutRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`;
+}
+
+function buildPowerPointSlideMasterXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld name="Slide Master">
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr>
+        <a:xfrm>
+          <a:off x="0" y="0"/>
+          <a:ext cx="0" cy="0"/>
+          <a:chOff x="0" y="0"/>
+          <a:chExt cx="0" cy="0"/>
+        </a:xfrm>
+      </p:grpSpPr>
+    </p:spTree>
+  </p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+  <p:sldLayoutIdLst>
+    <p:sldLayoutId id="2147483649" r:id="rId1"/>
+  </p:sldLayoutIdLst>
+  <p:txStyles>
+    <p:titleStyle/>
+    <p:bodyStyle/>
+    <p:otherStyle/>
+  </p:txStyles>
+</p:sldMaster>`;
+}
+
+function buildPowerPointSlideMasterRelsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+</Relationships>`;
+}
+
+function buildPowerPointThemeXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Open Copilot Theme">
+  <a:themeElements>
+    <a:clrScheme name="Open Copilot">
+      <a:dk1><a:srgbClr val="171717"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:dk2><a:srgbClr val="2E3440"/></a:dk2>
+      <a:lt2><a:srgbClr val="F3F4F6"/></a:lt2>
+      <a:accent1><a:srgbClr val="C96B3B"/></a:accent1>
+      <a:accent2><a:srgbClr val="5E81AC"/></a:accent2>
+      <a:accent3><a:srgbClr val="A3BE8C"/></a:accent3>
+      <a:accent4><a:srgbClr val="EBCB8B"/></a:accent4>
+      <a:accent5><a:srgbClr val="B48EAD"/></a:accent5>
+      <a:accent6><a:srgbClr val="88C0D0"/></a:accent6>
+      <a:hlink><a:srgbClr val="1D4ED8"/></a:hlink>
+      <a:folHlink><a:srgbClr val="7C3AED"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="Open Copilot">
+      <a:majorFont>
+        <a:latin typeface="Aptos Display"/>
+        <a:ea typeface=""/>
+        <a:cs typeface=""/>
+      </a:majorFont>
+      <a:minorFont>
+        <a:latin typeface="Aptos"/>
+        <a:ea typeface=""/>
+        <a:cs typeface=""/>
+      </a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="Open Copilot">
+      <a:fillStyleLst>
+        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+        <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+        <a:solidFill><a:schemeClr val="accent2"/></a:solidFill>
+      </a:fillStyleLst>
+      <a:lineStyleLst>
+        <a:ln w="9525" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+        <a:ln w="25400" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+        <a:ln w="38100" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+      </a:lineStyleLst>
+      <a:effectStyleLst>
+        <a:effectStyle><a:effectLst/></a:effectStyle>
+        <a:effectStyle><a:effectLst/></a:effectStyle>
+        <a:effectStyle><a:effectLst/></a:effectStyle>
+      </a:effectStyleLst>
+      <a:bgFillStyleLst>
+        <a:solidFill><a:schemeClr val="lt1"/></a:solidFill>
+        <a:solidFill><a:schemeClr val="lt2"/></a:solidFill>
+        <a:solidFill><a:schemeClr val="dk1"/></a:solidFill>
+      </a:bgFillStyleLst>
+    </a:fmtScheme>
+  </a:themeElements>
+  <a:objectDefaults/>
+  <a:extraClrSchemeLst/>
+</a:theme>`;
+}
+
+function createPowerPointParagraphs(lines, options = {}) {
+  const normalizedLines = (Array.isArray(lines) ? lines : [lines])
+    .map((line) => normalizePowerPointText(line))
+    .filter(Boolean);
+  if (!normalizedLines.length) {
+    normalizedLines.push("");
+  }
+  const size = Number.isFinite(options.size) ? options.size : 1800;
+  const color = escapeXml(options.color || "171717");
+  const bold = options.bold ? ` b="1"` : "";
+  const align = options.align ? ` algn="${escapeXml(options.align)}"` : "";
+  const italic = options.italic ? ` i="1"` : "";
+  return normalizedLines.map((line) => (
+    `<a:p><a:pPr${align}/><a:r><a:rPr lang="en-US" sz="${size}"${bold}${italic}><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:rPr><a:t>${escapeXml(line)}</a:t></a:r><a:endParaRPr lang="en-US" sz="${size}"/></a:p>`
+  )).join("");
+}
+
+function createPowerPointTextShapeXml(id, name, x, y, cx, cy, lines, options = {}) {
+  const bodyPr = `wrap="square" rtlCol="0" anchor="${escapeXml(options.anchor || "t")}" vertOverflow="clip" horzOverflow="clip" lIns="91440" tIns="45720" rIns="91440" bIns="45720"`;
+  return `<p:sp>
+    <p:nvSpPr>
+      <p:cNvPr id="${id}" name="${escapeXml(name)}"/>
+      <p:cNvSpPr txBox="1"/>
+      <p:nvPr/>
+    </p:nvSpPr>
+    <p:spPr>
+      <a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+      <a:noFill/>
+      <a:ln><a:noFill/></a:ln>
+    </p:spPr>
+    <p:txBody>
+      <a:bodyPr ${bodyPr}><a:noAutofit/></a:bodyPr>
+      <a:lstStyle/>
+      ${createPowerPointParagraphs(lines, options)}
+    </p:txBody>
+  </p:sp>`;
+}
+
+function createPowerPointSolidFillXml(color, alpha = 1) {
+  if (!color) {
+    return "<a:noFill/>";
+  }
+  const normalizedAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+  return `<a:solidFill><a:srgbClr val="${escapeXml(color)}">${normalizedAlpha < 1 ? `<a:alpha val="${Math.round(normalizedAlpha * 100000)}"/>` : ""}</a:srgbClr></a:solidFill>`;
+}
+
+function createPowerPointLineXml(color, options = {}) {
+  if (!color) {
+    return "<a:ln><a:noFill/></a:ln>";
+  }
+  const width = Number.isFinite(options.width) ? options.width : 12700;
+  return `<a:ln w="${width}">${createPowerPointSolidFillXml(color, options.alpha ?? 1)}</a:ln>`;
+}
+
+function createPowerPointRectShapeXml(id, name, x, y, cx, cy, fillColor, options = {}) {
+  return `<p:sp>
+    <p:nvSpPr>
+      <p:cNvPr id="${id}" name="${escapeXml(name)}"/>
+      <p:cNvSpPr/>
+      <p:nvPr/>
+    </p:nvSpPr>
+    <p:spPr>
+      <a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+      <a:prstGeom prst="${escapeXml(options.geometry || "rect")}"><a:avLst/></a:prstGeom>
+      ${createPowerPointSolidFillXml(fillColor, options.fillAlpha ?? 1)}
+      ${createPowerPointLineXml(options.lineColor || "", { width: options.lineWidth, alpha: options.lineAlpha })}
+    </p:spPr>
+  </p:sp>`;
+}
+
+function createPowerPointImageXml(id, name, relationshipId, x, y, cx, cy) {
+  return `<p:pic>
+    <p:nvPicPr>
+      <p:cNvPr id="${id}" name="${escapeXml(name)}"/>
+      <p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>
+      <p:nvPr/>
+    </p:nvPicPr>
+    <p:blipFill>
+      <a:blip r:embed="${escapeXml(relationshipId)}"/>
+      <a:stretch><a:fillRect/></a:stretch>
+    </p:blipFill>
+    <p:spPr>
+      <a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+      <a:ln><a:noFill/></a:ln>
+    </p:spPr>
+  </p:pic>`;
+}
+
+async function resolvePowerPointImageAsset(imageUrl, index) {
+  const normalizedUrl = String(imageUrl || "").trim();
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  let mimeType = "application/octet-stream";
+  let bytes = null;
+
+  if (/^data:/i.test(normalizedUrl)) {
+    const match = normalizedUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/i);
+    if (!match) {
+      return null;
+    }
+    mimeType = String(match[1] || "application/octet-stream").trim() || "application/octet-stream";
+    bytes = base64ToBytes(match[2] || "");
+  } else {
+    const response = await runtimeMessage({
+      type: "browser:fetch-binary-url",
+      url: normalizedUrl,
+    });
+    if (!response?.ok || !response.file?.base64) {
+      return null;
+    }
+    mimeType = String(response.file.mimeType || "application/octet-stream").trim() || "application/octet-stream";
+    bytes = base64ToBytes(response.file.base64);
+  }
+
+  if (!(bytes instanceof Uint8Array) || !bytes.length) {
+    return null;
+  }
+
+  const extension = mimeType.includes("png") ? "png" : mimeType.includes("gif") ? "gif" : "jpg";
+  return {
+    bytes,
+    mimeType,
+    extension,
+    path: `ppt/media/image${index}.${extension}`,
+  };
+}
+
+function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshipId) {
+  const palette = getPowerPointThemePalette(deckTheme);
+  const hasImage = Boolean(imageRelationshipId);
+  const layout = normalizePowerPointLayout(slide.layout, hasImage, slideNumber - 1);
+  const shapes = [];
+  let nextId = 2;
+  const titleSlide = layout === "title";
+  const sourceLabel = getPowerPointSourceLabel(slide.sourceUrl);
+  const titleLines = [clipPowerPointText(slide.title, titleSlide ? 64 : 80)].filter(Boolean);
+  const bodyLines = buildPowerPointBodyLines(slide, titleSlide ? 4 : 5);
+  const footerText = slide.notes
+    ? `Notes: ${clipPowerPointText(slide.notes, 180)}`
+    : sourceLabel
+      ? `Source: ${sourceLabel}`
+      : "";
+
+  shapes.push(createPowerPointRectShapeXml(nextId, "Background", 0, 0, POWERPOINT_SLIDE_WIDTH, POWERPOINT_SLIDE_HEIGHT, palette.background));
+  nextId += 1;
+  shapes.push(createPowerPointRectShapeXml(nextId, "Accent Bar", 0, 0, POWERPOINT_SLIDE_WIDTH, 170000, palette.accent));
+  nextId += 1;
+  if (titleSlide) {
+    shapes.push(createPowerPointTextShapeXml(nextId, "Title", 640000, 1400000, 10912000, 1100000, titleLines, {
+      size: 3000,
+      color: palette.text,
+      bold: true,
+      align: "ctr",
+      anchor: "ctr",
+    }));
+    nextId += 1;
+    if (bodyLines.length) {
+      shapes.push(createPowerPointTextShapeXml(nextId, "Subtitle", 1040000, 2750000, 10112000, 1900000, bodyLines, {
+        size: 1800,
+        color: palette.text,
+        align: "ctr",
+        anchor: "ctr",
+      }));
+      nextId += 1;
+    }
+  } else if (hasImage) {
+    const isImageLeft = layout === "image-left";
+    const textX = isImageLeft ? 6600000 : 640000;
+    const imageX = isImageLeft ? 640000 : 6800000;
+    shapes.push(createPowerPointTextShapeXml(nextId, "Title", 640000, 520000, 10912000, 620000, titleLines, {
+      size: 2400,
+      color: palette.text,
+      bold: true,
+    }));
+    nextId += 1;
+    if (bodyLines.length) {
+      shapes.push(createPowerPointTextShapeXml(nextId, "Body", textX, 1500000, 4950000, 3850000, bodyLines, {
+        size: 1700,
+        color: palette.text,
+      }));
+      nextId += 1;
+    }
+    shapes.push(createPowerPointImageXml(nextId, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, imageX, 1500000, 4500000, 3300000));
+    nextId += 1;
+  } else {
+    shapes.push(createPowerPointTextShapeXml(nextId, "Title", 640000, 520000, 10912000, 620000, titleLines, {
+      size: 2400,
+      color: palette.text,
+      bold: true,
+    }));
+    nextId += 1;
+    if (bodyLines.length) {
+      shapes.push(createPowerPointTextShapeXml(nextId, "Body", 640000, 1450000, 10912000, 3900000, bodyLines, {
+        size: 1700,
+        color: palette.text,
+      }));
+      nextId += 1;
+    }
+  }
+
+  if (footerText) {
+    shapes.push(createPowerPointTextShapeXml(nextId, "Footer", 640000, 5850000, 10912000, 600000, [footerText], {
+      size: 1050,
+      color: palette.accent,
+    }));
+    nextId += 1;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld name="${escapeXml(slide.title || `Slide ${slideNumber}`)}">
+    <p:spTree>
+      <p:nvGrpSpPr>
+        <p:cNvPr id="1" name=""/>
+        <p:cNvGrpSpPr/>
+        <p:nvPr/>
+      </p:nvGrpSpPr>
+      <p:grpSpPr>
+        <a:xfrm>
+          <a:off x="0" y="0"/>
+          <a:ext cx="0" cy="0"/>
+          <a:chOff x="0" y="0"/>
+          <a:chExt cx="0" cy="0"/>
+        </a:xfrm>
+      </p:grpSpPr>
+      ${shapes.join("")}
+    </p:spTree>
+  </p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`;
+}
+
+function buildPowerPointSlideRelsXml(imageAsset) {
+  const extraImageRel = imageAsset
+    ? `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${escapeXml(imageAsset.path.split("/").pop() || "")}"/>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+  ${extraImageRel}
+</Relationships>`;
+}
+
+async function buildPowerPointFileBytes(deckSpec) {
+  const normalizedDeck = normalizePowerPointDeckSpec(deckSpec);
+  if (!normalizedDeck) {
+    throw new Error(tl("noPowerPointToExport"));
+  }
+
+  const slideAssets = [];
+  for (let index = 0; index < normalizedDeck.slides.length; index += 1) {
+    const slide = normalizedDeck.slides[index];
+    const imageAsset = slide.imageUrl
+      ? await resolvePowerPointImageAsset(slide.imageUrl, index + 1)
+      : null;
+    slideAssets.push(imageAsset);
+  }
+
+  const imageExtensions = slideAssets.filter(Boolean).map((item) => item.extension);
+  const entries = [
+    { name: "[Content_Types].xml", data: buildPowerPointContentTypesXml(normalizedDeck.slides.length, imageExtensions) },
+    { name: "_rels/.rels", data: buildPowerPointRootRelsXml() },
+    { name: "docProps/app.xml", data: buildPowerPointAppXml(normalizedDeck.slides.length) },
+    { name: "docProps/core.xml", data: buildPowerPointCoreXml(normalizedDeck.title) },
+    { name: "ppt/presentation.xml", data: buildPowerPointPresentationXml(normalizedDeck.slides.length) },
+    { name: "ppt/_rels/presentation.xml.rels", data: buildPowerPointPresentationRelsXml(normalizedDeck.slides.length) },
+    { name: "ppt/presProps.xml", data: buildPowerPointPresPropsXml() },
+    { name: "ppt/slideLayouts/slideLayout1.xml", data: buildPowerPointSlideLayoutXml() },
+    { name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels", data: buildPowerPointSlideLayoutRelsXml() },
+    { name: "ppt/slideMasters/slideMaster1.xml", data: buildPowerPointSlideMasterXml() },
+    { name: "ppt/slideMasters/_rels/slideMaster1.xml.rels", data: buildPowerPointSlideMasterRelsXml() },
+    { name: "ppt/theme/theme1.xml", data: buildPowerPointThemeXml() },
+  ];
+
+  normalizedDeck.slides.forEach((slide, index) => {
+    const asset = slideAssets[index];
+    entries.push({
+      name: `ppt/slides/slide${index + 1}.xml`,
+      data: buildPowerPointSlideXml(slide, normalizedDeck.theme, index + 1, asset ? "rId2" : ""),
+    });
+    entries.push({
+      name: `ppt/slides/_rels/slide${index + 1}.xml.rels`,
+      data: buildPowerPointSlideRelsXml(asset),
+    });
+    if (asset) {
+      entries.push({
+        name: asset.path,
+        data: asset.bytes,
+      });
+    }
+  });
+
+  return createZipStore(entries);
 }
 
 function buildShareText(rawText, label = "") {
@@ -11625,7 +12922,8 @@ async function downloadMessageHtml(messageId) {
     throw new Error(tl("messageNotFound"));
   }
 
-  const html = await repairHtmlImagesForDownload(extractHtmlDocumentFromText(message.content));
+  const directHtml = String(message.generatedHtml || "").trim();
+  const html = directHtml || await repairHtmlImagesForDownload(extractHtmlDocumentFromText(message.content));
   if (!html) {
     throw new Error(tl("noHtmlToExport"));
   }
@@ -11640,6 +12938,24 @@ async function downloadMessageHtml(messageId) {
   );
   downloadTextBlob(filename, html, "text/html;charset=utf-8");
   setStatus(tl("htmlDownloaded", { file: filename }));
+}
+
+async function downloadMessagePowerPoint(messageId) {
+  const message = chatMessages.find((item) => String(item.id) === String(messageId));
+  if (!message) {
+    throw new Error(tl("messageNotFound"));
+  }
+
+  const deckSpec = normalizePowerPointDeckSpec(message.generatedDeckSpec);
+  if (!deckSpec) {
+    throw new Error(tl("noPowerPointToExport"));
+  }
+
+  const filename = String(message.generatedFileName || "").trim()
+    || buildPowerPointFilename(deckSpec.title, document.title || "presentation");
+  const bytes = await buildPowerPointFileBytes(deckSpec);
+  downloadBinaryBlob(filename, bytes, POWERPOINT_MIME_TYPE);
+  setStatus(tl("powerPointDownloaded", { file: filename }));
 }
 
 function scheduleConversationSave() {
@@ -12656,7 +13972,9 @@ function renderMessages() {
     .map((message) => {
       try {
         const roleClass = message.role === "assistant" ? "is-assistant" : "is-user";
-        const isTypingAssistant = message.role === "assistant" && !message.flowRun && !message.content.trim() && isGenerating;
+        const hasHtmlGenerationPanel = message.role === "assistant" && message.htmlGenerationJob;
+        const isTypingAssistant = message.role === "assistant" && !message.flowRun && !message.htmlGenerationJob && !message.content.trim() && isGenerating;
+        const isHtmlGenerationRunning = hasHtmlGenerationPanel && message.htmlGenerationJob.status === "running";
         const messageIndex = getMessageIndexById(message.id);
         const isLatestAssistantMessage = message.role === "assistant" && messageIndex === chatMessages.length - 1;
         const messageAttachments = message.role === "user" ? renderSentMessageAttachments(message.attachments) : "";
@@ -12665,6 +13983,9 @@ function renderMessages() {
         const body =
           hasAgentFlowPanel
             ? renderAgentFlowPanel(message.flowRun)
+            :
+          hasHtmlGenerationPanel
+            ? renderHtmlGenerationProgressPanel(message.htmlGenerationJob)
             :
           isTypingAssistant
             ? `
@@ -12686,11 +14007,17 @@ function renderMessages() {
             : `<div class="ollama-quick-user-text">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>${messageAttachments}`;
         const hasDraftCodeBlock = message.role === "assistant" && !isTypingAssistant ? hasStarterDraftCodeBlock(message) : false;
         const previousUserMessage = messageIndex >= 0 ? getPreviousUserMessage(messageIndex) : null;
-        const downloadableHtml = message.role === "assistant" && !isTypingAssistant ? extractHtmlDocumentFromText(message.content) : "";
+        const downloadableHtml = message.role === "assistant" && !isTypingAssistant
+          ? String(message.generatedHtml || "").trim() || extractHtmlDocumentFromText(message.content)
+          : "";
+        const downloadablePowerPoint = message.role === "assistant" && !isTypingAssistant
+          ? Boolean(normalizePowerPointDeckSpec(message.generatedDeckSpec))
+          : false;
         const showSaveStarterButton = !hasDraftCodeBlock && (
           parsedStarterDrafts.length || (
             message.role === "assistant" &&
             !isTypingAssistant &&
+            !hasHtmlGenerationPanel &&
             (
               looksLikeStarterDraftText(message.content) ||
               (previousUserMessage && isStarterBuilderRequest(previousUserMessage.content))
@@ -12708,7 +14035,7 @@ function renderMessages() {
         } else if (showSaveStarterButton) {
           actionButtons.push(`<button class="ollama-quick-copy" type="button" data-action="save-generated-starters" data-message-id="${message.id}">${escapeHtml(tl("saveStarter"))}</button>`);
         }
-        if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length) {
+        if (message.role === "assistant" && !isTypingAssistant && !parsedStarterDrafts.length && !isHtmlGenerationRunning) {
           actionButtons.unshift(
             `<button class="ollama-quick-message-action-icon" type="button" data-action="copy-message" data-index="${message.id}" title="${escapeHtml(tl("copy"))}" aria-label="${escapeHtml(tl("copy"))}">⧉</button>`
           );
@@ -12723,6 +14050,11 @@ function renderMessages() {
           if (downloadableHtml) {
             actionButtons.unshift(
               `<button class="ollama-quick-message-action-icon is-text-label" type="button" data-action="download-message-html" data-message-id="${message.id}" title="${escapeHtml(tl("downloadHtml"))}" aria-label="${escapeHtml(tl("downloadHtml"))}">HTML</button>`
+            );
+          }
+          if (downloadablePowerPoint) {
+            actionButtons.unshift(
+              `<button class="ollama-quick-message-action-icon is-text-label" type="button" data-action="download-message-powerpoint" data-message-id="${message.id}" title="${escapeHtml(tl("downloadPowerPoint"))}" aria-label="${escapeHtml(tl("downloadPowerPoint"))}">PPTX</button>`
             );
           }
           if (isLatestAssistantMessage) {
@@ -13007,6 +14339,20 @@ function renderShell() {
                 <button class="ollama-quick-secondary" type="button" data-action="run-suggested-starter">${escapeHtml(tl("suggestedStarterRun"))}</button>
                 <button class="ollama-quick-secondary" type="button" data-action="save-suggested-starter">${escapeHtml(tl("suggestedStarterSave"))}</button>
                 <button class="ollama-quick-secondary" type="button" data-action="dismiss-suggested-starter">${escapeHtml(tl("suggestedStarterDismiss"))}</button>
+              </div>
+            </div>
+          ` : ""}
+          ${pendingPowerPointThemeExecution?.starter ? `
+            <div class="ollama-quick-starter-route-banner">
+              <div class="ollama-quick-starter-route-copy">
+                <div class="ollama-quick-starter-route-kicker">${escapeHtml(tl("powerPointThemePromptTitle"))}</div>
+                <div class="ollama-quick-starter-route-title">${escapeHtml(tl("powerPointThemePromptBody"))}</div>
+                ${attachedBrowserTabs.length ? `<div class="ollama-quick-starter-route-title">${escapeHtml(tl("powerPointThemeSourceBlend"))}</div>` : ""}
+              </div>
+              <div class="ollama-quick-starter-route-actions">
+                <button class="ollama-quick-secondary" type="button" data-action="choose-powerpoint-theme" data-powerpoint-theme="dark">${escapeHtml(tl("powerPointThemeDark"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="choose-powerpoint-theme" data-powerpoint-theme="light">${escapeHtml(tl("powerPointThemeLight"))}</button>
+                <button class="ollama-quick-secondary" type="button" data-action="cancel-powerpoint-theme">${escapeHtml(tl("powerPointThemeCancel"))}</button>
               </div>
             </div>
           ` : ""}
@@ -13691,6 +15037,7 @@ function renderLandingPageBuilder() {
               </div>
             </div>
           ` : ""}
+          ${draft.isGenerating && selectedTemplate ? renderLandingPageBuilderProgressPanel(draft, selectedTemplate) : ""}
           ${hasGeneratedHtml ? `
             <div class="ollama-quick-landing-page-result-panel">
               <div class="ollama-quick-landing-page-section-head">
@@ -14719,6 +16066,8 @@ async function startStarterExecution(plan, modelOverride = "", executionOptions 
     return;
   }
 
+  clearPendingPowerPointThemeExecution();
+
   const effectiveModel = resolveUsableModelForTask({
     starter: plan.starter,
     userMessage: plan.starter?.prompt || "",
@@ -15177,6 +16526,15 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "download-message-powerpoint") {
+    try {
+      await downloadMessagePowerPoint(actionNode.dataset.messageId || "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : tl("exportPowerPointFailed"));
+    }
+    return;
+  }
+
   if (action === "download-message-markdown") {
     const messageId = actionNode.dataset.messageId || "";
     const message = getChatMessageById(messageId);
@@ -15482,6 +16840,9 @@ async function handleClick(event) {
     if (!starter) {
       return;
     }
+    if (starter.starterKey !== "landingPowerPoint") {
+      clearPendingPowerPointThemeExecution();
+    }
     recordStarterUsage(starter.id).catch(() => {});
 
     if (starter.isSuggestedFollowup) {
@@ -15561,8 +16922,38 @@ async function handleClick(event) {
 
     pendingSuggestedStarterAction = null;
     const executionPlan = resolveStarterExecutionPlan(starter);
+    if (starter.starterKey === "landingPowerPoint") {
+      clearPendingStarterExecution();
+      setPendingPowerPointThemeExecution(executionPlan);
+      renderShell();
+      return;
+    }
+    clearPendingPowerPointThemeExecution();
     clearPendingStarterExecution();
     await startStarterExecution(executionPlan, executionPlan.suggestedModel);
+    return;
+  }
+
+  if (action === "choose-powerpoint-theme") {
+    const themePreference = String(actionNode.dataset.powerpointTheme || "").trim().toLowerCase() === "light" ? "light" : "dark";
+    const plan = pendingPowerPointThemeExecution;
+    if (!plan?.starter) {
+      return;
+    }
+    clearPendingPowerPointThemeExecution();
+    const themedPlan = {
+      ...plan,
+      contextOptions: buildPowerPointThemeContextOptions(themePreference, plan),
+    };
+    renderShell();
+    setStatus(tl(themePreference === "light" ? "powerPointThemeReadyLight" : "powerPointThemeReadyDark"));
+    await startStarterExecution(themedPlan, themedPlan.suggestedModel);
+    return;
+  }
+
+  if (action === "cancel-powerpoint-theme") {
+    clearPendingPowerPointThemeExecution();
+    renderShell();
     return;
   }
 
@@ -16245,6 +17636,7 @@ async function handleClick(event) {
     latestPerspectiveRun = null;
     composeMode = "chat";
     pendingSuggestedStarterAction = null;
+    clearPendingPowerPointThemeExecution();
     clearPendingStarterExecution();
     attachedImages.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     attachedImages = [];
@@ -16744,8 +18136,30 @@ async function sendCurrentPrompt(options = {}) {
     return true;
   }
 
-  chatMessages.push({ id: Date.now(), role: "user", content: displayMessage, attachments: outgoingAttachments });
-  chatMessages.push({ id: Date.now() + 1, role: "assistant", content: "" });
+  const outputArtifactType = getStarterOutputArtifactType(pendingStarter);
+  const isDownloadArtifactStarter = Boolean(outputArtifactType);
+  const copy = getHtmlGenerationCopy();
+  const baseMessageId = Date.now();
+  const assistantMessageId = baseMessageId + 1;
+  chatMessages.push({ id: baseMessageId, role: "user", content: displayMessage, attachments: outgoingAttachments });
+  chatMessages.push(
+    isDownloadArtifactStarter
+      ? {
+          id: assistantMessageId,
+          role: "assistant",
+          content: "",
+          generatedHtml: "",
+          generatedDeckSpec: null,
+          generatedArtifactType: outputArtifactType,
+          htmlGenerationJob: createHtmlGenerationJob({
+            title: pendingStarter?.label || copy.title,
+            artifactType: outputArtifactType,
+            steps: outputArtifactType === "pptx" ? getLandingPowerPointGenerationSteps() : getLandingHtmlGenerationSteps(),
+            detail: outputArtifactType === "pptx" ? copy.landingPowerPointPreparing : copy.landingHtmlPreparing,
+          }),
+        }
+      : { id: assistantMessageId, role: "assistant", content: "" }
+  );
   isGenerating = true;
   renderShell();
   renderMessages();
@@ -16762,6 +18176,40 @@ async function sendCurrentPrompt(options = {}) {
 
   try {
     await startStreamingChat(await buildChatMessages(userMessage, { imageAttachments, contextOptions }), effectiveModel);
+    if (isDownloadArtifactStarter) {
+      setHtmlGenerationJobStage(
+        assistantMessageId,
+        "finalize",
+        outputArtifactType === "pptx" ? copy.landingPowerPointPackaging : copy.landingHtmlPackaging
+      );
+      const assistantMessage = getChatMessageById(assistantMessageId);
+      const rawResponse = String(assistantMessage?.htmlGenerationJob?.rawText || "").trim();
+      if (outputArtifactType === "pptx") {
+        const deckSpec = extractPowerPointDeckSpecFromText(rawResponse);
+        if (!deckSpec) {
+          throw new Error(copy.landingPowerPointNoDeck);
+        }
+        const fileName = buildPowerPointFilename(deckSpec.title, document.title || "presentation");
+        setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingPowerPointReady, {
+          status: "complete",
+          summary: copy.landingPowerPointReady,
+          generatedDeckSpec: deckSpec,
+          generatedArtifactType: outputArtifactType,
+          fileName,
+        });
+      } else {
+        const html = await repairHtmlImagesForDownload(extractHtmlDocumentFromText(rawResponse));
+        if (!html) {
+          throw new Error(copy.landingHtmlNoHtml);
+        }
+        setHtmlGenerationJobStage(assistantMessageId, "finalize", copy.landingHtmlReady, {
+          status: "complete",
+          summary: copy.landingHtmlReady,
+          generatedHtml: html,
+          generatedArtifactType: outputArtifactType,
+        });
+      }
+    }
     imageAttachments.forEach((item) => {
       if (item.previewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(item.previewUrl);
@@ -16781,7 +18229,11 @@ async function sendCurrentPrompt(options = {}) {
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    if (isDownloadArtifactStarter) {
+      setHtmlGenerationJobError(assistantMessageId, message);
+    } else {
+      chatMessages[chatMessages.length - 1].content = `Error: ${message}`;
+    }
     renderShell();
     renderMessages();
     isGenerating = false;
@@ -16843,6 +18295,21 @@ function updateAssistantDraft(text) {
 
   const last = chatMessages[chatMessages.length - 1];
   if (last.role !== "assistant") {
+    return;
+  }
+
+  if (last.htmlGenerationJob) {
+    last.htmlGenerationJob.rawText = text;
+    if (last.htmlGenerationJob.status === "running" && last.htmlGenerationJob.currentStepId === "source") {
+      const artifactType = String(last.htmlGenerationJob.artifactType || "html").trim() || "html";
+      last.htmlGenerationJob.currentStepId = "generate";
+      last.htmlGenerationJob.completedStepIds = ["source"];
+      last.htmlGenerationJob.detail = artifactType === "pptx"
+        ? getHtmlGenerationCopy().landingPowerPointGenerating
+        : getHtmlGenerationCopy().landingHtmlGenerating;
+    }
+    scheduleMessagesRender();
+    scheduleConversationSave();
     return;
   }
 
