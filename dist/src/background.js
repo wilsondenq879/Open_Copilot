@@ -259,6 +259,31 @@ function deriveConversationFileTitle(session = {}) {
   return "chat";
 }
 
+async function openInvestmentProposalBuilderWindow() {
+  const url = chrome.runtime.getURL("src/investment-proposal-builder.html");
+  try {
+    const popup = await chrome.windows.create({
+      url,
+      type: "popup",
+      width: 1180,
+      height: 900,
+      focused: true,
+    });
+    return {
+      ok: true,
+      windowId: popup?.id ?? null,
+      mode: "popup",
+    };
+  } catch (_error) {
+    const tab = await chrome.tabs.create({ url, active: true });
+    return {
+      ok: true,
+      tabId: tab?.id ?? null,
+      mode: "tab",
+    };
+  }
+}
+
 async function getNextExportSequence() {
   const { [EXPORT_SEQUENCE_KEY]: current } = await chrome.storage.local.get(EXPORT_SEQUENCE_KEY);
   const nextValue = Number.isFinite(Number(current)) ? Number(current) + 1 : 1;
@@ -5869,6 +5894,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "ollama:open-options": {
         await chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
+        return;
+      }
+      case "investment-proposal:open-builder": {
+        sendResponse(await openInvestmentProposalBuilderWindow());
         return;
       }
       case "ollama:set-work-folder": {

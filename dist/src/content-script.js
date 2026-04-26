@@ -897,6 +897,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     docOutline: "把目前內容重新整理成結構清楚的大綱。",
     landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
     landingPowerPoint: "把目前內容整理成可下載的 PowerPoint 簡報。",
+    investmentProposalBuilder: "開啟獨立視窗，填三個欄位後直接生成附表6與附表7的 Word 企畫書。",
     bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
     catalystMap: "整理推動事件、觸發因子與可能影響路徑。",
     pricedIn: "判斷市場是否已經把某些預期反映進價格。",
@@ -960,6 +961,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     docOutline: "Reorganize the current content into a clearer outline.",
     landingHtml: "Turn the current material into a single downloadable HTML page.",
     landingPowerPoint: "Turn the current material into a downloadable PowerPoint deck.",
+    investmentProposalBuilder: "Open a standalone window, fill three fields, and generate a Word draft for Taiwan investment tax-credit proposal forms 6 and 7.",
     bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
     catalystMap: "Map the events, triggers, and likely impact paths around a topic.",
     pricedIn: "Judge whether expectations already seem reflected in the price.",
@@ -1412,6 +1414,7 @@ const CONTENT_I18N = {
     starter_imageAnalysis: "看圖整理重點",
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_landingPageBuilder: "帶模板生成 Landing Page",
+    starter_investmentProposalBuilder: "投資提案文件",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
     starter_qaSourceDistill: "QA · 整理來源",
@@ -1428,6 +1431,10 @@ const CONTENT_I18N = {
     createAgentFlowPrompt: "請幫我規劃一條 Agent Flow。",
     createCustomStarterPrompt: "我想新增一個自訂快捷工具。先不要產生任何設定資料，也不要直接給我可匯入格式。請先用白話中文幫我整理一份可以直接填寫的需求模板，讓我補完後再回傳給你。模板請簡單好懂，並包含這幾項：1. 這個按鈕想叫什麼名字 2. 想拿它來做什麼 3. 希望用在哪些頁面 4. 最後想產出什麼 5. 希望整體內容或風格長什麼樣子 6. 有圖片時想怎麼處理 7. 有圖表時想怎麼處理 8. 有沒有明確不能做的事 9. 其他補充。請直接回覆一份好填寫的模板，每題都留出可填內容，並在最後提醒我填完後再回傳給你整理。",
     landingPageBuilderPrompt: "請先幫我分析這個來源頁面適合哪一種 landing page 模板。",
+    investmentProposalBuilderPrompt: "請開啟投資提案文件產生器，填寫提案主題、研發項目與領先業界指標後，再生成附表6與附表7的 Word 文件。",
+    investmentProposalBuilderOpening: "正在開啟投資提案文件視窗...",
+    investmentProposalBuilderOpened: "投資提案文件視窗已開啟。",
+    investmentProposalBuilderOpenFailed: "無法開啟投資提案文件視窗。",
     landingHtmlPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可直接下載的 HTML，而且整體設計要明顯偏向『Apple keynote 風格啟發的投影片式單頁網站』，不是一般文章頁。要求：1. 只回覆單一 ```html``` code block，不要加前後說明 2. 輸出完整 HTML 文件，包含內嵌 CSS 3. 視覺方向請參考 Apple keynote 的簡報感：大膽留白、超大標題、短句、乾淨而克制的配色、高級感排版、大片圖片或色塊、精準的層次，但不要直接使用 Apple 商標或文案 4. 版面請做成一段一段像 slides 的 section，每個 section 聚焦一個重點，不要寫成密集長文 5. 優先做 5 到 8 個主要 section，桌機上有簡報感，手機上也要能順暢往下滑閱讀 6. 可使用 scroll-snap、sticky 區塊、巨大數字、左右分欄 hero、statement section、feature panels 等手法 7. 圖片一定要放在安全的 media 容器內，使用 max-width:100%、height:auto 或 object-fit:cover / contain，不能把文字欄擠到過窄造成逐字換行，也不能讓圖片撐破 grid 或 viewport 8. 任何雙欄排版都必須確保文字欄至少維持舒適閱讀寬度；如果圖片太大或畫面太窄，就自動改成上下堆疊，不要硬維持左右分欄 9. 若 CURRENT PAGE CONTEXT 或加入的分頁內容有 Image candidates，優先直接使用那些圖片 URL 當成 <img src>；不要生成新圖片、不要捏造不存在的圖片 URL 10. 若沒有可用圖片，就做成以排版、格線與色塊為主的版本 11. 內容必須忠於來源，不可補寫不存在的事實 12. 如果我加入了多個分頁，請先整合它們的共同主題與差異，再重新編排成一份一致的單頁簡報 13. HTML 需可直接在瀏覽器開啟，並適合桌機與手機閱讀 14. 如果需要供應鏈風險圖、趨勢圖、流程圖、比較圖、時間線等資訊圖表，請直接用 <pre class=\"mermaid\">...</pre> 輸出 Mermaid 圖，而不是寫 [圖表示意]、[視覺化] 這種佔位文字，也不要把圖表做成一般圖片 15. Mermaid 圖表必須根據來源資料編寫，節點與數值不要亂補；版面請保持簡潔可讀 16. 如果某一段需要抽象意象圖而來源沒有現成圖片，例如『全球連結與安全象徵』，可以放 <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"全球連結與安全象徵\" /> 這種查詢型圖片標記，查詢詞請用簡短英文，不要捏造 src URL 17. 有真實來源圖片時，一律優先使用來源圖片，不要改成搜尋型意象圖 18. 絕對不要輸出沒有可用 src 的 <img>；如果沒有真實圖片也不適合搜尋意象圖，就改用純版面色塊或 Mermaid，不要留下空圖片框。內容語言請使用{language}。",
     landingPowerPointPrompt: "請根據目前頁面、可見文字、參考資料、加入的分頁內容與提供的圖片來源，產出一份可下載成 PowerPoint 的投影片規格。請嚴格遵守以下要求：1. 只回覆單一 ```json``` code block，不要加前後說明 2. JSON 根物件固定為 {\"title\": string, \"theme\": {...}, \"slides\": [...] } 3. `theme` 可包含 `backgroundColor`、`textColor`、`accentColor`，顏色請用 `#RRGGBB` 4. `slides` 請控制在 5 到 8 張，每張投影片盡量聚焦一個重點，不要塞長文 5. 每張 slide 只能使用這些欄位：`title`、`subtitle`、`body`、`bullets`、`imageUrl`、`imageAlt`、`notes`、`sourceUrl`、`layout` 6. `layout` 只能是 `title`、`content`、`image-left`、`image-right` 其中之一 7. `bullets` 必須是字串陣列，每點都要短而有資訊密度 8. 若有可用的來源圖片，`imageUrl` 必須直接使用來源圖片 URL；不要捏造網址、不要生成新圖片 9. 若沒有可用圖片，就省略 `imageUrl`，改用純文字投影片 10. 內容必須忠於來源，不可補寫不存在的事實 11. 如果我加入了多個分頁，請先整合共同主題與差異，再整理成一致的簡報故事線 12. 若來源包含圖表、流程、時間線等複雜資訊，請把圖表重寫成簡潔文字重點與 bullets，不要輸出 Mermaid、不要輸出 HTML 13. 每張 slide 的 `title`、`subtitle`、`body`、`bullets`、`notes` 都請使用{language} 14. 請讓第一張像封面或 executive summary，最後一張像結論或 next steps 15. 若某張投影片沒有合適內容，就不要硬湊空洞句子。請只輸出合法 JSON。",
     translationPrompt: "請把這個網頁內容翻譯成{language}。",
@@ -2043,6 +2050,7 @@ const CONTENT_I18N = {
     starter_imageAnalysis: "Analyze Image",
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     starter_landingPageBuilder: "Landing Page With Templates",
+    starter_investmentProposalBuilder: "Investment Proposal Doc",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
     starter_qaSourceDistill: "QA · Distill Source",
@@ -2059,6 +2067,10 @@ const CONTENT_I18N = {
     createAgentFlowPrompt: "Help me plan an Agent Flow.",
     createCustomStarterPrompt: "I want to add a custom quick tool. Do not generate any import-ready config yet, and do not jump straight into a machine-readable format. First, give me a plain-language fill-in template that I can complete and send back to you. Keep it easy for a non-technical user. The template should include: 1. What should the button be called 2. What should it help with 3. Which kinds of pages should it appear on 4. What should it produce in the end 5. What kind of tone or style should the output have 6. How should images be handled 7. How should charts or diagrams be handled 8. Anything it must avoid 9. Any extra notes. Reply with the template only, leaving clear spaces to fill in, and end by telling me to send it back after I fill it out.",
     landingPageBuilderPrompt: "Please analyze this source page and help me choose the best landing page template first.",
+    investmentProposalBuilderPrompt: "Open the investment proposal builder, collect the proposal topic, research items, and industry-leading benchmark, then generate a downloadable Word document for appendix forms 6 and 7.",
+    investmentProposalBuilderOpening: "Opening the investment proposal builder...",
+    investmentProposalBuilderOpened: "The investment proposal builder window is open.",
+    investmentProposalBuilderOpenFailed: "Failed to open the investment proposal builder window.",
     landingHtmlPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a downloadable HTML document whose design feels clearly inspired by an Apple keynote-style one-page slide site rather than a normal article page. Requirements: 1. Reply with one complete ```html``` code block only, with no explanation before or after it 2. Output a full HTML document with inline CSS 3. The visual direction should feel keynote-like: generous whitespace, oversized headlines, concise copy, restrained premium color use, cinematic section composition, and polished typography, but do not use Apple trademarks or copy Apple marketing text 4. Build it as slide-like sections where each section carries one main point instead of dense paragraphs 5. Prefer around 5 to 8 major sections so it feels like a product keynote page or pitch deck on desktop while still scrolling smoothly on mobile 6. You may use scroll-snap, sticky panels, oversized numbers, split-layout heroes, statement sections, feature panels, and similar presentation-style techniques 7. Images must live inside safe media containers using max-width:100%, height:auto, and when needed object-fit:cover or contain; they must not squeeze text columns into unreadably narrow widths or break the grid / viewport 8. Any two-column layout must preserve a comfortable minimum reading width for text, and should collapse into a vertical stack whenever the image is too dominant or the viewport is too narrow 9. If CURRENT PAGE CONTEXT or added browser tabs include Image candidates, prefer using those source image URLs directly in <img src>; do not generate new images and do not invent image URLs 10. If no usable images are available, create a typography-first version driven by layout, grids, spacing, and color blocks 11. Stay faithful to the source material and do not invent facts 12. If I added multiple tabs, first synthesize their common theme and important differences, then turn them into one coherent slide-based page 13. The HTML should open directly in a browser and read well on desktop and mobile 14. If a section needs a risk map, timeline, process flow, comparison chart, trend chart, or similar information graphic, render it as Mermaid using <pre class=\"mermaid\">...</pre> instead of placeholder text like [diagram] or a generic image 15. Mermaid diagrams must be grounded in the provided source material; keep labels, nodes, and values accurate and readable 16. If a section benefits from symbolic imagery but no real source image exists, you may place an <img data-edge-ai-image-query=\"global connection cyber security illustration\" alt=\"Global connection and security symbol\" /> style query-image placeholder, using a short English search phrase and no fabricated src URL 17. Whenever real source images exist, always prefer those source images over search-based symbolic imagery 18. Never output an <img> without a usable src. If you do not have a real source image and a symbolic search image is not appropriate, replace the visual with Mermaid or a pure layout / color-block treatment instead of leaving an empty image frame. Write the content in {language}.",
     landingPowerPointPrompt: "Turn the current page, visible text, reference material, added browser-tab content, and any provided source images into a PowerPoint-ready slide specification. Follow these rules strictly: 1. Reply with one complete ```json``` code block only, with no explanation before or after it 2. The root JSON object must be {\"title\": string, \"theme\": {...}, \"slides\": [...] } 3. `theme` may contain `backgroundColor`, `textColor`, and `accentColor`, each using `#RRGGBB` format 4. Keep the deck to about 5 to 8 slides, with each slide focused on one main point instead of dense prose 5. Each slide may use only these fields: `title`, `subtitle`, `body`, `bullets`, `imageUrl`, `imageAlt`, `notes`, `sourceUrl`, `layout` 6. `layout` must be one of `title`, `content`, `image-left`, or `image-right` 7. `bullets` must be an array of strings, with each point concise and meaningful 8. If source images are available, `imageUrl` must use those real source image URLs directly; do not invent URLs and do not generate new images 9. If no usable images are available, omit `imageUrl` and make the slide text-first 10. Stay faithful to the source material and do not invent facts 11. If I added multiple tabs, synthesize their shared theme and differences before turning them into one coherent slide story 12. If the source includes charts, timelines, or process diagrams, rewrite them into concise slide text and bullets instead of Mermaid or HTML 13. Write every slide's `title`, `subtitle`, `body`, `bullets`, and `notes` in {language} 14. Make the first slide feel like a cover or executive summary, and the last slide feel like a conclusion or next steps 15. If a slide does not have enough grounded material, do not pad it with vague filler. Output valid JSON only.",
     translationPrompt: "Translate this page into {language}.",
@@ -5489,8 +5501,9 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "landingPageBuilder", "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
+  nextKeys = [...nextKeys, "investmentProposalBuilder", "landingPageBuilder", "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
 
+  nextKeys = [...nextKeys, "investmentProposalBuilder"];
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
 }
 
@@ -5518,6 +5531,7 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
     ...QA_FLOW_BLOCK_STARTERS,
+    "investmentProposalBuilder",
     "landingPageBuilder",
     "batchUrlQaWorkflow",
     "createAgentFlow",
@@ -7708,6 +7722,10 @@ function getStarterPrompt(starterKey) {
 
   if (starterKey === "landingPageBuilder") {
     return tl("landingPageBuilderPrompt");
+  }
+
+  if (starterKey === "investmentProposalBuilder") {
+    return tl("investmentProposalBuilderPrompt");
   }
 
   if (starterKey === "createCustomStarter") {
@@ -15611,6 +15629,14 @@ async function runGenerate(prompt, model) {
   return result.response || "";
 }
 
+async function openInvestmentProposalBuilderWindow() {
+  const result = await runtimeMessage({ type: "investment-proposal:open-builder" });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("investmentProposalBuilderOpenFailed"));
+  }
+  return result;
+}
+
 function getChatMessageById(messageId) {
   return chatMessages.find((item) => String(item.id) === String(messageId)) || null;
 }
@@ -16913,6 +16939,25 @@ async function handleClick(event) {
       browserTabPickerOpen = false;
       resetLandingPageBuilderState();
       renderShell();
+      return;
+    }
+
+    if (starter.id === "builtin:investmentProposalBuilder") {
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
+      landingPageBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      renderShell();
+      setStatus(tl("investmentProposalBuilderOpening"));
+      try {
+        await openInvestmentProposalBuilderWindow();
+        setStatus(tl("investmentProposalBuilderOpened"));
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error || tl("investmentProposalBuilderOpenFailed")));
+      }
       return;
     }
 

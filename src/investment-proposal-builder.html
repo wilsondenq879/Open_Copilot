@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>投資提案文件產生器</title>
+    <link rel="stylesheet" href="ui.css" />
+    <style>
+      :root {
+        color-scheme: light;
+        --proposal-bg: linear-gradient(180deg, #f5efe6 0%, #fcfbf7 44%, #eef4f1 100%);
+        --proposal-surface: rgba(255, 252, 246, 0.88);
+        --proposal-surface-strong: rgba(255, 255, 255, 0.96);
+        --proposal-border: rgba(105, 88, 62, 0.16);
+        --proposal-text: #1f2b25;
+        --proposal-muted: #5f6c66;
+        --proposal-accent: #7b5c2e;
+        --proposal-accent-strong: #305f55;
+        --proposal-shadow: 0 28px 70px rgba(76, 65, 48, 0.12);
+        --proposal-radius: 26px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Noto Sans TC", "IBM Plex Sans", "Microsoft JhengHei", sans-serif;
+        color: var(--proposal-text);
+        background: var(--proposal-bg);
+      }
+
+      .proposal-shell {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 40px 28px 52px;
+      }
+
+      .proposal-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
+        gap: 22px;
+        margin-bottom: 24px;
+      }
+
+      .proposal-panel,
+      .proposal-side-card,
+      .proposal-form-card,
+      .proposal-result-card {
+        background: var(--proposal-surface);
+        border: 1px solid var(--proposal-border);
+        border-radius: var(--proposal-radius);
+        box-shadow: var(--proposal-shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .proposal-panel {
+        padding: 30px 32px;
+      }
+
+      .proposal-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(123, 92, 46, 0.1);
+        color: var(--proposal-accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .proposal-title {
+        margin: 0;
+        font-size: clamp(2rem, 3.4vw, 3.1rem);
+        line-height: 1.06;
+        letter-spacing: -0.03em;
+      }
+
+      .proposal-subtitle {
+        margin: 16px 0 0;
+        max-width: 52rem;
+        color: var(--proposal-muted);
+        font-size: 1rem;
+        line-height: 1.8;
+      }
+
+      .proposal-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .proposal-badge {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(48, 95, 85, 0.08);
+        color: var(--proposal-accent-strong);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .proposal-side-card {
+        padding: 24px 24px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .proposal-side-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--proposal-accent-strong);
+        text-transform: uppercase;
+      }
+
+      .proposal-side-copy {
+        margin: 0;
+        color: var(--proposal-muted);
+        font-size: 0.95rem;
+        line-height: 1.75;
+      }
+
+      .proposal-side-list {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--proposal-text);
+        line-height: 1.75;
+      }
+
+      .proposal-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+        gap: 22px;
+      }
+
+      .proposal-form-card,
+      .proposal-result-card {
+        padding: 28px;
+      }
+
+      .proposal-card-title {
+        margin: 0;
+        font-size: 1.2rem;
+      }
+
+      .proposal-card-hint {
+        margin: 10px 0 0;
+        color: var(--proposal-muted);
+        line-height: 1.7;
+      }
+
+      .proposal-form {
+        display: grid;
+        gap: 18px;
+        margin-top: 22px;
+      }
+
+      .proposal-field {
+        display: grid;
+        gap: 10px;
+      }
+
+      .proposal-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.96rem;
+        font-weight: 700;
+      }
+
+      .proposal-required {
+        color: #8b3d2b;
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+
+      .proposal-input,
+      .proposal-textarea {
+        width: 100%;
+        border: 1px solid rgba(70, 93, 84, 0.16);
+        border-radius: 18px;
+        background: var(--proposal-surface-strong);
+        color: var(--proposal-text);
+        padding: 15px 16px;
+        font: inherit;
+        line-height: 1.7;
+        transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+      }
+
+      .proposal-input:focus,
+      .proposal-textarea:focus {
+        outline: none;
+        border-color: rgba(48, 95, 85, 0.42);
+        box-shadow: 0 0 0 4px rgba(48, 95, 85, 0.11);
+        transform: translateY(-1px);
+      }
+
+      .proposal-textarea {
+        min-height: 132px;
+        resize: vertical;
+      }
+
+      .proposal-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 8px;
+      }
+
+      .proposal-upload-shell {
+        display: grid;
+        gap: 12px;
+      }
+
+      .proposal-upload-panel {
+        display: grid;
+        gap: 10px;
+        padding: 18px;
+        border: 1px dashed rgba(48, 95, 85, 0.24);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .proposal-upload-copy {
+        margin: 0;
+        color: var(--proposal-muted);
+        font-size: 0.92rem;
+        line-height: 1.7;
+      }
+
+      .proposal-upload-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .proposal-upload-input {
+        display: none;
+      }
+
+      .proposal-upload-trigger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid rgba(48, 95, 85, 0.14);
+        border-radius: 999px;
+        background: rgba(48, 95, 85, 0.08);
+        color: var(--proposal-accent-strong);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .proposal-upload-note {
+        color: var(--proposal-muted);
+        font-size: 0.88rem;
+      }
+
+      .proposal-image-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+      }
+
+      .proposal-image-card {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid rgba(48, 95, 85, 0.12);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .proposal-image-preview {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        overflow: hidden;
+        border-radius: 12px;
+        background: rgba(237, 229, 214, 0.45);
+      }
+
+      .proposal-image-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .proposal-image-name {
+        font-size: 0.84rem;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
+      .proposal-image-remove {
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid rgba(139, 61, 43, 0.18);
+        border-radius: 999px;
+        background: rgba(139, 61, 43, 0.08);
+        color: #8b3d2b;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .proposal-progress {
+        display: grid;
+        gap: 10px;
+        margin-top: 8px;
+        padding: 16px 18px;
+        border: 1px solid rgba(48, 95, 85, 0.12);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .proposal-progress-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .proposal-progress-label {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--proposal-accent-strong);
+      }
+
+      .proposal-progress-value {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--proposal-accent);
+      }
+
+      .proposal-progress-track {
+        width: 100%;
+        height: 12px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(48, 95, 85, 0.09);
+      }
+
+      .proposal-progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #305f55 0%, #7b5c2e 100%);
+        transition: width 220ms ease;
+      }
+
+      .proposal-primary,
+      .proposal-secondary {
+        appearance: none;
+        border: 0;
+        border-radius: 16px;
+        padding: 14px 18px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+      }
+
+      .proposal-primary {
+        background: linear-gradient(135deg, #305f55 0%, #7b5c2e 100%);
+        color: #fffdf8;
+        box-shadow: 0 18px 34px rgba(48, 95, 85, 0.22);
+      }
+
+      .proposal-secondary {
+        background: rgba(48, 95, 85, 0.08);
+        color: var(--proposal-accent-strong);
+      }
+
+      .proposal-primary:hover,
+      .proposal-secondary:hover {
+        transform: translateY(-1px);
+      }
+
+      .proposal-primary:disabled,
+      .proposal-secondary:disabled {
+        cursor: not-allowed;
+        opacity: 0.56;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .proposal-status {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(48, 95, 85, 0.08);
+        color: var(--proposal-accent-strong);
+        line-height: 1.7;
+      }
+
+      .proposal-status.is-error {
+        background: rgba(139, 61, 43, 0.12);
+        color: #8b3d2b;
+      }
+
+      .proposal-status.is-success {
+        background: rgba(95, 123, 79, 0.12);
+        color: #406133;
+      }
+
+      .proposal-result-meta {
+        display: grid;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .proposal-meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(105, 88, 62, 0.1);
+      }
+
+      .proposal-meta-label {
+        color: var(--proposal-muted);
+        font-size: 0.9rem;
+      }
+
+      .proposal-meta-value {
+        text-align: right;
+        font-weight: 700;
+      }
+
+      .proposal-preview {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid var(--proposal-border);
+      }
+
+      .proposal-preview-title {
+        margin: 0 0 12px;
+        font-size: 0.95rem;
+        font-weight: 700;
+      }
+
+      .proposal-preview-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding-left: 18px;
+        color: var(--proposal-muted);
+        line-height: 1.7;
+      }
+
+      @media (max-width: 980px) {
+        .proposal-shell {
+          padding: 24px 16px 32px;
+        }
+
+        .proposal-hero,
+        .proposal-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="proposal-shell">
+      <section class="proposal-hero">
+        <article class="proposal-panel">
+          <div class="proposal-kicker">Investment Proposal Builder</div>
+          <h1 class="proposal-title">投資提案文件 starter</h1>
+          <p class="proposal-subtitle">
+            這個工具會依照你填寫的提案資料，自動生成政府審查導向的投資抵減企畫書內容，並分別輸出可直接下載的
+            Word (`.docx`) 文件。輸出內容固定包含附表6與附表7。
+          </p>
+          <div class="proposal-badges">
+            <span class="proposal-badge">政府審查語氣</span>
+            <span class="proposal-badge">繁體中文</span>
+            <span class="proposal-badge">附表6 + 附表7</span>
+            <span class="proposal-badge">直接下載 DOCX</span>
+          </div>
+        </article>
+        <aside class="proposal-side-card">
+          <div class="proposal-side-label">固定規則</div>
+          <p class="proposal-side-copy">生成時會自動套用你指定的核心限制，避免走成行銷文或中國用語。</p>
+          <ul class="proposal-side-list">
+            <li>以制度語言與審查邏輯撰寫</li>
+            <li>避免「一定符合」「保證核准」等保證性語句</li>
+            <li>研發時程會依照你填寫的區間與里程碑輸出</li>
+            <li>2026 年銷售量會落在 50K 到 100K 的整數區間</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="proposal-grid">
+        <article class="proposal-form-card">
+          <h2 class="proposal-card-title">填寫提案資料</h2>
+          <p class="proposal-card-hint">
+            四個欄位必填，專利欄位選填。研發項目與領先業界指標可以用換行或逗號分隔；研發時程可直接描述月份區間、里程碑與階段安排，工具會依照你填寫的區間整理並餵給模型。
+            目前表單內容會自動暫存，下次重新開啟視窗時會自動恢復。
+          </p>
+          <form id="proposalForm" class="proposal-form">
+            <label class="proposal-field">
+              <span class="proposal-label">
+                <span>1. 提案主題</span>
+                <span class="proposal-required">必填</span>
+              </span>
+              <input
+                id="proposalTopic"
+                class="proposal-input"
+                type="text"
+                placeholder="例如：智慧製造 AI 視覺檢測平台投資抵減企畫書"
+                autocomplete="off"
+                required
+              />
+            </label>
+
+            <label class="proposal-field">
+              <span class="proposal-label">
+                <span>2. 研發時程</span>
+                <span class="proposal-required">必填</span>
+              </span>
+              <textarea
+                id="researchSchedule"
+                class="proposal-textarea"
+                placeholder="例如：2025/01 kick off 與需求訪談，2025/02-2025/04 完成架構設計與 PoC，2025/05-2025/12 分階段開發，2026/01-2026/03 整合測試，2026/04-2026/06 場域驗證與優化"
+                required
+              ></textarea>
+            </label>
+
+            <label class="proposal-field">
+              <span class="proposal-label">
+                <span>3. 研發項目</span>
+                <span class="proposal-required">必填</span>
+              </span>
+              <textarea
+                id="researchItems"
+                class="proposal-textarea"
+                placeholder="例如：AI 視覺辨識模組、邊緣運算推論架構、設備資料整合平台、異常警示與追溯分析"
+                required
+              ></textarea>
+            </label>
+
+            <label class="proposal-field">
+              <span class="proposal-label">
+                <span>4. 領先業界指標</span>
+                <span class="proposal-required">必填</span>
+              </span>
+              <textarea
+                id="leadingBenchmark"
+                class="proposal-textarea"
+                placeholder="例如：推論延遲低於 120ms、辨識準確率超過 96%、設備導入後換線時間縮短 35%、異常預警命中率達 90%"
+                required
+              ></textarea>
+            </label>
+
+            <label class="proposal-field">
+              <span class="proposal-label">
+                <span>5. 專利申請</span>
+                <span class="proposal-required">選填</span>
+              </span>
+              <textarea
+                id="patentNotes"
+                class="proposal-textarea"
+                placeholder="例如：已提出可折疊式多頻天線模組結構專利申請、路由器診斷式天線切換控制方法專利申請。若有專利名稱、申請階段或技術摘要，可一併填入。"
+              ></textarea>
+            </label>
+
+            <div class="proposal-field">
+              <span class="proposal-label">
+                <span>6. 圖片佐證</span>
+                <span class="proposal-required">選填</span>
+              </span>
+              <div class="proposal-upload-shell">
+                <div id="imageUploadPanel" class="proposal-upload-panel">
+                  <p class="proposal-upload-copy">
+                    可上傳研發示意圖、設備照片、架構圖、測試畫面或專利草圖。也支援直接在這個視窗貼上圖片，生成 Word 時會一併插入文件。
+                  </p>
+                  <div class="proposal-upload-row">
+                    <label for="supportImageInput" class="proposal-upload-trigger">上傳圖片</label>
+                    <input id="supportImageInput" class="proposal-upload-input" type="file" accept="image/*" multiple />
+                    <span class="proposal-upload-note">支援多張圖片，會自動暫存並嵌入附表6、附表7。</span>
+                  </div>
+                </div>
+                <div id="supportImageGrid" class="proposal-image-grid"></div>
+              </div>
+            </div>
+
+            <div class="proposal-actions">
+              <button id="generateButton" class="proposal-primary" type="submit">生成 Word</button>
+              <button id="downloadAppendix6Button" class="proposal-secondary" type="button" disabled>下載附表6</button>
+              <button id="downloadAppendix7Button" class="proposal-secondary" type="button" disabled>下載附表7</button>
+              <button id="clearDraftButton" class="proposal-secondary" type="button">清除暫存</button>
+            </div>
+
+            <div class="proposal-progress" aria-live="polite">
+              <div class="proposal-progress-head">
+                <span id="progressLabel" class="proposal-progress-label">尚未開始生成</span>
+                <span id="progressValue" class="proposal-progress-value">0%</span>
+              </div>
+              <div class="proposal-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="生成進度">
+                <div id="progressFill" class="proposal-progress-fill"></div>
+              </div>
+            </div>
+          </form>
+          <div id="statusMessage" class="proposal-status">準備完成。請填入四個必填欄位後開始生成。</div>
+        </article>
+
+        <aside class="proposal-result-card">
+          <h2 class="proposal-card-title">生成結果</h2>
+          <p class="proposal-card-hint">
+            會一次輸出附表6與附表7。若你目前使用的是 Ollama，請先在 Open Copilot 裡選好模型。
+          </p>
+          <div class="proposal-result-meta">
+            <div class="proposal-meta-row">
+              <span class="proposal-meta-label">目前提供者</span>
+              <strong id="providerValue" class="proposal-meta-value">讀取中</strong>
+            </div>
+            <div class="proposal-meta-row">
+              <span class="proposal-meta-label">目前模型</span>
+              <strong id="modelValue" class="proposal-meta-value">讀取中</strong>
+            </div>
+            <div class="proposal-meta-row">
+              <span class="proposal-meta-label">下載檔名</span>
+              <strong id="fileNameValue" class="proposal-meta-value">附表6 / 附表7 尚未生成</strong>
+            </div>
+          </div>
+          <div class="proposal-preview">
+            <div class="proposal-preview-title">這份 DOCX 會包含</div>
+            <ol class="proposal-preview-list">
+              <li>附表6：獨立 `.docx`，含 14 個章節，包含研發緣由、時程、研發成果、創新性與比較分析，第 5 到 8 章除了表格也會補上文字說明。</li>
+              <li>附表7：獨立 `.docx`，含 6 個章節，包含大綱及方向、時程、研發階段、研發項目、功能規格與技術層次。</li>
+              <li>若有填寫專利申請內容，會一併寫入附表6與附表7，作為自主研發成果的重要佐證。</li>
+              <li>兩份表格都會直接做成 Word 表格，不用再從 Markdown 手動轉貼。</li>
+            </ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="investment-proposal-builder.js"></script>
+  </body>
+</html>
