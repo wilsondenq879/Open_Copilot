@@ -919,6 +919,205 @@
   white-space: nowrap;
 }
 
+.ollama-quick-ppt-setup-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.ollama-quick-ppt-setup-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ollama-quick-ppt-setup-label {
+  color: rgba(169, 227, 255, 0.78);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ollama-quick-ppt-template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ollama-quick-ppt-template-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(154, 176, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(7, 12, 22, 0.62);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.ollama-quick-ppt-template-card:hover,
+.ollama-quick-ppt-template-card:focus-visible,
+.ollama-quick-ppt-template-card.is-selected {
+  border-color: rgba(126, 233, 255, 0.42);
+  background: rgba(14, 26, 42, 0.86);
+  transform: translateY(-1px);
+}
+
+.ollama-quick-ppt-template-preview {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 5px;
+  aspect-ratio: 16 / 9;
+  padding: 8px;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: #0b1220;
+}
+
+.ollama-quick-ppt-template-preview.is-teal-business {
+  background: linear-gradient(135deg, #e9fbfd 0 54%, #007c89 55% 100%);
+}
+
+.ollama-quick-ppt-template-preview.is-boardroom-report {
+  background: #f8fafc;
+}
+
+.ollama-quick-ppt-template-preview.is-strategy-cards {
+  background: #111827;
+}
+
+.ollama-quick-ppt-template-preview span {
+  display: block;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.ppt-preview-title {
+  grid-column: span 2;
+  height: 8px;
+  background: #f8fafc !important;
+}
+
+.ppt-preview-line {
+  height: 4px;
+  align-self: center;
+  background: rgba(226, 232, 240, 0.82) !important;
+}
+
+.ppt-preview-line.is-wide {
+  grid-column: span 3;
+}
+
+.ppt-preview-line.is-short {
+  grid-column: span 1;
+}
+
+.ppt-preview-card,
+.ppt-preview-panel,
+.ppt-preview-table {
+  min-height: 24px;
+  background: rgba(148, 163, 184, 0.42) !important;
+}
+
+.ppt-preview-chart {
+  grid-column: span 2;
+  min-height: 24px;
+  background: linear-gradient(90deg, #4ea8ff 0 20%, rgba(255, 255, 255, 0.5) 20% 38%, #f59e0b 38% 58%, rgba(255, 255, 255, 0.42) 58%) !important;
+}
+
+.ppt-preview-angle {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  clip-path: polygon(0 0, 100% 0, 58% 100%, 0 100%);
+  background: #007c89 !important;
+}
+
+.ppt-preview-hero {
+  grid-column: 3 / span 2;
+  grid-row: span 2;
+  background: rgba(15, 23, 42, 0.25) !important;
+}
+
+.ppt-preview-donut {
+  border-radius: 999px !important;
+  border: 6px solid #0097a7;
+  background: transparent !important;
+}
+
+.ppt-preview-band {
+  grid-column: 1 / -1;
+  height: 10px;
+  background: #334155 !important;
+}
+
+.ppt-preview-chart.is-bars {
+  background: linear-gradient(90deg, #64748b 0 14%, transparent 14% 24%, #94a3b8 24% 42%, transparent 42% 52%, #cbd5e1 52% 78%) !important;
+}
+
+.ppt-preview-ribbon {
+  min-height: 34px;
+  clip-path: polygon(0 12%, 100% 0, 86% 100%, 0 88%);
+  background: #f59e0b !important;
+}
+
+.ppt-preview-ribbon.is-alt {
+  background: #0ea5e9 !important;
+}
+
+.ollama-quick-ppt-template-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.ollama-quick-ppt-template-title {
+  color: #f7fbff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.ollama-quick-ppt-template-summary {
+  color: rgba(219, 232, 251, 0.76);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ollama-quick-ppt-setup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+.ollama-quick-ppt-logo-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ollama-quick-ppt-logo-upload {
+  cursor: pointer;
+}
+
+.ollama-quick-ppt-logo-name,
+.ollama-quick-ppt-logo-note {
+  color: rgba(219, 232, 251, 0.74);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ollama-quick-starter-route-actions .ollama-quick-secondary.is-active {
+  border-color: rgba(126, 233, 255, 0.34);
+  background: rgba(32, 116, 144, 0.28);
+  color: #f5fbff;
+}
+
 .ollama-quick-attachment {
   position: relative;
   width: 58px;
@@ -2938,6 +3137,10 @@
   .ollama-quick-landing-page-template-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .ollama-quick-ppt-template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .ollama-quick-landing-page-selected-panel {
@@ -3077,20 +3280,55 @@
   background: rgba(126, 155, 255, 0.12);
 }
 
-.ollama-quick-html-generation-bar span {
+.ollama-quick-html-generation-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
   display: block;
+  width: var(--ollama-generation-progress, 8%);
+  min-width: 8px;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, rgba(88, 223, 255, 0.96), rgba(96, 129, 255, 0.96));
   box-shadow: 0 0 18px rgba(88, 223, 255, 0.22);
-  transition: width 220ms ease;
+  transition: width 260ms ease;
 }
 
-.ollama-quick-html-generation-card.is-complete .ollama-quick-html-generation-bar span {
+.ollama-quick-html-generation-card.is-running .ollama-quick-html-generation-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 46%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: translateX(-120%);
+  animation: ollama-quick-generation-bar-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes ollama-quick-generation-bar-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ollama-quick-html-generation-card.is-running .ollama-quick-html-generation-bar::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .ollama-quick-html-generation-bar-fill {
+    transition: none;
+  }
+}
+
+.ollama-quick-html-generation-card.is-complete .ollama-quick-html-generation-bar-fill {
   background: linear-gradient(90deg, rgba(111, 232, 188, 0.96), rgba(67, 208, 154, 0.96));
 }
 
-.ollama-quick-html-generation-card.is-error .ollama-quick-html-generation-bar span {
+.ollama-quick-html-generation-card.is-error .ollama-quick-html-generation-bar-fill {
   background: linear-gradient(90deg, rgba(255, 145, 145, 0.92), rgba(255, 106, 128, 0.92));
 }
 
@@ -4602,6 +4840,11 @@
 
   .ollama-quick-landing-page-template-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ollama-quick-ppt-template-grid,
+  .ollama-quick-ppt-setup-row {
+    grid-template-columns: 1fr;
   }
 
   .ollama-quick-landing-page-source-grid,
