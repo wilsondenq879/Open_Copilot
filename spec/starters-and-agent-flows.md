@@ -31,6 +31,12 @@ Agent Flows 則是把多個 starter 串成一條可重複執行的流程。
   - 輸出可直接開啟的單頁 HTML 簡報
 - `landingPowerPoint`
   - 輸出 slide JSON，並由前端封裝成可下載的 `.pptx`
+- `investmentProposalBuilder`
+  - 開啟獨立 extension window，生成投資抵減附表 6 / 附表 7 `.docx`
+- `redExcelWorkbookFlow`
+  - 開啟 RED Excel Agent Flow，使用內建模板產出 EN 18031-1 `.xlsx` 與 EN 18031-2 `.xlsb`
+- `batchUrlQaWorkflow`
+  - 開啟 Batch URL QA builder，批次產出 grounded FAQ JSONL
 
 ## UI 契約
 
@@ -43,7 +49,7 @@ Agent Flows 則是把多個 starter 串成一條可重複執行的流程。
 - 推薦 starter 要有更高辨識度
 - 若 starter 命中較重分析路由，點下去後要先顯示「使用更思考模型」提示，並提供「快速回答」切回預設模型
 
-### Settings Starter Library
+### Settings Skills Library
 
 - 用卡片顯示 starter
 - 卡片需顯示：
@@ -100,6 +106,8 @@ Starter 至少要支援：
 - `scopes`
 - `mode`
 
+特殊工具型 starter 可額外帶 opener 行為，不一定直接把 prompt 填入 composer。
+
 ### scope 作用
 
 - 決定在哪些頁型或情境優先出現
@@ -110,6 +118,7 @@ Starter 至少要支援：
 - `chat`：一般聊天填 prompt
 - `perspective`：切到多視角模式
 - `flow`：執行多步驟流程
+- 工具型 built-in starter 可開啟 builder / generator window，例如 investment proposal 或 RED Excel
 
 ## Agent Flow 契約
 
@@ -117,6 +126,7 @@ Starter 至少要支援：
 - 每步都對應到一個 starter skill
 - 可以把前一步輸出當下一步的主要輸入
 - page context 與附件在 flow 中是輔助材料，不應無限制重灌
+- built-in flow 可以代表外部工具頁入口，但卡片仍要顯示完整步驟與輸出 step
 
 ## Visual Differentiation Contract
 
@@ -165,6 +175,13 @@ flowchart TD
 
 - custom starter builder 要能先對話，再產生 draft，再選擇儲存
 - flow builder 要能維持 step draft 狀態，不可每次操作都重置整條 flow
+
+## Built-in Tool Starter Contract
+
+- `builtin:investmentProposalBuilder` 點擊後呼叫 `investment-proposal:open-builder`，不應把長 prompt 塞回聊天輸入框。
+- `builtin:redExcelWorkbookFlow` 點擊後呼叫 `red-excel:open-generator`，並帶入目前頁面的 URL / title 作為 spec 預填線索。
+- `builtin:batchUrlQaWorkflow` 開啟 in-page Batch URL QA builder，job logs 仍在 Settings Flows tab 可查看。
+- 這些 starter 仍然要出現在 starter resolution / visibility 系統中，並受頁型推薦規則影響。
 
 ## 驗收標準
 

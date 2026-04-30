@@ -10,6 +10,8 @@
 - `看 PROJECT_INDEX，幫我調整 settings 的通知區`
 - `看 PROJECT_INDEX，幫我改 knowledge base tester 的 chunking`
 - `看 PROJECT_INDEX，幫我查 GitHub 頁面的 context 擷取`
+- `看 PROJECT_INDEX，幫我改 RED Excel Agent Flow 的 spec 解析`
+- `看 PROJECT_INDEX，幫我改投資提案文件產生器的 Word 匯出`
 
 建議描述格式：
 
@@ -33,7 +35,7 @@
   - 網頁內浮動面板樣式
 - `src/options.js`
   - 設定頁邏輯
-  - provider config、通知設定、custom starters、Agent Flow、工具頁入口
+  - provider config、embedding provider、通知設定、skills、Agent Flow、工具頁入口
 - `src/options.html`
   - 設定頁 DOM
 - `src/popup.js`
@@ -42,6 +44,10 @@
   - popup DOM
 - `src/ui.css`
   - popup / options 共用樣式
+- `src/investment-proposal-builder.html`
+  - 投資提案文件產生器 DOM 與頁面樣式
+- `src/investment-proposal-builder.js`
+  - 投資提案附表 6 / 附表 7 的 AI JSON 生成、DOCX 組裝、圖片附件、草稿暫存
 
 ### 2. 獨立工具頁
 
@@ -54,6 +60,10 @@
   - JSONL QA Editor 畫面
 - `jsonl_ex.js`
   - JSONL 載入、編輯、AI assist、輸出與寫檔
+- `red_excel_generator.html`
+  - RED Excel Agent Flow 畫面
+- `red_excel_generator.js`
+  - ASUS spec URL 解析、EN 18031-1 `.xlsx` / EN 18031-2 `.xlsb` 模板 patch 與下載
 
 ### 3. 文件與規格
 
@@ -63,6 +73,10 @@
   - 重建導向總覽，適合快速理解整體資訊架構
 - `spec/*.md`
   - 各子系統的功能 contract、資料模型、互動節奏、視覺語言
+- `DIST_UPDATE_SOP.md`
+  - `dist/` 同步流程
+- `scripts/build-dist.mjs`
+  - 將 extension source、assets 與工具頁複製到 `dist/`
 
 ## 常見修改需求對照
 
@@ -141,6 +155,7 @@
 關鍵內容：
 
 - provider tabs
+- embedding provider settings
 - notification settings
 - local work folder
 - Google Drive sync
@@ -152,6 +167,8 @@
 
 - `改 settings 的通知區`
 - `改 starter library`
+- `改 embedding provider 選項`
+- `改 Tools 分頁工具卡`
 - `改 Google Drive sync UI`
 
 ### Popup
@@ -226,6 +243,8 @@
 - custom starters import / normalize / persist
 - starter AI editor
 - Agent Flow builder / runner
+- built-in RED Excel flow
+- investment proposal builder launcher
 - multi-perspective prompt 與輸出
 - HTML / PowerPoint 匯出型 starters
 
@@ -235,6 +254,8 @@
 - `改 Agent Flow 執行`
 - `改多視角 synthesis`
 - `改 HTML / PowerPoint 簡報輸出`
+- `改投資提案文件 starter`
+- `改 RED Excel flow 入口`
 
 ### GitHub 相關能力
 
@@ -289,6 +310,62 @@
 - JSONL 輸出
 - work folder 寫入
 
+### RED Excel Agent Flow
+
+優先看：
+
+- `red_excel_generator.js`
+- `red_excel_generator.html`
+- `assets/templates/red-en18031-1-template.xlsx`
+- `assets/templates/red-en18031-2-template.xlsb`
+- `src/background.js`
+- `src/options.js`
+- `src/content-script.js`
+
+關鍵內容：
+
+- Settings Tools 分頁與 Starter/Flow 卡片入口
+- `red-excel:open-generator` background window opener
+- 從目前頁面帶入 `spec` URL 與頁面標題
+- ASUS spec URL 的 Operating Frequency / I/O Ports / Buttons 解析
+- Wi-Fi Radio 2.4/5 或 2.4/5/6GHz 推論
+- `.xlsx` OpenXML sheet patch
+- `.xlsb` BIFF12 shared string / cell patch
+- EN 18031-1 / EN 18031-2 檔名與下載
+
+適合這樣描述：
+
+- `改 RED Excel 的 spec URL 解析`
+- `改 EN 18031-2 xlsb 欄位`
+- `改 Interface-01 Wi-Fi Radio 推論`
+- `改 RED Excel 產出檔名`
+
+### 投資提案文件產生器
+
+優先看：
+
+- `src/investment-proposal-builder.js`
+- `src/investment-proposal-builder.html`
+- `src/background.js`
+- `src/content-script.js`
+
+關鍵內容：
+
+- `investment-proposal:open-builder` background window opener
+- proposal topic / 研發時程 / 研發項目 / benchmark / 專利說明輸入
+- 圖片附件 paste / upload / 壓縮 / Word 內嵌
+- 使用目前 Open Copilot provider 與 selected model 生成附表 6 / 附表 7 JSON
+- JSON parse / repair / fallback shaping
+- DOCX ZIP package 組裝與下載
+- `chrome.storage.local` 草稿暫存
+
+適合這樣描述：
+
+- `改投資提案文件的 prompt`
+- `改附表6 DOCX 格式`
+- `改圖片佐證區`
+- `改草稿暫存`
+
 ## 獨立工具頁索引
 
 ### Knowledge Base QA Tester
@@ -333,6 +410,36 @@
 - AI assist 產生答案
 - 寫回檔案 / download
 
+### RED Excel Agent Flow
+
+檔案：
+
+- `red_excel_generator.html`
+- `red_excel_generator.js`
+- `assets/templates/red-en18031-1-template.xlsx`
+- `assets/templates/red-en18031-2-template.xlsb`
+
+主要範圍：
+
+- Cover 欄位：model name、UM、QSG、Spec
+- Interface-01 Wi-Fi Radio 選項與自動推論
+- ASUS spec URL 分析：I/O ports、buttons、operating frequency
+- 產出 EN 18031-1 `.xlsx` 與 EN 18031-2 `.xlsb`
+
+### Investment Proposal Builder
+
+檔案：
+
+- `src/investment-proposal-builder.html`
+- `src/investment-proposal-builder.js`
+
+主要範圍：
+
+- 台灣投資抵減附表 6 / 附表 7 Word 文件
+- AI 產生結構化 JSON 後組成 DOCX
+- 支援圖片佐證附件
+- 使用 `chrome.storage.local` 保存草稿
+
 ## 規格文件索引
 
 當我要「理解 intent」而不是只修 bug，優先可看這些：
@@ -353,6 +460,8 @@
   - 附件與 context 規則
 - `spec/starters-and-agent-flows.md`
   - starter / flow 定義
+- `spec/built-in-tools-and-generators.md`
+  - JSONL、KB Tester、RED Excel、Investment Proposal 等工具頁 contract
 - `spec/powerpoint-starter-and-export.md`
   - PowerPoint starter、`.pptx` 匯出契約與 smoke test flow
 - `spec/multi-perspective-analysis.md`
@@ -365,6 +474,10 @@
   - popup 模型選擇行為
 - `spec/task-reminders.md`
   - task reminder 資料流
+- `spec/landing-page-template-selector-and-generation-flow.md`
+  - Landing Page Builder template selector 與生成流程
+- `spec/github-article-structure-review-starter.md`
+  - GitHub 文章結構審查 starter
 
 ## 目錄級地圖
 
@@ -374,6 +487,8 @@
   - 重建與功能 contract
 - `assets/icons/`
   - extension icons
+- `assets/templates/`
+  - RED Excel 內建模板
 - `images/`
   - README 圖片
 - `tutorial_code_assistant/`
@@ -381,7 +496,7 @@
 - `tutorial_web_summarizer/`
   - 教學素材
 - `dist/`
-  - 載入到 Edge 的成品
+  - 載入到 Edge 的成品，包含 extension source、assets、獨立工具頁
 - `scripts/build-dist.mjs`
   - dist 建置腳本
 
@@ -394,6 +509,8 @@
 - `Index: KB tester / retrieval + judge`
 - `Index: background / provider routing / Ollama`
 - `Index: GitHub context / content-script`
+- `Index: RED Excel / spec parser / xlsb`
+- `Index: Investment proposal / DOCX export`
 
 ## 高頻入口總結
 
@@ -404,6 +521,7 @@
 - `src/options.js`
 - `knowledge_base_tester.js`
 - `jsonl_ex.js`
+- `red_excel_generator.js`
 - `spec/README.md`
 
 如果你之後沒有特別指定，我會先根據這份索引把問題歸到其中一區，再只讀必要檔案。

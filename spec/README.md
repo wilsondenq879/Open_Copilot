@@ -29,6 +29,7 @@
 14. [Popup Model Selection](./popup-model-selection.md)
 15. [Landing Page Template Selector And Generation Flow](./landing-page-template-selector-and-generation-flow.md)
 16. [PowerPoint Starter And Export](./powerpoint-starter-and-export.md)
+17. [Built-in Tools and Generators](./built-in-tools-and-generators.md)
 
 ## 主要原始碼對照
 
@@ -38,6 +39,7 @@
 | Settings | `src/options.html`, `src/options.js`, `src/ui.css` |
 | In-page UI | `src/content-script.js`, `src/injected.css` |
 | 資料與背景邏輯 | `src/background.js` |
+| Built-in tools | `jsonl_ex.*`, `knowledge_base_tester.*`, `red_excel_generator.*`, `src/investment-proposal-builder.*` |
 | Browser extension 定義 | `manifest.json` |
 
 ## 功能地圖
@@ -45,7 +47,7 @@
 | 功能 | 入口 | 核心行為 |
 | --- | --- | --- |
 | Popup 模型切換 | extension popup | 看 endpoint、抓模型、切換 selected model |
-| Settings | options page | 以 top-level tabs 管理 General、AI Provider、Notifications、Starter、Agent Flow |
+| Settings | options page | 以 top-level tabs 管理 General、AI Provider、Embedding、Notifications、Skills、Flows、Tools |
 | 浮動聊天面板 | 任意一般網頁 | 右側 launcher、收合展開、聊天、最大化 |
 | Context / Attachments | 聊天面板 | 自動頁面 context、圖片、文件、GitHub source、tabs |
 | Starters / Flows | 聊天面板與 settings | 依頁型推薦、快速套用、建立 reusable workflows |
@@ -55,6 +57,9 @@
 | Batch URL QA | 聊天面板 workflow + settings logs | 批次讀網址、產生 grounded FAQ、輸出單一 JSONL、記錄 job 狀態 |
 | Landing Page Builder | 聊天面板 starter workflow | 分析來源頁面、顯示帶圖 template selector、依選定版型生成 landing page |
 | PowerPoint Starter Export | 聊天面板 starter workflow | 把來源內容整理成 slide JSON，並匯出可開啟的 `.pptx` |
+| RED Excel Agent Flow | Settings Tools + 聊天面板 starter | 從 ASUS spec 與 Cover 欄位產出 EN 18031-1 `.xlsx` 與 EN 18031-2 `.xlsb` |
+| Investment Proposal Builder | 聊天面板 starter | 以 AI 生成附表 6 / 附表 7 JSON，組成可下載 `.docx` |
+| Built-in Tools | Settings Tools | 以 extension origin 開啟 JSONL editor、KB tester、RED Excel flow |
 | Notifications | settings | Telegram / LINE / Teams / Slack / Discord 測試與完成通知 |
 | UI Localization | popup + settings + in-page panel | `uiLanguage` 控制介面語言，`replyLanguage` 控制模型回覆語言 |
 | Teams Inline Action | Microsoft Teams 頁面 | hover 訊息時顯示 `Send to Open Copilot` 動作 |
@@ -75,8 +80,11 @@
 
 ## 近期已跟上的實作重點
 
-- Settings 已不是單一長表單，而是上層分成 `General`、`AI Provider`、`Notifications`、`Starter`、`Agent Flow` 五個 tab。
+- 目前 Settings top-level tabs 為 `General`、`AI Provider`、`Embedding`、`Notifications`、`Skills`、`Flows`、`Tools`。
 - `uiLanguage` 已與 `replyLanguage` 分離；popup 會優先跟 `uiLanguage` 走。
 - 通知通道已包含 Telegram、LINE、Teams、Slack、Discord。
 - Batch URL QA 已改為輸出 `.jsonl`，並支援 job logs、取消執行、唯一檔名與完成通知。
 - Teams 頁面支援 inline `Send to Open Copilot` hover action。
+- Settings Tools 會以 extension page 方式開啟 JSONL QA Editor、Knowledge Base QA Tester、RED Excel Agent Flow。
+- RED Excel Agent Flow 內建 EN 18031-1 `.xlsx` 與 EN 18031-2 `.xlsb` 模板，並支援 ASUS spec URL 解析。
+- Investment Proposal Builder 由聊天面板 starter 開啟獨立視窗，產出附表 6 / 附表 7 `.docx`。

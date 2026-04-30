@@ -11,6 +11,12 @@ Keep the checked-in `dist/` folder synchronized with the latest extension source
 - `manifest.json`
 - `src/`
 - `assets/`
+- `jsonl_ex.html`
+- `jsonl_ex.js`
+- `knowledge_base_tester.html`
+- `knowledge_base_tester.js`
+- `red_excel_generator.html`
+- `red_excel_generator.js`
 
 The rebuild script is:
 
@@ -27,6 +33,7 @@ Run this SOP whenever any of these change:
 - `manifest.json`
 - anything under `src/`
 - anything under `assets/`
+- standalone tool pages in the repository root, including JSONL QA Editor, Knowledge Base QA Tester, and RED Excel Agent Flow
 
 Also run it before committing if the change is meant to be reflected in the shipped extension folder.
 
@@ -52,9 +59,15 @@ Confirm `dist/` matches the latest source:
 diff -qr src dist/src
 diff -q manifest.json dist/manifest.json
 diff -qr assets dist/assets
+diff -q jsonl_ex.html dist/jsonl_ex.html
+diff -q jsonl_ex.js dist/jsonl_ex.js
+diff -q knowledge_base_tester.html dist/knowledge_base_tester.html
+diff -q knowledge_base_tester.js dist/knowledge_base_tester.js
+diff -q red_excel_generator.html dist/red_excel_generator.html
+diff -q red_excel_generator.js dist/red_excel_generator.js
 ```
 
-If all three commands return no output, `dist/` is fully synchronized.
+If these commands return no output, `dist/` is fully synchronized.
 
 ## Git Check
 
