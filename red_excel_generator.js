@@ -736,25 +736,11 @@ function patchAllXmlText(entries, values) {
   });
 }
 
-function removeSheetRows(sheetXml, startRow, endRow, dimensionRef = "") {
-  let xml = String(sheetXml || "").replace(/<row\b[^>]*\br="(\d+)"[^>]*(?:\/>|>[\s\S]*?<\/row>)/g, (rowXml, rowNumber) => {
-    const rowIndex = Number(rowNumber);
-    return rowIndex >= startRow && rowIndex <= endRow ? "" : rowXml;
-  });
-  if (dimensionRef) {
-    xml = xml.replace(/<dimension\b[^>]*\/>/, `<dimension ref="${dimensionRef}" />`);
-  }
-  return xml;
-}
-
 function patchWorkbook(entries, values, options = {}) {
   patchAllXmlText(entries, values);
   const coverPath = resolveSheetPath(entries, "Cover");
   const interfacesPath = resolveSheetPath(entries, "Interfaces");
   let coverXml = textEntry(entries, coverPath);
-  if (options.compactCover) {
-    coverXml = removeSheetRows(coverXml, 10, 90, "A1:G9");
-  }
   coverXml = upsertInlineStringCell(coverXml, "B6", values.modelName);
   coverXml = upsertInlineStringCell(coverXml, "B7", values.modelName);
   if (options.patchCoverDocumentRefs !== false) {
@@ -878,7 +864,7 @@ document.getElementById("generateButton").addEventListener("click", async () => 
       BUILT_IN_TEMPLATES.en18031_2,
       `${stamp}-RED-18031-2-ASUS-Router_${modelName}.xlsx`,
       values,
-      { patchCoverDocumentRefs: false, compactCover: true }
+      { patchCoverDocumentRefs: false }
     );
     setStatus("Done. Two Excel files were downloaded.");
   } catch (error) {
