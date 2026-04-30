@@ -31,6 +31,10 @@ Agent Flows 則是把多個 starter 串成一條可重複執行的流程。
   - 輸出可直接開啟的單頁 HTML 簡報
 - `landingPowerPoint`
   - 輸出 slide JSON，並由前端封裝成可下載的 `.pptx`
+- `urlToSalesKitPptxFlow`
+  - 收集一到多個 URL、受眾、語氣、語言與品牌風格，產生 sales kit `.pptx`
+- `investmentProposalBuilder`
+  - 開啟獨立 extension 視窗，產生台灣投資抵減附表6與附表7 `.docx`
 
 ## UI 契約
 
@@ -145,8 +149,9 @@ flowchart TD
   E -- chat --> F[Fill prompt]
   E -- perspective --> G[Switch compose mode]
   E -- flow --> H[Run step 1..N]
-  E -- builder --> I[Open builder]
-  I --> J[Generate starter draft]
+  E -- builder --> I{Builder type}
+  I -- custom starter --> J[Generate starter draft]
+  I -- standalone tool --> M[Open extension tool window]
   J --> K[Save to library]
   H --> L[Collect outputs and render flow result]
 ```

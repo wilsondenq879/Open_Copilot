@@ -11,14 +11,24 @@
 ```ts
 type Config = {
   ollamaUrl: string;
+  ollamaEmbeddingUrl: string;
+  ollamaEmbeddingModel: string;
   lmStudioUrl: string;
+  lmStudioEmbeddingUrl: string;
   lmStudioModel: string;
+  lmStudioEmbeddingModel: string;
   lmStudioApiKey: string;
+  lmStudioEmbeddingApiKey: string;
   geminiModel: string;
+  geminiEmbeddingModel: string;
   azureOpenAiEndpoint: string;
+  azureOpenAiEmbeddingEndpoint: string;
   azureOpenAiDeployment: string;
+  azureOpenAiEmbeddingDeployment: string;
   azureOpenAiApiVersion: string;
+  azureOpenAiEmbeddingApiVersion: string;
   defaultProvider: "ollama" | "lmStudio" | "gemini" | "azureOpenAi";
+  defaultEmbeddingProvider: "ollama" | "lmStudio" | "gemini" | "azureOpenAi";
   selectedModel: string;
   modelSelectionMode: "auto" | "manual";
   starterModelRoutingEnabled: boolean;
@@ -42,7 +52,9 @@ type Config = {
   googleDriveAutoSync: boolean;
   githubApiKeyConfigured: boolean;
   geminiApiKeyConfigured: boolean;
+  geminiEmbeddingApiKeyConfigured: boolean;
   azureOpenAiApiKeyConfigured: boolean;
+  azureOpenAiEmbeddingApiKeyConfigured: boolean;
   telegramBotTokenConfigured: boolean;
   lineChannelAccessTokenConfigured: boolean;
   teamsWebhookUrlConfigured: boolean;
@@ -62,7 +74,9 @@ type Config = {
 type SecretConfig = {
   githubApiKey: string;
   geminiApiKey: string;
+  geminiEmbeddingApiKey: string;
   azureOpenAiApiKey: string;
+  azureOpenAiEmbeddingApiKey: string;
   telegramBotToken: string;
   lineChannelAccessToken: string;
   teamsWebhookUrl: string;

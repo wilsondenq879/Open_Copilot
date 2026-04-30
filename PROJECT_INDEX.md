@@ -33,7 +33,7 @@
   - 網頁內浮動面板樣式
 - `src/options.js`
   - 設定頁邏輯
-  - provider config、通知設定、custom starters、Agent Flow、工具頁入口
+  - provider config、embedding 設定、通知設定、custom starters、Agent Flow、工具頁入口
 - `src/options.html`
   - 設定頁 DOM
 - `src/popup.js`
@@ -45,6 +45,11 @@
 
 ### 2. 獨立工具頁
 
+- `src/investment-proposal-builder.html`
+  - 投資提案文件產生器畫面
+  - 附表6 / 附表7 DOCX 生成表單、圖片佐證、進度與下載區
+- `src/investment-proposal-builder.js`
+  - 投資抵減企畫書 prompt、JSON repair、DOCX OpenXML builder、圖片處理與暫存
 - `knowledge_base_tester.html`
   - Knowledge Base QA Tester 畫面
   - 主題、欄位配置、操作區塊
@@ -141,6 +146,7 @@
 關鍵內容：
 
 - provider tabs
+- embedding provider settings
 - notification settings
 - local work folder
 - Google Drive sync
@@ -151,6 +157,7 @@
 適合這樣描述：
 
 - `改 settings 的通知區`
+- `改 settings 的 embedding 設定`
 - `改 starter library`
 - `改 Google Drive sync UI`
 
@@ -228,6 +235,8 @@
 - Agent Flow builder / runner
 - multi-perspective prompt 與輸出
 - HTML / PowerPoint 匯出型 starters
+- URL to sales kit PPTX flow
+- Investment Proposal Builder 獨立視窗 starter
 
 適合這樣描述：
 
@@ -235,6 +244,8 @@
 - `改 Agent Flow 執行`
 - `改多視角 synthesis`
 - `改 HTML / PowerPoint 簡報輸出`
+- `改 URL 轉 sales kit PPTX`
+- `改投資提案 Word 產生器`
 
 ### GitHub 相關能力
 
@@ -289,6 +300,31 @@
 - JSONL 輸出
 - work folder 寫入
 
+### Sales Kit / 投資提案匯出
+
+優先看：
+
+- `src/content-script.js`
+- `src/background.js`
+- `src/investment-proposal-builder.js`
+- `src/investment-proposal-builder.html`
+- `spec/url-to-sales-kit-pptx-flow.md`
+- `spec/investment-proposal-builder.md`
+
+關鍵內容：
+
+- `urlToSalesKitPptxFlow` 多 URL 收集、頁面資產抽取、sales kit PPTX 產生
+- `investmentProposalBuilder` starter 開啟獨立 extension 視窗
+- 投資抵減附表6 / 附表7 prompt schema、JSON repair、fallback 章節
+- support images 正規化、暫存與 DOCX 嵌入
+- OpenXML `.docx` / `.pptx` browser-side 產物
+
+適合這樣描述：
+
+- `改 sales kit PPTX 的投影片故事線`
+- `改投資提案 builder 的欄位`
+- `改附表6/附表7 Word 輸出格式`
+
 ## 獨立工具頁索引
 
 ### Knowledge Base QA Tester
@@ -333,6 +369,29 @@
 - AI assist 產生答案
 - 寫回檔案 / download
 
+### Investment Proposal Builder
+
+檔案：
+
+- `src/investment-proposal-builder.html`
+- `src/investment-proposal-builder.js`
+
+主要範圍：
+
+- 提案主題、研發時程、研發項目、領先業界指標、專利申請、圖片佐證
+- 自動暫存與清除暫存
+- 使用目前 Open Copilot provider / model 生成內容
+- 附表6 / 附表7 JSON schema 與 repair prompt
+- Mermaid 研發流程與 support images 嵌入
+- `.docx` 下載產物
+
+如果你之後要我改這塊，建議直接說：
+
+- `改投資提案 builder 的圖片嵌入`
+- `改附表6 prompt 或章節`
+- `改附表7 Word 表格`
+- `改提案文件的暫存行為`
+
 ## 規格文件索引
 
 當我要「理解 intent」而不是只修 bug，優先可看這些：
@@ -355,6 +414,10 @@
   - starter / flow 定義
 - `spec/powerpoint-starter-and-export.md`
   - PowerPoint starter、`.pptx` 匯出契約與 smoke test flow
+- `spec/url-to-sales-kit-pptx-flow.md`
+  - URL(s) to sales kit PPTX flow
+- `spec/investment-proposal-builder.md`
+  - 投資提案附表6 / 附表7 DOCX builder
 - `spec/multi-perspective-analysis.md`
   - 多視角分析流程
 - `spec/local-work-folder-and-drive-sync.md`
@@ -391,9 +454,11 @@
 
 - `Index: in-page chat panel / attachments / UI only`
 - `Index: settings / notifications / Telegram + Teams`
+- `Index: settings / embedding / KB tester`
 - `Index: KB tester / retrieval + judge`
 - `Index: background / provider routing / Ollama`
 - `Index: GitHub context / content-script`
+- `Index: investment proposal builder / appendix 6 docx`
 
 ## 高頻入口總結
 
@@ -402,6 +467,7 @@
 - `src/content-script.js`
 - `src/background.js`
 - `src/options.js`
+- `src/investment-proposal-builder.js`
 - `knowledge_base_tester.js`
 - `jsonl_ex.js`
 - `spec/README.md`

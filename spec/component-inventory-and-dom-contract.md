@@ -47,6 +47,10 @@ body.settings-page
       |  |     |- #testButton
       |  |     |- #panel-ollama / #panel-lmStudio / #panel-gemini / #panel-azureOpenAi
       |  |     |- .provider-support-grid
+      |- #embeddingProviderTabPanel
+      |  |- .settings-layout
+      |  |  |- .setting-card.provider-priority-card
+      |  |  |- .provider-support-grid
       |- #notificationTabPanel
       |  |- .provider-support-grid
       |- #starterTabPanel
@@ -55,6 +59,9 @@ body.settings-page
       |- #flowTabPanel
       |  |- .starter-library-hero
       |  |- .starter-studio-shell
+      |- #toolsTabPanel
+      |  |- .tools-panel-shell
+      |     |- .tools-card-grid
 |- #starterAiEditorModal
 |- #starterFlowEditorModal
 |- #batchUrlQaLogsModal
