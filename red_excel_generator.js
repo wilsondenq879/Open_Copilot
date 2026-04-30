@@ -334,9 +334,17 @@ function normalizePortSpeed(value) {
 
 function normalizePortRole(value) {
   const role = String(value || "").trim().toUpperCase();
-  if (role === "WAN/LAN") return "WAN/LAN";
-  if (role === "WAN") return "WAN";
+  if (/\bWAN\s*\/\s*LAN\b/.test(role)) return "WAN/LAN";
+  if (/\bWAN\b/.test(role)) return "WAN";
   return "LAN";
+}
+
+function inferPortRoleFromText(value) {
+  const text = String(value || "").toUpperCase();
+  if (/\bWAN\s*\/\s*LAN\b/.test(text)) return "WAN/LAN";
+  if (/\bWAN\b/.test(text)) return "WAN";
+  if (/\bLAN\b/.test(text)) return "LAN";
+  return "";
 }
 
 function formatPortItem(item) {
@@ -399,6 +407,24 @@ function parseIoPortsText(rawText) {
     if (match) {
       networkPorts.push({ count: Number(match[3]), spec: normalizePortSpeed(match[1]), role: normalizePortRole(match[2]) });
       return;
+    }
+
+    match = /^((?:\d+(?:\.\d+)?\s*G(?:bps)?|10\/100\/1000Mbps))\s*x\s*(\d+)\s*(?:\((.+?)\)|(.+?))?$/i.exec(item);
+    if (match) {
+      const role = inferPortRoleFromText(`${match[3] || ""} ${match[4] || ""}`);
+      if (role) {
+        networkPorts.push({ count: Number(match[2]), spec: normalizePortSpeed(match[1]), role });
+        return;
+      }
+    }
+
+    match = /((?:RJ45\s+for\s+)?(?:\d+(?:\.\d+)?\s*G(?:bps)?(?:\s*BaseT)?|Gigabits?\s+BaseT|10\/100\/1000Mbps))\s*x\s*(\d+)/i.exec(item);
+    if (match) {
+      const role = inferPortRoleFromText(item);
+      if (role) {
+        networkPorts.push({ count: Number(match[2]), spec: normalizePortSpeed(match[1]), role });
+        return;
+      }
     }
 
     match = /^(\d+)\s*x\s*(USB\s+.+)$/i.exec(item);
