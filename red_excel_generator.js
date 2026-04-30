@@ -1,4 +1,5 @@
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const XLSB_MIME = "application/vnd.ms-excel.sheet.binary.macroEnabled.12";
 const OLD_UM = "E27527_RT-BE59_UM_EAA";
 const OLD_QSG = "U26937_RT-BE59_folded_EU_QSG_312x450mm_PRINT";
 const OLD_SPEC = "https://www.asus.com/networking-iot-servers/wifi-7/all-series/rt-be59/techspec/";
@@ -6,7 +7,7 @@ const MODEL_NAME_PLACEHOLDER_PATTERN = /\[Model name\]/g;
 const WIFI_PATTERN = /Wi-Fi Radio \((?:2\.4\s*(?:&|,)\s*5|2\.4\s*(?:&|,)\s*5\s*(?:&|,)\s*6)\s*GHz\)/gi;
 const BUILT_IN_TEMPLATES = {
   en18031_1: "assets/templates/red-en18031-1-template.xlsx",
-  en18031_2: "assets/templates/red-en18031-2-template.xlsx",
+  en18031_2: "assets/templates/red-en18031-2-template.xlsb",
 };
 
 let analyzedIoSpec = null;
@@ -211,6 +212,12 @@ function setTextEntry(entries, name, text) {
   entry.data = new TextEncoder().encode(text);
 }
 
+function getZipEntry(entries, name) {
+  const entry = entries.find((item) => item.name === name);
+  if (!entry) throw new Error(`Missing workbook part: ${name}`);
+  return entry;
+}
+
 function resolveSheetPath(entries, sheetName) {
   const packageType = detectWorkbookPackageType(entries);
   if (packageType === "xlsb") {
@@ -233,6 +240,304 @@ function resolveSheetPath(entries, sheetName) {
   if (!rel) throw new Error(`Missing relationship for sheet: ${sheetName}`);
   const target = rel.getAttribute("Target") || "";
   return target.startsWith("/") ? target.slice(1) : `xl/${target}`.replace(/\/[^/]+\/\.\.\//g, "/");
+}
+
+const BIFF12 = {
+  row: 0x0000,
+  blank: 0x0001,
+  string: 0x0007,
+  si: 0x0013,
+  sheet: 0x019C,
+  sst: 0x019F,
+  sstEnd: 0x01A0,
+  sheetDataEnd: 0x0192,
+};
+
+function readBiffRecordId(bytes, offset) {
+  let value = 0;
+  let nextOffset = offset;
+  for (let index = 0; index < 4; index += 1) {
+    const byte = bytes[nextOffset];
+    nextOffset += 1;
+    value += byte * (2 ** (8 * index));
+    if ((byte & 0x80) === 0) break;
+  }
+  return { value, offset: nextOffset };
+}
+
+function readBiffRecordLength(bytes, offset) {
+  let value = 0;
+  let shift = 0;
+  let nextOffset = offset;
+  for (let index = 0; index < 4; index += 1) {
+    const byte = bytes[nextOffset];
+    nextOffset += 1;
+    value += (byte & 0x7F) * (2 ** shift);
+    if ((byte & 0x80) === 0) break;
+    shift += 7;
+  }
+  return { value, offset: nextOffset };
+}
+
+function readBiffRecord(bytes, offset) {
+  const recordStart = offset;
+  const id = readBiffRecordId(bytes, offset);
+  const length = readBiffRecordLength(bytes, id.offset);
+  const payloadOffset = length.offset;
+  const endOffset = payloadOffset + length.value;
+  return {
+    id: id.value,
+    length: length.value,
+    recordStart,
+    payloadOffset,
+    endOffset,
+    bytes: bytes.slice(recordStart, endOffset),
+  };
+}
+
+function encodeBiffRecordLength(length) {
+  const bytes = [];
+  let value = length;
+  do {
+    let byte = value & 0x7F;
+    value = Math.floor(value / 128);
+    if (value) byte |= 0x80;
+    bytes.push(byte);
+  } while (value);
+  return new Uint8Array(bytes);
+}
+
+function makeBiffRecord(recordId, payload) {
+  const idBytes = recordId < 0x80
+    ? new Uint8Array([recordId])
+    : new Uint8Array([recordId & 0xFF, Math.floor(recordId / 256)]);
+  return concatUint8Arrays([idBytes, encodeBiffRecordLength(payload.length), payload]);
+}
+
+function utf16LeBytes(value) {
+  const text = String(value ?? "");
+  const bytes = new Uint8Array(text.length * 2);
+  const view = new DataView(bytes.buffer);
+  for (let index = 0; index < text.length; index += 1) {
+    view.setUint16(index * 2, text.charCodeAt(index), true);
+  }
+  return bytes;
+}
+
+function readBiffString(bytes, offset) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const length = view.getUint32(offset, true);
+  const start = offset + 4;
+  const end = start + length * 2;
+  return {
+    value: new TextDecoder("utf-16le").decode(bytes.slice(start, end)),
+    offset: end,
+  };
+}
+
+function makeSharedStringRecord(value) {
+  const textBytes = utf16LeBytes(value);
+  const payload = new Uint8Array(1 + 4 + textBytes.length);
+  const view = new DataView(payload.buffer);
+  view.setUint8(0, 0);
+  view.setUint32(1, String(value ?? "").length, true);
+  payload.set(textBytes, 5);
+  return makeBiffRecord(BIFF12.si, payload);
+}
+
+function parseSharedStringsPart(bytes) {
+  const strings = [];
+  const stringToIndex = new Map();
+  let count = 0;
+  let uniqueCount = 0;
+  let sstPayloadOffset = -1;
+  let sstEndOffset = -1;
+
+  for (let offset = 0; offset < bytes.length;) {
+    const record = readBiffRecord(bytes, offset);
+    if (record.id === BIFF12.sst) {
+      const view = new DataView(bytes.buffer, bytes.byteOffset + record.payloadOffset, record.length);
+      count = view.getUint32(0, true);
+      uniqueCount = view.getUint32(4, true);
+      sstPayloadOffset = record.payloadOffset;
+    } else if (record.id === BIFF12.si) {
+      const text = readBiffString(bytes, record.payloadOffset + 1).value;
+      if (!stringToIndex.has(text)) stringToIndex.set(text, strings.length);
+      strings.push(text);
+    } else if (record.id === BIFF12.sstEnd) {
+      sstEndOffset = record.recordStart;
+      break;
+    }
+    offset = record.endOffset;
+  }
+
+  if (sstPayloadOffset < 0 || sstEndOffset < 0) {
+    throw new Error("Invalid .xlsb shared string table.");
+  }
+  return { strings, stringToIndex, count, uniqueCount, sstPayloadOffset, sstEndOffset };
+}
+
+function appendSharedStrings(entries, values) {
+  const entry = getZipEntry(entries, "xl/sharedStrings.bin");
+  const parsed = parseSharedStringsPart(entry.data);
+  const indexes = new Map();
+  const newValues = [];
+
+  values.forEach((value) => {
+    const text = String(value ?? "");
+    if (indexes.has(text)) return;
+    if (parsed.stringToIndex.has(text)) {
+      indexes.set(text, parsed.stringToIndex.get(text));
+      return;
+    }
+    indexes.set(text, parsed.strings.length + newValues.length);
+    newValues.push(text);
+  });
+
+  if (!newValues.length) return indexes;
+
+  const appended = concatUint8Arrays(newValues.map(makeSharedStringRecord));
+  const result = new Uint8Array(entry.data.length + appended.length);
+  result.set(entry.data.slice(0, parsed.sstEndOffset), 0);
+  result.set(appended, parsed.sstEndOffset);
+  result.set(entry.data.slice(parsed.sstEndOffset), parsed.sstEndOffset + appended.length);
+
+  const view = new DataView(result.buffer);
+  view.setUint32(parsed.sstPayloadOffset, parsed.count + newValues.length, true);
+  view.setUint32(parsed.sstPayloadOffset + 4, parsed.uniqueCount + newValues.length, true);
+  entry.data = result;
+  return indexes;
+}
+
+function resolveXlsbSheetPaths(entries) {
+  const workbook = getZipEntry(entries, "xl/workbook.bin").data;
+  const relsXml = textEntry(entries, "xl/_rels/workbook.bin.rels");
+  const rels = new DOMParser().parseFromString(relsXml, "application/xml");
+  const relMap = new Map([...rels.getElementsByTagNameNS("*", "Relationship")]
+    .map((node) => [node.getAttribute("Id"), node.getAttribute("Target") || ""]));
+  const sheetPaths = new Map();
+
+  for (let offset = 0; offset < workbook.length;) {
+    const record = readBiffRecord(workbook, offset);
+    if (record.id === BIFF12.sheet) {
+      let payloadOffset = record.payloadOffset + 8;
+      const relId = readBiffString(workbook, payloadOffset);
+      payloadOffset = relId.offset;
+      const sheetName = readBiffString(workbook, payloadOffset).value;
+      const target = relMap.get(relId.value);
+      if (target) {
+        sheetPaths.set(sheetName, target.startsWith("/") ? target.slice(1) : `xl/${target}`.replace(/\/[^/]+\/\.\.\//g, "/"));
+      }
+    }
+    offset = record.endOffset;
+  }
+  return sheetPaths;
+}
+
+function makeXlsbStringCellRecord(colIndex, style, sharedStringIndex) {
+  const payload = new Uint8Array(12);
+  const view = new DataView(payload.buffer);
+  view.setUint32(0, colIndex - 1, true);
+  view.setUint32(4, style, true);
+  view.setUint32(8, sharedStringIndex, true);
+  return makeBiffRecord(BIFF12.string, payload);
+}
+
+function patchXlsbSheetCells(entries, sheetPath, updates) {
+  const entry = getZipEntry(entries, sheetPath);
+  const updatesByKey = new Map(updates.map((update) => [`${update.row}:${update.col}`, update]));
+  const chunks = [];
+  const applied = new Set();
+  let currentRow = null;
+  let seenCols = new Set();
+
+  const flushMissingForRow = () => {
+    if (!currentRow) return;
+    const missing = updates
+      .filter((update) => update.row === currentRow && !applied.has(`${update.row}:${update.col}`) && !seenCols.has(update.col))
+      .sort((left, right) => left.col - right.col);
+    missing.forEach((update) => {
+      chunks.push(makeXlsbStringCellRecord(update.col, update.style ?? 0, update.sharedStringIndex));
+      applied.add(`${update.row}:${update.col}`);
+    });
+  };
+
+  for (let offset = 0; offset < entry.data.length;) {
+    const record = readBiffRecord(entry.data, offset);
+    if (record.id === BIFF12.row) {
+      flushMissingForRow();
+      const view = new DataView(entry.data.buffer, entry.data.byteOffset + record.payloadOffset, record.length);
+      currentRow = view.getUint32(0, true) + 1;
+      seenCols = new Set();
+      chunks.push(record.bytes);
+    } else if (record.id >= BIFF12.blank && record.id <= 0x000B && currentRow) {
+      const view = new DataView(entry.data.buffer, entry.data.byteOffset + record.payloadOffset, record.length);
+      const col = view.getUint32(0, true) + 1;
+      const style = record.length >= 8 ? view.getUint32(4, true) : 0;
+      seenCols.add(col);
+      const update = updatesByKey.get(`${currentRow}:${col}`);
+      if (update) {
+        chunks.push(makeXlsbStringCellRecord(col, style, update.sharedStringIndex));
+        applied.add(`${currentRow}:${col}`);
+      } else {
+        chunks.push(record.bytes);
+      }
+    } else if (record.id === BIFF12.sheetDataEnd) {
+      flushMissingForRow();
+      currentRow = null;
+      chunks.push(record.bytes);
+    } else {
+      chunks.push(record.bytes);
+    }
+    offset = record.endOffset;
+  }
+
+  const missing = updates.filter((update) => !applied.has(`${update.row}:${update.col}`));
+  if (missing.length) {
+    throw new Error(`Could not patch .xlsb cells: ${missing.map((item) => `${item.row}:${item.col}`).join(", ")}`);
+  }
+  entry.data = concatUint8Arrays(chunks);
+}
+
+function patchXlsbWorkbook(entries, values) {
+  const sheetPaths = resolveXlsbSheetPaths(entries);
+  const coverPath = sheetPaths.get("Cover");
+  const interfacesPath = sheetPaths.get("Interfaces");
+  if (!coverPath || !interfacesPath) {
+    throw new Error("The .xlsb template is missing Cover or Interfaces sheet.");
+  }
+
+  const coverUpdates = [
+    { row: 6, col: 2, value: values.modelName },
+    { row: 7, col: 2, value: values.modelName },
+  ];
+  const interfaceUpdates = [
+    { row: 3, col: 2, value: values.wifi },
+  ];
+
+  if (values.ioSpec?.lanOverview) interfaceUpdates.push({ row: 4, col: 6, value: values.ioSpec.lanOverview });
+  if (values.ioSpec?.wanOverview) interfaceUpdates.push({ row: 5, col: 6, value: values.ioSpec.wanOverview });
+  if (values.ioSpec?.buttonsOverview) {
+    interfaceUpdates.push({ row: 7, col: 2, value: "Physical Buttons" });
+    interfaceUpdates.push({ row: 7, col: 6, value: values.ioSpec.buttonsOverview });
+  }
+  if (values.ioSpec?.hasUsb && values.ioSpec.usbOverview) {
+    interfaceUpdates.push({ row: 8, col: 1, value: "Interface-06" });
+    interfaceUpdates.push({ row: 8, col: 2, value: "USB Port" });
+    interfaceUpdates.push({ row: 8, col: 3, value: "Physical external interface" });
+    interfaceUpdates.push({ row: 8, col: 4, value: "Public" });
+    interfaceUpdates.push({ row: 8, col: 5, value: "ASUS Router HW information in Spec" });
+    interfaceUpdates.push({ row: 8, col: 6, value: values.ioSpec.usbOverview, style: 15 });
+  }
+
+  const allValues = [...coverUpdates, ...interfaceUpdates].map((update) => update.value);
+  const sharedStringIndexes = appendSharedStrings(entries, allValues);
+  const withIndexes = (update) => ({
+    ...update,
+    sharedStringIndex: sharedStringIndexes.get(String(update.value ?? "")),
+  });
+  patchXlsbSheetCells(entries, coverPath, coverUpdates.map(withIndexes));
+  patchXlsbSheetCells(entries, interfacesPath, interfaceUpdates.map(withIndexes));
 }
 
 function upsertInlineStringCell(sheetXml, ref, value) {
@@ -783,8 +1088,8 @@ function patchWorkbook(entries, values, options = {}) {
   }
 }
 
-function downloadBytes(filename, bytes) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_MIME }));
+function downloadBytes(filename, bytes, mimeType = XLSX_MIME) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
@@ -816,6 +1121,13 @@ async function generateWorkbookFromBuiltin(templatePath, outputName, values, opt
   const entries = await readZipEntriesFromUrl(url);
   patchWorkbook(entries, values, options);
   downloadBytes(outputName, createZipStore(entries));
+}
+
+async function generateXlsbWorkbookFromBuiltin(templatePath, outputName, values) {
+  const url = chrome.runtime.getURL(templatePath);
+  const entries = await readZipEntriesFromUrl(url);
+  patchXlsbWorkbook(entries, values);
+  downloadBytes(outputName, createZipStore(entries), XLSB_MIME);
 }
 
 document.getElementById("fillExampleButton").addEventListener("click", () => {
@@ -860,11 +1172,10 @@ document.getElementById("generateButton").addEventListener("click", async () => 
       values,
       { patchCoverDocumentRefs: true }
     );
-    await generateWorkbookFromBuiltin(
+    await generateXlsbWorkbookFromBuiltin(
       BUILT_IN_TEMPLATES.en18031_2,
-      `${stamp}-RED-18031-2-ASUS-Router_${modelName}.xlsx`,
-      values,
-      { patchCoverDocumentRefs: false }
+      `${stamp}-RED-18031-2-ASUS-Router_${modelName}.xlsb`,
+      values
     );
     setStatus("Done. Two Excel files were downloaded.");
   } catch (error) {
