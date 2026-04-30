@@ -318,12 +318,15 @@ async function applyInitialUrlParameters() {
 
 function normalizePortSpeed(value) {
   return String(value || "")
+    .replace(/\b(\d+(?:\.\d+)?)\s*G\s*BaseT\b/gi, "$1G")
+    .replace(/\bGigabits?\s+BaseT\b/gi, "1G")
     .replace(/\b10Gbps\b/gi, "10G")
     .replace(/\b2\.5Gbps\b/gi, "2.5G")
     .replace(/\b2\.5\s+Gbps\b/gi, "2.5G")
     .replace(/\b10\/100\/1000Mbps\b/gi, "1G")
     .replace(/\b1000Mbps\b/gi, "1G")
-    .replace(/\bGigabit\b/gi, "1G")
+    .replace(/\bGigabits?\b/gi, "1G")
+    .replace(/\bBase-?T\b/gi, "")
     .replace(/\bRJ45\s+/gi, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -350,6 +353,7 @@ function splitIoPortItems(rawText) {
     .replace(/([A-Za-z])x(\d+)/g, "$1 x $2")
     .replace(/([0-9])x(\d+)/g, "$1 x $2")
     .replace(/,/g, "\n")
+    .replace(/(?=\bRJ45\s+for\s+.+?\s+for\s+(?:WAN\/LAN|WAN|LAN)\s*x\s*\d+\b)/gi, "\n")
     .replace(/(?=(?<![\d.])\b\d+\s*x\s+(?:RJ45\s+)?(?:\d+(?:\.\d+)?\s*(?:G|Gbps)|10\/100\/1000Mbps|USB)\b)/gi, "\n")
     .replace(/(?=\b(?:USB\s+[A-Za-z0-9./+\- ]+?|(?<![\d.])\b(?:\d+(?:\.\d+)?\s*(?:G|Gbps)|10\/100\/1000Mbps)\s+(?:WAN\/LAN|WAN|LAN))\s*x\s*\d+\b)/gi, "\n");
   return normalized
@@ -370,6 +374,12 @@ function parseIoPortsText(rawText) {
     let match = /^(\d+)\s*x\s*(.+?)\s+for\s+(WAN\/LAN|WAN|LAN)$/i.exec(item);
     if (match) {
       networkPorts.push({ count: Number(match[1]), spec: normalizePortSpeed(match[2]), role: normalizePortRole(match[3]) });
+      return;
+    }
+
+    match = /^RJ45\s+for\s+(.+?)\s+for\s+(WAN\/LAN|WAN|LAN)\s*x\s*(\d+)$/i.exec(item);
+    if (match) {
+      networkPorts.push({ count: Number(match[3]), spec: normalizePortSpeed(match[1]), role: normalizePortRole(match[2]) });
       return;
     }
 
@@ -417,10 +427,10 @@ function parseIoPortsText(rawText) {
 
 function inferWifiRadioFromSpecText(rawText) {
   const text = String(rawText || "").replace(/\s+/g, " ").trim();
-  if (/\b6\s*GHz\b/i.test(text)) {
+  if (/\b6\s*G\s*Hz\b/i.test(text)) {
     return "Wi-Fi Radio (2.4 & 5 & 6GHz)";
   }
-  if (/\b2\.4\s*GHz\b/i.test(text) && /\b5\s*GHz\b/i.test(text)) {
+  if (/\b2\.4\s*G\s*Hz\b/i.test(text) && /\b5\s*G\s*Hz\b/i.test(text)) {
     return "Wi-Fi Radio (2.4 & 5GHz)";
   }
   return "";
