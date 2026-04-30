@@ -1,12 +1,14 @@
 #ollama-quick-chat-host {
   all: initial;
+  --ollama-ui-font: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --ollama-mono-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --ollama-host-scale: 1;
   position: fixed;
   top: 50%;
   right: 14px;
   transform: translateY(-50%);
   z-index: 2147483647;
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--ollama-ui-font) !important;
   font-size: 16px;
   line-height: 1.4;
   font-weight: 400;
@@ -31,10 +33,11 @@
 
 #ollama-quick-chat-host * {
   box-sizing: border-box;
+  font-family: var(--ollama-ui-font) !important;
 }
 
 #ollama-quick-chat-host button {
-  font-family: inherit;
+  font-family: var(--ollama-ui-font) !important;
   font-style: inherit;
   font-weight: inherit;
   letter-spacing: normal;
@@ -73,7 +76,7 @@
   border-radius: 999px;
   background: rgba(11, 19, 36, 0.92);
   color: #eef7ff;
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
   font-size: 11px;
   font-weight: 500;
   line-height: 1;
@@ -1499,13 +1502,13 @@
   color: rgba(255, 255, 255, 0.82) !important;
 }
 
-.rendered-markdown code {
+#ollama-quick-chat-host .rendered-markdown code {
   padding: 2px 6px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
   color: #f8fbff !important;
   color: #eef7ff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ollama-mono-font) !important;
   font-size: 12px;
 }
 
@@ -1517,7 +1520,7 @@
   background: rgba(0, 0, 0, 0.2);
 }
 
-.rendered-markdown pre code {
+#ollama-quick-chat-host .rendered-markdown pre code {
   padding: 0;
   background: transparent;
   color: #eef7ff;
