@@ -1,0 +1,14 @@
+{
+  "id": "sales-kit-asus-router-app",
+  "flowId": "url-to-sales-kit-pptx-flow",
+  "input": {
+    "urls": [
+      "https://www.asus.com/content/asus-router-app"
+    ],
+    "audience": "sales, channel partners, product marketing",
+    "language": "zh-TW",
+    "tone": "keynote",
+    "slideCount": 10,
+    "brandStyle": "premium product keynote, clean layout, image-led, high contrast"
+  }
+}
