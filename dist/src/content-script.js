@@ -3,6 +3,7 @@ const MAX_PAGE_TEXT = 8000;
 const MAX_PDF_PAGE_TEXT = 24000;
 const MAX_SELECTION_TEXT = 2000;
 const MAX_PAGE_IMAGE_CANDIDATES = 6;
+const SALES_KIT_MAX_IMAGE_CANDIDATES = 48;
 const MAX_FRAME_DEPTH = 2;
 const MAX_CONTEXT_BLOCKS = 24;
 const MAX_INCLUDED_GITHUB_SOURCES = 5;
@@ -13,7 +14,7 @@ const MAX_GITHUB_VISIBLE_FILE_PATHS = 20;
 const MAX_ATTACHED_DOCUMENTS = 5;
 const MAX_CUSTOM_STARTERS = 20;
 const MIN_AGENT_FLOW_STEPS = 2;
-const MAX_AGENT_FLOW_STEPS = 5;
+const MAX_AGENT_FLOW_STEPS = 6;
 const TASK_EXTRACTION_LIMIT = 8;
 const SHARE_TEXT_LIMIT = 4000;
 const OFFICE_SCREENSHOT_FALLBACK_TEXT_THRESHOLD = 500;
@@ -339,6 +340,9 @@ let agentFlowBuilderOpen = false;
 let agentFlowBuilderDraft = null;
 let batchUrlQaBuilderOpen = false;
 let batchUrlQaBuilderDraft = null;
+let salesKitBuilderOpen = false;
+let salesKitBuilderDraft = null;
+let salesKitFlowRun = null;
 let landingPageBuilderOpen = false;
 let landingPageBuilderDraft = null;
 let batchUrlQaActiveJob = null;
@@ -524,6 +528,28 @@ const GITHUB_NATIVE_CODE_STARTERS = ["githubMemorySafetyReview", "githubAttackSu
 const GITHUB_CONFIG_STARTERS = ["githubConfigReview", "githubSecretAndPermissionReview", "githubOperationalRiskReview"];
 const GITHUB_REPOSITORY_STARTERS = ["githubArchitectureMap", "githubImpactSurfaceMap", "githubRepoSecurityReview"];
 const QA_FLOW_BLOCK_STARTERS = ["qaSourceDistill", "qaQuestionDraft", "qaAnswerEvidence", "qaMarkdownPolish"];
+const SALES_KIT_FLOW_STARTERS = [
+  "urlSaleskitCollector",
+  "urlSaleskitAssetExtractor",
+  "urlSaleskitMarketingStrategist",
+  "urlSaleskitStoryboardPlanner",
+  "urlSaleskitPptxContentGenerator",
+  "urlSaleskitPptxBuilder",
+];
+const SALES_KIT_AGENT_FLOW_DEFINITION = {
+  id: "url-to-sales-kit-pptx-flow",
+  label: "URL(s) to Sales Kit PPTX",
+  description: "Generate a polished marketing sales kit PowerPoint from one or more webpages.",
+  scope: ["generic", "article", "product", "marketing"],
+  steps: [
+    { starterId: "url-saleskit-collector", outputKey: "pages" },
+    { starterId: "url-saleskit-asset-extractor", outputKey: "assets" },
+    { starterId: "url-saleskit-marketing-strategist", outputKey: "strategy" },
+    { starterId: "url-saleskit-storyboard-planner", outputKey: "storyboard" },
+    { starterId: "url-saleskit-pptx-content-generator", outputKey: "slides" },
+    { starterId: "url-saleskit-pptx-builder", outputKey: "pptxBuildResult" },
+  ],
+};
 
 function createLandingPageTemplatePreviewSvg({
   accent = "#6fd6ff",
@@ -905,6 +931,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
     landingPowerPoint: "把目前內容整理成可下載的 PowerPoint 簡報。",
     investmentProposalBuilder: "開啟獨立視窗，填三個欄位後直接生成附表6與附表7的 Word 企畫書。",
+    redExcelWorkbookFlow: "開啟 RED Excel 表單，填 UM/QSG/Spec 與 Wi-Fi Radio 後產出兩份 .xlsx。",
     bullVsBear: "把議題拆成看多與看空兩邊的論點一起比較。",
     catalystMap: "整理推動事件、觸發因子與可能影響路徑。",
     pricedIn: "判斷市場是否已經把某些預期反映進價格。",
@@ -922,6 +949,13 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
     landingPageBuilder: "先分析來源頁面，再讓你用帶圖模板選擇器挑選 landing page 方向。",
+    urlToSalesKitPptxFlow: "輸入一個或多個 URL，產出行銷導向 sales kit PowerPoint。",
+    urlSaleskitCollector: "收集 URL 頁面的標題、段落、CTA 與重點文案。",
+    urlSaleskitAssetExtractor: "抽取並分類網頁中適合簡報使用的圖片素材。",
+    urlSaleskitMarketingStrategist: "把網頁事實轉成產品行銷訊息與銷售敘事。",
+    urlSaleskitStoryboardPlanner: "規劃 sales kit 的逐頁故事線與圖片配置。",
+    urlSaleskitPptxContentGenerator: "把故事板整理成可直接封裝的投影片文案。",
+    urlSaleskitPptxBuilder: "封裝 PPTX、來源 Markdown、JSON 與素材清單。",
     createCustomStarter: "先整理需求，教你的 AI 一個新技能。",
     createAgentFlow: "把多個技能串成一條可重複執行的 Agent Flow。",
   },
@@ -969,6 +1003,7 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     landingHtml: "Turn the current material into a single downloadable HTML page.",
     landingPowerPoint: "Turn the current material into a downloadable PowerPoint deck.",
     investmentProposalBuilder: "Open a standalone window, fill three fields, and generate a Word draft for Taiwan investment tax-credit proposal forms 6 and 7.",
+    redExcelWorkbookFlow: "Open a RED Excel form, fill UM/QSG/Spec and Wi-Fi Radio, then generate two .xlsx files.",
     bullVsBear: "Compare the strongest bullish and bearish arguments side by side.",
     catalystMap: "Map the events, triggers, and likely impact paths around a topic.",
     pricedIn: "Judge whether expectations already seem reflected in the price.",
@@ -986,6 +1021,13 @@ const BUILTIN_STARTER_DESCRIPTIONS = {
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
     landingPageBuilder: "Analyze the source page first, then let the user pick a landing-page direction from visual templates.",
+    urlToSalesKitPptxFlow: "Enter one or more URLs and generate a marketing-oriented sales kit PowerPoint.",
+    urlSaleskitCollector: "Collect page titles, sections, CTAs, and key source copy from URLs.",
+    urlSaleskitAssetExtractor: "Extract and classify webpage images that are useful for a presentation.",
+    urlSaleskitMarketingStrategist: "Turn grounded webpage facts into product marketing and sales messaging.",
+    urlSaleskitStoryboardPlanner: "Plan the sales kit slide-by-slide with visual assignments.",
+    urlSaleskitPptxContentGenerator: "Convert the storyboard into PPT-ready slide copy.",
+    urlSaleskitPptxBuilder: "Package the PPTX, source Markdown, JSON, and asset manifest.",
     createCustomStarter: "Help teach your AI a new reusable skill.",
     createAgentFlow: "Combine multiple skills into a reusable Agent Flow.",
   },
@@ -1016,7 +1058,7 @@ const PAGE_COPILOT_STARTERS = {
   document: ["pdfDeepSummary", "docExecutiveBrief", "landingHtml", "landingPowerPoint", "landingPageBuilder", "docOutline", "pageSummary", "translatePage"],
   market: ["bullVsBear", "catalystMap", "pricedIn", "tickerImpact", "pageSummary"],
   entertainment: ["pageSummary", "memeCaption", "xPost", "templateIdeas", "lowIqMeme"],
-  generic: ["pageSummary", "landingPageBuilder", "landingHtml", "landingPowerPoint", "translatePage", "multiPerspective"],
+  generic: ["pageSummary", "urlToSalesKitPptxFlow", "landingPageBuilder", "landingHtml", "landingPowerPoint", "translatePage", "multiPerspective"],
 };
 const CONTENT_I18N = {
   "zh-TW": {
@@ -1438,6 +1480,14 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     starter_landingPageBuilder: "帶模板生成 Landing Page",
     starter_investmentProposalBuilder: "投資提案文件",
+    starter_urlToSalesKitPptxFlow: "URL 生成 Sales Kit PPTX",
+    starter_urlSaleskitCollector: "Sales Kit · 收集內容",
+    starter_urlSaleskitAssetExtractor: "Sales Kit · 抽取圖片",
+    starter_urlSaleskitMarketingStrategist: "Sales Kit · 行銷策略",
+    starter_urlSaleskitStoryboardPlanner: "Sales Kit · 故事板",
+    starter_urlSaleskitPptxContentGenerator: "Sales Kit · PPT 文案",
+    starter_urlSaleskitPptxBuilder: "Sales Kit · PPTX 輸出",
+    starter_redExcelWorkbookFlow: "RED Excel Agent Flow",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "教AI一個新技能",
     starter_qaSourceDistill: "QA · 整理來源",
@@ -1446,6 +1496,10 @@ const CONTENT_I18N = {
     starter_qaMarkdownPolish: "QA · 整理成 Markdown",
     agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "網址清單生成 QA",
+    redExcelWorkbookFlowPrompt: "請開啟 RED Excel Agent Flow，填寫 UM、QSG、Spec，選擇 Interface-01 Wi-Fi Radio，並產出兩份 Excel。",
+    redExcelWorkbookFlowOpening: "正在開啟 RED Excel Agent Flow...",
+    redExcelWorkbookFlowOpened: "RED Excel Agent Flow 已開啟。",
+    redExcelWorkbookFlowOpenFailed: "無法開啟 RED Excel Agent Flow。",
     pdfAutoScrollPreparing: "正在自動捲動 PDF，盡量載入整份文件內容...",
     pdfAutoScrollPrepared: "PDF 掃描完成，目前已載入 {count} 頁內容。",
     pdfAutoScrollPreparedFallback: "PDF 掃描完成，接著開始整理重點。",
@@ -1542,7 +1596,7 @@ const CONTENT_I18N = {
     agentFlowImagesUnsupported: "Agent Flow 第一版暫不支援圖片附件。",
     agentFlowUserMessage: "執行 Agent Flow：{name}",
     createAgentFlowTitle: "Create Agent Flow",
-    createAgentFlowHint: "選擇 2 到 5 個目前可用的 skills，排成一條會依序執行的 workflow。",
+    createAgentFlowHint: "選擇 2 到 6 個目前可用的 skills，排成一條會依序執行的 workflow。",
     agentFlowNameLabel: "Flow 名稱",
     agentFlowNamePlaceholder: "例如：PR 快速審查流程",
     agentFlowSelectedStepsLabel: "已選步驟 {count} 個，至少 {min} 個，最多 {max} 個",
@@ -1607,6 +1661,35 @@ const CONTENT_I18N = {
     batchUrlQaRailRead: "讀取內容",
     batchUrlQaRailGenerate: "生成 QA",
     batchUrlQaRailExport: "輸出完成",
+    salesKitWorkflowTitle: "URL(s) to Sales Kit PPTX",
+    salesKitWorkflowHint: "貼上產品或方案頁 URL，依序收集內容、抽取圖片、規劃銷售敘事，最後輸出 sales kit PowerPoint。",
+    salesKitUrlsLabel: "網頁 URL",
+    salesKitUrlsPlaceholder: "https://example.com/product\nhttps://example.com/features",
+    salesKitAudienceLabel: "目標受眾",
+    salesKitAudiencePlaceholder: "sales, channel partners, product marketing",
+    salesKitLanguageLabel: "輸出語言",
+    salesKitToneLabel: "語氣",
+    salesKitToneExecutive: "高階決策",
+    salesKitToneSales: "銷售導向",
+    salesKitToneKeynote: "Keynote",
+    salesKitToneTechnicalMarketing: "技術行銷",
+    salesKitSlideCountLabel: "投影片數",
+    salesKitBrandStyleLabel: "品牌風格",
+    salesKitBrandStylePlaceholder: "premium product keynote, clean layout, image-led, high contrast",
+    salesKitStart: "生成 Sales Kit",
+    salesKitRunning: "執行中",
+    salesKitClose: "隱藏",
+    salesKitNeedUrls: "請先提供至少一個有效 URL。",
+    salesKitStageCollect: "收集網頁內容",
+    salesKitStageAssets: "抽取圖片素材",
+    salesKitStageStrategy: "建立行銷策略",
+    salesKitStageStoryboard: "規劃投影片故事板",
+    salesKitStageSlides: "撰寫 PPT 文案",
+    salesKitStageExport: "封裝 PPTX 輸出",
+    salesKitStageDone: "Sales kit PPTX 已完成。",
+    salesKitStageFailed: "Sales kit 生成失敗。",
+    salesKitOutputSaved: "已儲存 Sales Kit 輸出到 local work folder：{path}",
+    salesKitOutputDownloadOnly: "Sales Kit PPTX 已可下載。設定 Local Work Folder 後也會儲存來源檔。",
     perspectiveInputFallback: "請從摘要、質疑與行動建議三個角度分析這個頁面，最後整合成一份結論。",
     perspectivePreviewSuffix: "…",
     adapter_generic: "Generic",
@@ -2090,6 +2173,14 @@ const CONTENT_I18N = {
     starter_imageAnalysisMarkdown: "Analyze Image To md/mermaid",
     starter_landingPageBuilder: "Landing Page With Templates",
     starter_investmentProposalBuilder: "Investment Proposal Doc",
+    starter_urlToSalesKitPptxFlow: "URL(s) to Sales Kit PPTX",
+    starter_urlSaleskitCollector: "Sales Kit · Collect Content",
+    starter_urlSaleskitAssetExtractor: "Sales Kit · Extract Assets",
+    starter_urlSaleskitMarketingStrategist: "Sales Kit · Strategy",
+    starter_urlSaleskitStoryboardPlanner: "Sales Kit · Storyboard",
+    starter_urlSaleskitPptxContentGenerator: "Sales Kit · PPT Copy",
+    starter_urlSaleskitPptxBuilder: "Sales Kit · PPTX Export",
+    starter_redExcelWorkbookFlow: "RED Excel Agent Flow",
     starter_createAgentFlow: "Create Agent Flow",
     starter_createCustomStarter: "Teach Your AI a New Skill",
     starter_qaSourceDistill: "QA · Distill Source",
@@ -2098,6 +2189,10 @@ const CONTENT_I18N = {
     starter_qaMarkdownPolish: "QA · Polish Markdown",
     agentFlowQaBlockBadge: "QA Block",
     starter_batchUrlQaWorkflow: "URL List To QA",
+    redExcelWorkbookFlowPrompt: "Open RED Excel Agent Flow, fill UM, QSG, Spec, select Interface-01 Wi-Fi Radio, and generate two Excel files.",
+    redExcelWorkbookFlowOpening: "Opening RED Excel Agent Flow...",
+    redExcelWorkbookFlowOpened: "RED Excel Agent Flow opened.",
+    redExcelWorkbookFlowOpenFailed: "Failed to open RED Excel Agent Flow.",
     pdfAutoScrollPreparing: "Auto-scrolling the PDF to load as much of the document as possible...",
     pdfAutoScrollPrepared: "PDF scan complete. {count} page(s) are currently loaded.",
     pdfAutoScrollPreparedFallback: "PDF scan complete. Building the summary now.",
@@ -2240,8 +2335,37 @@ const CONTENT_I18N = {
     batchUrlQaRailRead: "Read",
     batchUrlQaRailGenerate: "Generate",
     batchUrlQaRailExport: "Export",
+    salesKitWorkflowTitle: "URL(s) to Sales Kit PPTX",
+    salesKitWorkflowHint: "Paste product or solution URLs, then run a chained sales kit flow that collects content, extracts images, plans the story, and exports a PPTX.",
+    salesKitUrlsLabel: "Webpage URL(s)",
+    salesKitUrlsPlaceholder: "https://example.com/product\nhttps://example.com/features",
+    salesKitAudienceLabel: "Audience",
+    salesKitAudiencePlaceholder: "sales, channel partners, product marketing",
+    salesKitLanguageLabel: "Language",
+    salesKitToneLabel: "Tone",
+    salesKitToneExecutive: "Executive",
+    salesKitToneSales: "Sales",
+    salesKitToneKeynote: "Keynote",
+    salesKitToneTechnicalMarketing: "Technical marketing",
+    salesKitSlideCountLabel: "Slides",
+    salesKitBrandStyleLabel: "Brand Style",
+    salesKitBrandStylePlaceholder: "premium product keynote, clean layout, image-led, high contrast",
+    salesKitStart: "Generate Sales Kit",
+    salesKitRunning: "Running",
+    salesKitClose: "Hide",
+    salesKitNeedUrls: "Provide at least one valid URL first.",
+    salesKitStageCollect: "Collecting webpage content",
+    salesKitStageAssets: "Extracting image assets",
+    salesKitStageStrategy: "Building marketing strategy",
+    salesKitStageStoryboard: "Planning slide storyboard",
+    salesKitStageSlides: "Writing PPT-ready slides",
+    salesKitStageExport: "Packaging PPTX export",
+    salesKitStageDone: "Sales kit PPTX is ready.",
+    salesKitStageFailed: "Sales kit generation failed.",
+    salesKitOutputSaved: "Saved Sales Kit outputs to local work folder: {path}",
+    salesKitOutputDownloadOnly: "Sales Kit PPTX is ready to download. Configure Local Work Folder to also save sources.",
     createAgentFlowTitle: "Create Agent Flow",
-    createAgentFlowHint: "Pick 2 to 5 currently available skills and save them as a step-by-step workflow.",
+    createAgentFlowHint: "Pick 2 to 6 currently available skills and save them as a step-by-step workflow.",
     agentFlowNameLabel: "Flow name",
     agentFlowNamePlaceholder: "For example: Fast PR Review Flow",
     agentFlowSelectedStepsLabel: "Selected steps: {count}. Minimum {min}, maximum {max}.",
@@ -5061,10 +5185,42 @@ function isLikelyDecorativeImage(element, src) {
   return /(sprite|icon|logo|avatar|emoji|badge|tracking|pixel|spacer|blank)/i.test(value);
 }
 
+function getLargestImageFromSrcset(srcset = "") {
+  const candidates = String(srcset || "")
+    .split(",")
+    .map((item) => {
+      const parts = item.trim().split(/\s+/).filter(Boolean);
+      const src = parts[0] || "";
+      const descriptor = parts[1] || "";
+      const widthMatch = descriptor.match(/^(\d+)w$/i);
+      const densityMatch = descriptor.match(/^(\d+(?:\.\d+)?)x$/i);
+      return {
+        src,
+        score: widthMatch ? Number(widthMatch[1]) : densityMatch ? Number(densityMatch[1]) * 1000 : 0,
+      };
+    })
+    .filter((item) => item.src);
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.src || "";
+}
+
+function extractCssBackgroundImageUrls(value = "") {
+  const urls = [];
+  const pattern = /url\((['"]?)(.*?)\1\)/gi;
+  let match;
+  while ((match = pattern.exec(String(value || "")))) {
+    const src = String(match[2] || "").trim();
+    if (src) {
+      urls.push(src);
+    }
+  }
+  return urls;
+}
+
 function collectPageImageCandidatesFromDocument(doc, maxItems = MAX_PAGE_IMAGE_CANDIDATES) {
   const items = [];
   const seen = new Set();
-  const addCandidate = (src, description = "") => {
+  const addCandidate = (src, description = "", meta = {}) => {
     const normalizedSrc = toAbsolutePageUrl(src);
     if (!normalizedSrc || normalizedSrc.startsWith("data:")) {
       return;
@@ -5079,6 +5235,8 @@ function collectPageImageCandidatesFromDocument(doc, maxItems = MAX_PAGE_IMAGE_C
     items.push({
       src: normalizedSrc,
       alt: normalizeExtractedText(description).slice(0, 180),
+      width: Number(meta.width || 0) || 0,
+      height: Number(meta.height || 0) || 0,
     });
   };
 
@@ -5087,19 +5245,29 @@ function collectPageImageCandidatesFromDocument(doc, maxItems = MAX_PAGE_IMAGE_C
     ?.getAttribute("content");
   addCandidate(metaImage, doc.title || "");
 
-  queryAllIncludingShadow(doc, ["main img", "article img", "[role='main'] img", "figure img", "img"], maxItems * 8).forEach((node) => {
+  queryAllIncludingShadow(doc, ["main img", "article img", "[role='main'] img", "figure img", "picture img", "img"], maxItems * 12).forEach((node) => {
     if (!(node instanceof HTMLImageElement) || items.length >= maxItems) {
       return;
     }
 
-    const src = toAbsolutePageUrl(node.currentSrc || node.src || node.getAttribute("src"));
+    const src = toAbsolutePageUrl(
+      node.currentSrc
+      || getLargestImageFromSrcset(node.getAttribute("srcset"))
+      || getLargestImageFromSrcset(node.closest("picture")?.querySelector("source[srcset]")?.getAttribute("srcset"))
+      || node.src
+      || node.getAttribute("src")
+      || node.getAttribute("data-src")
+      || node.getAttribute("data-original")
+      || node.getAttribute("data-lazy-src")
+      || node.getAttribute("data-bg")
+    );
     if (!src || src.startsWith("data:") || isLikelyDecorativeImage(node, src) || !isElementVisible(node)) {
       return;
     }
 
     const width = node.clientWidth || Number(node.getAttribute("width")) || node.naturalWidth || 0;
     const height = node.clientHeight || Number(node.getAttribute("height")) || node.naturalHeight || 0;
-    if (width < 120 || height < 80) {
+    if ((width && width < 96) || (height && height < 64)) {
       return;
     }
 
@@ -5107,8 +5275,37 @@ function collectPageImageCandidatesFromDocument(doc, maxItems = MAX_PAGE_IMAGE_C
     const label = normalizeExtractedText(
       node.getAttribute("alt") || node.getAttribute("title") || node.getAttribute("aria-label") || figureCaption
     );
-    addCandidate(src, label);
+    addCandidate(src, label, { width, height });
   });
+
+  if (items.length < maxItems) {
+    queryAllIncludingShadow(doc, ["source[srcset]", "[data-src]", "[data-original]", "[data-lazy-src]", "[data-bg]", "[style*='background']"], maxItems * 12).forEach((node) => {
+      if (!(node instanceof Element) || items.length >= maxItems || !isElementVisible(node)) {
+        return;
+      }
+      const srcs = [
+        getLargestImageFromSrcset(node.getAttribute("srcset")),
+        node.getAttribute("data-src"),
+        node.getAttribute("data-original"),
+        node.getAttribute("data-lazy-src"),
+        node.getAttribute("data-bg"),
+        ...extractCssBackgroundImageUrls(node.getAttribute("style") || ""),
+      ].filter(Boolean);
+      const width = node.clientWidth || Number(node.getAttribute("width")) || 0;
+      const height = node.clientHeight || Number(node.getAttribute("height")) || 0;
+      if ((width && width < 96) || (height && height < 64)) {
+        return;
+      }
+      const label = normalizeExtractedText(
+        node.getAttribute("alt") || node.getAttribute("title") || node.getAttribute("aria-label") || getNodeVisibleText(node).slice(0, 180)
+      );
+      srcs.forEach((src) => {
+        if (!isLikelyDecorativeImage(node, src)) {
+          addCandidate(src, label, { width, height });
+        }
+      });
+    });
+  }
 
   return items;
 }
@@ -5540,7 +5737,7 @@ function getActiveStarterKeys(pageCopilot = currentPageCopilot) {
     nextKeys = [...nextKeys, "translatePage"];
   }
 
-  nextKeys = [...nextKeys, "investmentProposalBuilder", "landingPageBuilder", "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
+  nextKeys = [...nextKeys, "investmentProposalBuilder", "landingPageBuilder", "redExcelWorkbookFlow", "batchUrlQaWorkflow", "createAgentFlow", "createCustomStarter"];
 
   nextKeys = [...nextKeys, "investmentProposalBuilder"];
   return nextKeys.filter((starterKey, index) => nextKeys.indexOf(starterKey) === index);
@@ -5570,9 +5767,12 @@ function getAllBuiltinStarterKeys(pageCopilot = currentPageCopilot) {
     ...DEFAULT_STARTER_KEYS,
     ...Object.values(PAGE_COPILOT_STARTERS).flat(),
     ...QA_FLOW_BLOCK_STARTERS,
+    ...SALES_KIT_FLOW_STARTERS,
     "investmentProposalBuilder",
     "landingPageBuilder",
+    "redExcelWorkbookFlow",
     "batchUrlQaWorkflow",
+    "urlToSalesKitPptxFlow",
     "createAgentFlow",
     "createCustomStarter",
   ];
@@ -5797,6 +5997,7 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
   return allKeys.map((starterKey) => {
     const recommendationRank = recommendedKeys.includes(starterKey) ? recommendedKeys.indexOf(starterKey) : recommendedKeys.length + 20;
     const isQaFlowBlock = QA_FLOW_BLOCK_STARTERS.includes(starterKey);
+    const isSalesKitFlowBlock = SALES_KIT_FLOW_STARTERS.includes(starterKey);
     return {
       id: `builtin:${starterKey}`,
       label: getStarterText(starterKey),
@@ -5808,11 +6009,15 @@ function getBuiltinStarterEntries(pageCopilot = currentPageCopilot) {
       starterKey,
       showInPopup: (!Array.isArray(currentConfig?.hiddenBuiltinStarterIds) || !currentConfig.hiddenBuiltinStarterIds.includes(starterKey))
         && (starterKey !== "batchUrlQaWorkflow" || isPanelMaximized)
-        && !isQaFlowBlock,
+        && !isQaFlowBlock
+        && !isSalesKitFlowBlock,
       isRecommended: highlightedKeys.includes(starterKey),
       isLandingPageBuilder: starterKey === "landingPageBuilder",
       isBatchUrlQaBuilder: starterKey === "batchUrlQaWorkflow",
+      isRedExcelBuilder: starterKey === "redExcelWorkbookFlow",
+      isSalesKitBuilder: starterKey === "urlToSalesKitPptxFlow",
       isQaFlowBlock,
+      isSalesKitFlowBlock,
       isCustomStarterBuilder: starterKey === "createCustomStarter",
       isAgentFlowBuilder: starterKey === "createAgentFlow",
       recommendationRank,
@@ -5870,11 +6075,14 @@ function getStarterPriority(starter) {
   if (starter.isBatchUrlQaBuilder) {
     return 4;
   }
-  if (starter.isCustomStarterBuilder) {
+  if (starter.isRedExcelBuilder) {
     return 5;
   }
-  if (starter.isAgentFlow || starter.isCustomStarter) {
+  if (starter.isCustomStarterBuilder) {
     return 6;
+  }
+  if (starter.isAgentFlow || starter.isCustomStarter) {
+    return 7;
   }
   if (starter.isRecommended) {
     return 7;
@@ -5960,6 +6168,7 @@ function getFilteredActiveStarterEntries(pageCopilot = currentPageCopilot) {
       starter.composeMode,
       starter.isSuggestedFollowup ? "ai suggested followup next step recommended 建議下一步 推薦動作 建議動作" : "",
       starter.isBatchUrlQaBuilder ? "batch url qa workflow url list md markdown dataset qa pairs workflow 網址 qa 工作流 批次" : "",
+      starter.isRedExcelBuilder ? "red excel agent flow xlsx 18031 cover um qsg spec interface wifi workbook questionnaire router excel flow" : "",
       starter.isCustomStarter ? "custom starter custom skill custom 自訂 自定义 自訂工具 自訂技能 技能" : "",
       starter.isCustomStarterBuilder ? "custom starter builder create custom starter teach ai new skill custom 自訂 starter 建立自訂 starter 教 ai 一個新技能 新技能" : "",
       starter.isAgentFlowBuilder ? "agent flow flow builder workflow create agent flow custom agent flow flow agent 流程 工作流 建立流程 建立 agent flow" : "",
@@ -7849,6 +8058,10 @@ function getStarterPrompt(starterKey) {
     return tl("investmentProposalBuilderPrompt");
   }
 
+  if (starterKey === "redExcelWorkbookFlow") {
+    return tl("redExcelWorkbookFlowPrompt");
+  }
+
   if (starterKey === "createCustomStarter") {
     return tl("createCustomStarterPrompt");
   }
@@ -8867,6 +9080,32 @@ function createDefaultBatchUrlQaBuilderDraft() {
   };
 }
 
+function createDefaultSalesKitBuilderDraft() {
+  return {
+    urls: "",
+    audience: "sales, channel partners, product marketing",
+    language: "zh-TW",
+    tone: "keynote",
+    slideCount: "10",
+    brandStyle: "premium product keynote, clean layout, image-led, high contrast",
+  };
+}
+
+function ensureSalesKitBuilderDraft() {
+  if (!salesKitBuilderDraft || typeof salesKitBuilderDraft !== "object") {
+    salesKitBuilderDraft = createDefaultSalesKitBuilderDraft();
+  }
+  salesKitBuilderDraft.language = ["zh-TW", "en", "ja", "mixed"].includes(salesKitBuilderDraft.language)
+    ? salesKitBuilderDraft.language
+    : "zh-TW";
+  salesKitBuilderDraft.tone = ["executive", "sales", "keynote", "technical-marketing"].includes(salesKitBuilderDraft.tone)
+    ? salesKitBuilderDraft.tone
+    : "keynote";
+  const parsedSlideCount = Number.parseInt(String(salesKitBuilderDraft.slideCount || "10"), 10);
+  salesKitBuilderDraft.slideCount = String(Number.isFinite(parsedSlideCount) ? Math.min(20, Math.max(6, parsedSlideCount)) : 10);
+  return salesKitBuilderDraft;
+}
+
 function resetCustomStarterBuilderState() {
   customStarterBuilderDraft = createDefaultCustomStarterBuilderDraft();
   customStarterBuilderConversation = [];
@@ -8881,6 +9120,11 @@ function resetAgentFlowBuilderState() {
 function resetBatchUrlQaBuilderState() {
   batchUrlQaBuilderDraft = createDefaultBatchUrlQaBuilderDraft();
   batchUrlQaActiveJob = null;
+}
+
+function resetSalesKitBuilderState() {
+  salesKitBuilderDraft = createDefaultSalesKitBuilderDraft();
+  salesKitFlowRun = null;
 }
 
 function buildLandingPageAnalysisPrompt(sourceBundle) {
@@ -10655,7 +10899,7 @@ function getLatestAssistantSuggestedStarterEntries() {
 function getPageContext(includeChildFrames = true, options = {}) {
   const selection = getSelectionText();
   const pageText = getPageTextSnapshot(options.preferFullPdf ? MAX_PDF_PAGE_TEXT : MAX_PAGE_TEXT, includeChildFrames, options);
-  const imageCandidates = getPageImageSnapshot(MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
+  const imageCandidates = getPageImageSnapshot(options.imageCandidateLimit || MAX_PAGE_IMAGE_CANDIDATES, includeChildFrames);
   const headings = getPageHeadingsSnapshot(12, includeChildFrames, options)
     .slice(0, 12)
     .join(" | ");
@@ -12792,7 +13036,27 @@ function createPowerPointRectShapeXml(id, name, x, y, cx, cy, fillColor, options
   </p:sp>`;
 }
 
-function createPowerPointImageXml(id, name, relationshipId, x, y, cx, cy) {
+function getContainedPowerPointBox(x, y, cx, cy, imageWidth = 0, imageHeight = 0) {
+  const width = Number(imageWidth) || 0;
+  const height = Number(imageHeight) || 0;
+  if (!width || !height || !cx || !cy) {
+    return { x, y, cx, cy };
+  }
+  const scale = Math.min(cx / width, cy / height);
+  const nextCx = Math.max(1, Math.round(width * scale));
+  const nextCy = Math.max(1, Math.round(height * scale));
+  return {
+    x: x + Math.round((cx - nextCx) / 2),
+    y: y + Math.round((cy - nextCy) / 2),
+    cx: nextCx,
+    cy: nextCy,
+  };
+}
+
+function createPowerPointImageXml(id, name, relationshipId, x, y, cx, cy, options = {}) {
+  const box = options.fit === "stretch"
+    ? { x, y, cx, cy }
+    : getContainedPowerPointBox(x, y, cx, cy, options.imageWidth, options.imageHeight);
   return `<p:pic>
     <p:nvPicPr>
       <p:cNvPr id="${id}" name="${escapeXml(name)}"/>
@@ -12804,7 +13068,7 @@ function createPowerPointImageXml(id, name, relationshipId, x, y, cx, cy) {
       <a:stretch><a:fillRect/></a:stretch>
     </p:blipFill>
     <p:spPr>
-      <a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+      <a:xfrm><a:off x="${box.x}" y="${box.y}"/><a:ext cx="${box.cx}" cy="${box.cy}"/></a:xfrm>
       <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
       <a:ln><a:noFill/></a:ln>
     </p:spPr>
@@ -12825,11 +13089,11 @@ function pushPowerPointRect(shapes, nextIdRef, name, x, y, cx, cy, fillColor, op
   nextIdRef.value += 1;
 }
 
-function pushPowerPointImage(shapes, nextIdRef, name, relationshipId, x, y, cx, cy) {
+function pushPowerPointImage(shapes, nextIdRef, name, relationshipId, x, y, cx, cy, options = {}) {
   if (!relationshipId) {
     return;
   }
-  shapes.push(createPowerPointImageXml(nextIdRef.value, name, relationshipId, x, y, cx, cy));
+  shapes.push(createPowerPointImageXml(nextIdRef.value, name, relationshipId, x, y, cx, cy, options));
   nextIdRef.value += 1;
 }
 
@@ -12889,6 +13153,8 @@ async function convertPowerPointImageBytesToPng(bytes, mimeType = "application/o
       imageElement = await loadImageElement(objectUrl);
       width = imageElement.naturalWidth || imageElement.width || 0;
       height = imageElement.naturalHeight || imageElement.height || 0;
+    } catch (_error) {
+      return null;
     } finally {
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -12921,58 +13187,106 @@ async function convertPowerPointImageBytesToPng(bytes, mimeType = "application/o
   return base64ToBytes(dataUrl.split(",")[1] || "");
 }
 
+async function getPowerPointImageDimensions(bytes, mimeType = "application/octet-stream") {
+  if (!(bytes instanceof Uint8Array) || !bytes.length) {
+    return { width: 0, height: 0 };
+  }
+  const blob = new Blob([bytes], { type: mimeType || "application/octet-stream" });
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(blob);
+      const dimensions = { width: bitmap.width || 0, height: bitmap.height || 0 };
+      bitmap.close?.();
+      if (dimensions.width && dimensions.height) {
+        return dimensions;
+      }
+    } catch (_error) {
+      // Fall through to image element decoding.
+    }
+  }
+  let objectUrl = "";
+  try {
+    objectUrl = URL.createObjectURL(blob);
+    const imageElement = await loadImageElement(objectUrl);
+    return {
+      width: imageElement.naturalWidth || imageElement.width || 0,
+      height: imageElement.naturalHeight || imageElement.height || 0,
+    };
+  } catch (_error) {
+    return { width: 0, height: 0 };
+  } finally {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+}
+
 async function resolvePowerPointImageAsset(imageUrl, index) {
   const normalizedUrl = String(imageUrl || "").trim();
   if (!normalizedUrl) {
     return null;
   }
 
-  let mimeType = "application/octet-stream";
-  let bytes = null;
+  try {
+    let mimeType = "application/octet-stream";
+    let bytes = null;
 
-  if (/^data:/i.test(normalizedUrl)) {
-    const match = normalizedUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/i);
-    if (!match) {
+    if (/^data:/i.test(normalizedUrl)) {
+      const match = normalizedUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/i);
+      if (!match) {
+        return null;
+      }
+      mimeType = String(match[1] || "application/octet-stream").trim() || "application/octet-stream";
+      bytes = match[2]
+        ? base64ToBytes(match[3] || "")
+        : new TextEncoder().encode(decodeURIComponent(match[3] || ""));
+    } else {
+      const response = await runtimeMessage({
+        type: "browser:fetch-binary-url",
+        url: normalizedUrl,
+      });
+      if (!response?.ok || !response.file?.base64) {
+        return null;
+      }
+      mimeType = String(response.file.mimeType || "application/octet-stream").trim() || "application/octet-stream";
+      bytes = base64ToBytes(response.file.base64);
+    }
+
+    if (!(bytes instanceof Uint8Array) || !bytes.length) {
       return null;
     }
-    mimeType = String(match[1] || "application/octet-stream").trim() || "application/octet-stream";
-    bytes = base64ToBytes(match[2] || "");
-  } else {
-    const response = await runtimeMessage({
-      type: "browser:fetch-binary-url",
-      url: normalizedUrl,
-    });
-    if (!response?.ok || !response.file?.base64) {
-      return null;
-    }
-    mimeType = String(response.file.mimeType || "application/octet-stream").trim() || "application/octet-stream";
-    bytes = base64ToBytes(response.file.base64);
-  }
 
-  if (!(bytes instanceof Uint8Array) || !bytes.length) {
+    let format = getPowerPointImageFormat(mimeType);
+    let dimensions = await getPowerPointImageDimensions(bytes, mimeType);
+    if (!format) {
+      const convertedBytes = await convertPowerPointImageBytesToPng(bytes, mimeType);
+      if (!convertedBytes?.length) {
+        return null;
+      }
+      bytes = convertedBytes;
+      format = { extension: "png", mimeType: "image/png" };
+      dimensions = await getPowerPointImageDimensions(bytes, format.mimeType);
+    }
+    return {
+      bytes,
+      mimeType: format.mimeType,
+      extension: format.extension,
+      width: dimensions.width || 0,
+      height: dimensions.height || 0,
+      path: `ppt/media/image${index}.${format.extension}`,
+    };
+  } catch (_error) {
     return null;
   }
-
-  let format = getPowerPointImageFormat(mimeType);
-  if (!format) {
-    const convertedBytes = await convertPowerPointImageBytesToPng(bytes, mimeType);
-    if (!convertedBytes?.length) {
-      return null;
-    }
-    bytes = convertedBytes;
-    format = { extension: "png", mimeType: "image/png" };
-  }
-  return {
-    bytes,
-    mimeType: format.mimeType,
-    extension: format.extension,
-    path: `ppt/media/image${index}.${format.extension}`,
-  };
 }
 
-function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshipId, logoRelationshipId = "") {
+function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageAsset, logoAsset = null) {
   const palette = getPowerPointThemePalette(deckTheme);
   const templateId = normalizePowerPointTemplateId(deckTheme.templateId);
+  const imageRelationshipId = imageAsset ? "rId2" : "";
+  const logoRelationshipId = logoAsset ? "rId3" : "";
+  const imageOptions = imageAsset ? { imageWidth: imageAsset.width, imageHeight: imageAsset.height } : {};
+  const logoOptions = logoAsset ? { imageWidth: logoAsset.width, imageHeight: logoAsset.height } : {};
   const hasImage = Boolean(imageRelationshipId);
   const layout = normalizePowerPointLayout(slide.layout, hasImage, slideNumber - 1);
   const shapes = [];
@@ -13019,7 +13333,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
         color: palette.mutedText,
       });
       if (hasImage) {
-        pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 6500000, 880000, 5050000, 4300000);
+        pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 6500000, 880000, 5050000, 4300000, imageOptions);
       }
     } else if (templateId === POWERPOINT_TEMPLATE_IDS.boardroomReport) {
       pushPowerPointTextBox(shapes, nextIdRef, "Title", 740000, 1250000, 10500000, 900000, titleLines, {
@@ -13033,7 +13347,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
         color: palette.mutedText,
       });
       if (hasImage) {
-        pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 8050000, 3650000, 3050000, 1650000);
+        pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 8050000, 3650000, 3050000, 1650000, imageOptions);
       }
     } else if (templateId === POWERPOINT_TEMPLATE_IDS.strategyCards) {
       pushPowerPointRect(shapes, nextIdRef, "Title Card", 760000, 1140000, 10450000, 3350000, palette.surface, { lineColor: palette.border, lineAlpha: 0.72 });
@@ -13049,19 +13363,32 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
         align: "ctr",
       });
     } else {
-      pushPowerPointTextBox(shapes, nextIdRef, "Title", 640000, 1400000, 10912000, 1100000, titleLines, {
-        size: 3000,
-        color: palette.text,
-        bold: true,
-        align: "ctr",
-        anchor: "ctr",
-      });
-      pushPowerPointTextBox(shapes, nextIdRef, "Subtitle", 1040000, 2750000, 10112000, 1900000, bodyLines, {
-        size: 1800,
-        color: palette.text,
-        align: "ctr",
-        anchor: "ctr",
-      });
+      if (hasImage) {
+        pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 6550000, 820000, 5000000, 4050000, imageOptions);
+        pushPowerPointTextBox(shapes, nextIdRef, "Title", 640000, 1320000, 5450000, 1100000, titleLines, {
+          size: 2920,
+          color: palette.text,
+          bold: true,
+        });
+        pushPowerPointTextBox(shapes, nextIdRef, "Subtitle", 740000, 2700000, 5250000, 2000000, bodyLines.slice(0, 4), {
+          size: 1620,
+          color: palette.text,
+        });
+      } else {
+        pushPowerPointTextBox(shapes, nextIdRef, "Title", 640000, 1400000, 10912000, 1100000, titleLines, {
+          size: 3000,
+          color: palette.text,
+          bold: true,
+          align: "ctr",
+          anchor: "ctr",
+        });
+        pushPowerPointTextBox(shapes, nextIdRef, "Subtitle", 1040000, 2750000, 10112000, 1900000, bodyLines, {
+          size: 1800,
+          color: palette.text,
+          align: "ctr",
+          anchor: "ctr",
+        });
+      }
     }
   } else if (templateId === POWERPOINT_TEMPLATE_IDS.tealBusiness) {
     const imageY = hasImage ? 1150000 : 0;
@@ -13073,7 +13400,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
       bold: true,
     });
     if (hasImage) {
-      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, imageX, imageY, 4700000, 3600000);
+      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, imageX, imageY, 4700000, 3600000, imageOptions);
       pushPowerPointRect(shapes, nextIdRef, "Text Panel", textX, 1320000, 5000000, 3150000, palette.surface, { lineColor: palette.border, lineAlpha: 0.6 });
       pushPowerPointTextBox(shapes, nextIdRef, "Body", textX + 330000, 1640000, 4300000, 2450000, bodyLines.slice(0, 5), {
         size: 1500,
@@ -13097,7 +13424,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
       bold: true,
     });
     if (hasImage) {
-      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 720000, 1450000, 4300000, 2920000);
+      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 720000, 1450000, 4300000, 2920000, imageOptions);
       pushPowerPointRect(shapes, nextIdRef, "Report Body", 5350000, 1450000, 5800000, 2920000, palette.surface, { lineColor: palette.border, lineAlpha: 0.48 });
       pushPowerPointTextBox(shapes, nextIdRef, "Body", 5650000, 1750000, 5200000, 2300000, bodyLines.slice(0, 5), {
         size: 1450,
@@ -13120,7 +13447,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
       bold: true,
     });
     if (hasImage) {
-      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 760000, 1300000, 10450000, 1950000);
+      pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, 760000, 1300000, 10450000, 1950000, imageOptions);
       const cardLines = bodyLines.slice(0, 3);
       cardLines.forEach((line, index) => {
         const x = 760000 + index * 3500000;
@@ -13154,7 +13481,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
       size: 1700,
       color: palette.text,
     });
-    pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, imageX, 1500000, 4500000, 3300000);
+    pushPowerPointImage(shapes, nextIdRef, slide.imageAlt || `Image ${slideNumber}`, imageRelationshipId, imageX, 1500000, 4500000, 3300000, imageOptions);
   } else {
     pushPowerPointTextBox(shapes, nextIdRef, "Title", 640000, 520000, 10912000, 620000, titleLines, {
       size: 2400,
@@ -13177,7 +13504,7 @@ function buildPowerPointSlideXml(slide, deckTheme, slideNumber, imageRelationshi
   }
 
   if (logoRelationshipId) {
-    shapes.push(createPowerPointImageXml(nextId, "Company Logo", logoRelationshipId, 11150000, 6200000, 620000, 280000));
+    shapes.push(createPowerPointImageXml(nextId, "Company Logo", logoRelationshipId, 11150000, 6200000, 620000, 280000, logoOptions));
     nextId += 1;
   }
 
@@ -13263,7 +13590,7 @@ async function buildPowerPointFileBytes(deckSpec) {
     const asset = slideAssets[index];
     entries.push({
       name: `ppt/slides/slide${index + 1}.xml`,
-      data: buildPowerPointSlideXml(slide, normalizedDeck.theme, index + 1, asset ? "rId2" : "", logoAsset ? "rId3" : ""),
+      data: buildPowerPointSlideXml(slide, normalizedDeck.theme, index + 1, asset, logoAsset),
     });
     entries.push({
       name: `ppt/slides/_rels/slide${index + 1}.xml.rels`,
@@ -15194,13 +15521,15 @@ function renderShell() {
                   starter.isCustomStarterBuilder ? "is-custom-builder" : "",
                   starter.isLandingPageBuilder ? "is-agent-flow-builder" : "",
                   starter.isBatchUrlQaBuilder ? "is-agent-flow-builder" : "",
+                  starter.isRedExcelBuilder ? "is-agent-flow-builder" : "",
+                  starter.isSalesKitBuilder ? "is-agent-flow-builder" : "",
                   starter.isAgentFlowBuilder ? "is-agent-flow-builder" : "",
                   starter.isAgentFlow ? "is-agent-flow" : "",
                   starter.id === highlightedStarterId ? "is-highlighted" : "",
                 ].filter(Boolean).join(" ");
                 const prefix = starter.isRecommended
                   ? `<span class="ollama-quick-starter-dot" aria-hidden="true"></span>`
-                  : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder || starter.isLandingPageBuilder
+                  : starter.isAgentFlow || starter.isAgentFlowBuilder || starter.isBatchUrlQaBuilder || starter.isRedExcelBuilder || starter.isSalesKitBuilder || starter.isLandingPageBuilder
                     ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">↠</span>`
                   : starter.isCustomStarter || starter.isCustomStarterBuilder
                     ? `<span class="ollama-quick-starter-custom-mark" aria-hidden="true">✦</span>`
@@ -15226,6 +15555,7 @@ function renderShell() {
       ${renderCustomStarterBuilder()}
       ${renderAgentFlowBuilder()}
       ${renderBatchUrlQaBuilder()}
+      ${renderSalesKitBuilder()}
       ${renderConfirmDialog()}
       </section>
     </div>
@@ -16209,6 +16539,683 @@ function renderBatchUrlQaMiniStatus() {
   `;
 }
 
+function getSalesKitProgressStep(stage = "") {
+  const normalized = String(stage || "").trim();
+  const ids = ["collect", "assets", "strategy", "storyboard", "slides", "export"];
+  const index = ids.indexOf(normalized);
+  return index >= 0 ? index + 1 : salesKitFlowRun?.status === "complete" ? ids.length : 1;
+}
+
+function renderSalesKitProgressRail() {
+  const run = salesKitFlowRun || {};
+  const activeStep = getSalesKitProgressStep(run.stage);
+  const labels = [
+    tl("salesKitStageCollect"),
+    tl("salesKitStageAssets"),
+    tl("salesKitStageStrategy"),
+    tl("salesKitStageStoryboard"),
+    tl("salesKitStageSlides"),
+    tl("salesKitStageExport"),
+  ];
+  const items = labels.map((label, index) => {
+    const stepNumber = index + 1;
+    const stateClass = stepNumber < activeStep || run.status === "complete"
+      ? "is-done"
+      : stepNumber === activeStep && run.status === "running"
+        ? "is-active"
+        : "";
+    return `
+      <div class="ollama-quick-batch-url-qa-progress-step ${stateClass}">
+        <span class="ollama-quick-batch-url-qa-progress-dot">${stepNumber}</span>
+        <span class="ollama-quick-batch-url-qa-progress-label">${escapeHtml(label)}</span>
+      </div>
+    `;
+  }).join("");
+  const detail = String(run.detail || labels[activeStep - 1] || tl("salesKitWorkflowHint")).trim();
+  return `
+    <div class="ollama-quick-batch-url-qa-progress-surface">
+      <div class="ollama-quick-batch-url-qa-progress-rail">${items}</div>
+      <div class="ollama-quick-batch-url-qa-progress-meta">${escapeHtml(detail)}</div>
+    </div>
+  `;
+}
+
+function renderSalesKitBuilder() {
+  if (!salesKitBuilderOpen) {
+    return "";
+  }
+  const draft = ensureSalesKitBuilderDraft();
+  const isRunning = salesKitFlowRun?.status === "running";
+  const generatedMessageId = salesKitFlowRun?.generatedMessageId || "";
+  const languageOptions = ["zh-TW", "en", "ja", "mixed"]
+    .map((value) => `<option value="${escapeHtml(value)}" ${draft.language === value ? "selected" : ""}>${escapeHtml(LANGUAGE_LABELS[value] || value)}</option>`)
+    .join("");
+  const toneOptions = [
+    { value: "executive", label: tl("salesKitToneExecutive") },
+    { value: "sales", label: tl("salesKitToneSales") },
+    { value: "keynote", label: tl("salesKitToneKeynote") },
+    { value: "technical-marketing", label: tl("salesKitToneTechnicalMarketing") },
+  ].map((item) => `<option value="${escapeHtml(item.value)}" ${draft.tone === item.value ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("");
+
+  return `
+    <div class="ollama-quick-picker-backdrop">
+      <section class="ollama-quick-picker-modal ollama-quick-custom-starter-modal ollama-quick-batch-url-qa-modal">
+        <div class="ollama-quick-picker-headline is-simple">
+          <div>
+            <div class="ollama-quick-picker-kicker">${escapeHtml(tl("starterTools"))}</div>
+            <div class="ollama-quick-picker-title">${escapeHtml(tl("salesKitWorkflowTitle"))}</div>
+            <div class="ollama-quick-picker-subtitle">${escapeHtml(tl("salesKitWorkflowHint"))}</div>
+          </div>
+          <button class="ollama-quick-icon-button" type="button" data-action="close-sales-kit-builder" aria-label="${escapeHtml(tl("salesKitClose"))}">×</button>
+        </div>
+        <div class="ollama-quick-custom-starter-form ollama-quick-batch-url-qa-form">
+          <div class="ollama-quick-batch-url-qa-layout">
+            <div class="ollama-quick-batch-url-qa-column is-urls">
+              <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-surface is-urls-surface">
+                <span>${escapeHtml(tl("salesKitUrlsLabel"))}</span>
+                <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-textarea" data-role="sales-kit-urls" placeholder="${escapeHtml(tl("salesKitUrlsPlaceholder"))}">${escapeHtml(draft.urls)}</textarea>
+              </label>
+            </div>
+            <div class="ollama-quick-batch-url-qa-column is-side">
+              <div class="ollama-quick-batch-url-qa-surface ollama-quick-batch-url-qa-side-panel is-settings">
+                <div class="ollama-quick-batch-url-qa-panel-title">${escapeHtml(tl("batchUrlQaSettingsTitle"))}</div>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field">
+                  <span>${escapeHtml(tl("salesKitAudienceLabel"))}</span>
+                  <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="text" data-role="sales-kit-audience" value="${escapeHtml(draft.audience)}" placeholder="${escapeHtml(tl("salesKitAudiencePlaceholder"))}" />
+                </label>
+                <div class="ollama-quick-batch-url-qa-config-grid">
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field">
+                    <span>${escapeHtml(tl("salesKitLanguageLabel"))}</span>
+                    <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="sales-kit-language">${languageOptions}</select>
+                  </label>
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field">
+                    <span>${escapeHtml(tl("salesKitToneLabel"))}</span>
+                    <select class="ollama-quick-select ollama-quick-batch-url-qa-select" data-role="sales-kit-tone">${toneOptions}</select>
+                  </label>
+                  <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field">
+                    <span>${escapeHtml(tl("salesKitSlideCountLabel"))}</span>
+                    <input class="ollama-quick-picker-search ollama-quick-batch-url-qa-input" type="number" min="6" max="20" data-role="sales-kit-slide-count" value="${escapeHtml(draft.slideCount)}" />
+                  </label>
+                </div>
+                <label class="ollama-quick-custom-starter-field ollama-quick-batch-url-qa-field">
+                  <span>${escapeHtml(tl("salesKitBrandStyleLabel"))}</span>
+                  <textarea class="ollama-quick-custom-starter-textarea ollama-quick-batch-url-qa-extra-prompt" data-role="sales-kit-brand-style" placeholder="${escapeHtml(tl("salesKitBrandStylePlaceholder"))}">${escapeHtml(draft.brandStyle)}</textarea>
+                </label>
+              </div>
+            </div>
+          </div>
+          ${renderSalesKitProgressRail()}
+        </div>
+        <div class="ollama-quick-picker-footer">
+          <button class="ollama-quick-secondary" type="button" data-action="close-sales-kit-builder">${escapeHtml(tl("salesKitClose"))}</button>
+          ${generatedMessageId ? `<button class="ollama-quick-secondary" type="button" data-action="download-message-powerpoint" data-message-id="${escapeHtml(String(generatedMessageId))}">${escapeHtml(tl("downloadPowerPoint"))}</button>` : ""}
+          <button class="ollama-quick-primary ollama-quick-picker-add ${isRunning ? "is-running" : ""}" type="button" data-action="start-sales-kit-flow" ${isRunning ? "disabled" : ""}>${escapeHtml(isRunning ? tl("salesKitRunning") : tl("salesKitStart"))}</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function parseSalesKitUrls(value) {
+  return String(value || "")
+    .split(/[\n,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      try {
+        return new URL(item).href;
+      } catch (_error) {
+        return "";
+      }
+    })
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function updateSalesKitFlowRun(patch = {}) {
+  salesKitFlowRun = {
+    ...(salesKitFlowRun || {}),
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  renderShell();
+  if (patch.detail) {
+    setStatus(patch.detail);
+  }
+}
+
+function normalizeSalesKitPageFromContext(context, url) {
+  const headings = String(context?.headings || "")
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const bodyText = normalizeMarkdownText(String(context?.pageText || "")).slice(0, 12000);
+  const paragraphs = bodyText.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean);
+  const sections = (headings.length ? headings : [context?.title || "Page content"])
+    .slice(0, 10)
+    .map((heading, index) => ({
+      heading,
+      text: paragraphs.slice(index * 2, index * 2 + 2).join("\n\n").slice(0, 1600),
+      relatedImages: [],
+    }))
+    .filter((section) => section.heading || section.text);
+  return {
+    url,
+    title: String(context?.title || "").trim() || url,
+    metaDescription: String(context?.metaDescription || "").trim(),
+    headings,
+    bodyText,
+    sections,
+    imageCandidates: Array.isArray(context?.imageCandidates) ? context.imageCandidates : [],
+  };
+}
+
+function classifySalesKitAsset(image = {}, index = 0) {
+  const src = String(image?.src || image?.sourceUrl || "").toLowerCase();
+  const alt = String(image?.alt || "").toLowerCase();
+  const text = `${src} ${alt}`;
+  const width = Number(image?.width || 0) || 0;
+  const height = Number(image?.height || 0) || 0;
+  const aspect = width && height ? width / height : 0;
+  const knownSmall = Boolean(width && height && (width < 300 || height < 220));
+  const squareIconLike = Boolean(width && height && width <= 512 && height <= 512 && aspect >= 0.75 && aspect <= 1.33);
+  if (/(icon|logo|favicon|app[-_ ]?icon|badge|button|arrow)/.test(text) || knownSmall || squareIconLike) {
+    return "icon";
+  }
+  if (/screen|app|ui|dashboard|interface|workflow/.test(text) || (height >= 640 && aspect > 0 && aspect < 0.82)) {
+    return "screenshot";
+  }
+  if (/hero|banner|kv|main|cover/.test(text) || (index === 0 && !knownSmall)) {
+    return "hero";
+  }
+  if (/feature|benefit|product|device/.test(text)) {
+    return "feature";
+  }
+  if (/bg|background/.test(text)) {
+    return "background";
+  }
+  if (/icon|logo/.test(text)) {
+    return "icon";
+  }
+  return "unknown";
+}
+
+function isLikelySalesKitVisualAsset(image = {}) {
+  const sourceUrl = String(image?.src || image?.sourceUrl || "").trim();
+  const text = `${sourceUrl} ${image?.alt || ""}`.toLowerCase();
+  const width = Number(image?.width || 0) || 0;
+  const height = Number(image?.height || 0) || 0;
+  const aspect = width && height ? width / height : 0;
+  if (!/^https?:\/\//i.test(sourceUrl)) {
+    return false;
+  }
+  if (/\.(?:svg)(?:[?#]|$)/i.test(sourceUrl)) {
+    return false;
+  }
+  if (/(sprite|tracking|pixel|spacer|blank|favicon|social|facebook|instagram|youtube|twitter|pinterest|linkedin|app[-_ ]?icon|badge|button|arrow)/i.test(text)) {
+    return false;
+  }
+  if (width && height && (width < 300 || height < 220)) {
+    return false;
+  }
+  if (width && height && width <= 512 && height <= 512 && aspect >= 0.75 && aspect <= 1.33) {
+    return false;
+  }
+  return true;
+}
+
+function getSalesKitAssetPresentationScore(asset = {}) {
+  const width = Number(asset.width || 0) || 0;
+  const height = Number(asset.height || 0) || 0;
+  const area = width * height;
+  const aspect = width && height ? width / height : 0;
+  const typeBonus = {
+    screenshot: 900000000,
+    hero: 800000000,
+    feature: 650000000,
+    background: 500000000,
+    unknown: 250000000,
+    icon: 0,
+  }[asset.type] ?? 0;
+  const orientationBonus = aspect >= 0.35 && aspect <= 2.6 ? 120000000 : 0;
+  const sizePenalty = width && height && (width < 420 || height < 260) ? 300000000 : 0;
+  return typeBonus + orientationBonus + area - sizePenalty;
+}
+
+function collectSalesKitAssetsFromPages(pages) {
+  const assets = [];
+  const seen = new Set();
+  (Array.isArray(pages) ? pages : []).forEach((page) => {
+    (Array.isArray(page.imageCandidates) ? page.imageCandidates : []).forEach((image) => {
+      const sourceUrl = String(image?.src || image?.sourceUrl || "").trim();
+      if (!isLikelySalesKitVisualAsset(image)) {
+        return;
+      }
+      const key = sourceUrl.toLowerCase();
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      const assetIndex = assets.length + 1;
+      const type = classifySalesKitAsset(image, assetIndex - 1);
+      assets.push({
+        id: `asset_${String(assetIndex).padStart(3, "0")}`,
+        sourceUrl,
+        localPath: "",
+        alt: String(image?.alt || "").trim(),
+        width: Number(image?.width || 0) || 0,
+        height: Number(image?.height || 0) || 0,
+        type,
+        recommendedUse: type === "hero" ? "Cover or product promise slide" : type === "screenshot" ? "Workflow or experience slide" : "Feature or supporting visual",
+        pageUrl: page.url,
+      });
+    });
+  });
+  const priority = { hero: 0, screenshot: 1, feature: 2, background: 3, unknown: 4, icon: 5 };
+  return assets
+    .sort((a, b) => {
+      return getSalesKitAssetPresentationScore(b) - getSalesKitAssetPresentationScore(a)
+        || (priority[a.type] ?? 9) - (priority[b.type] ?? 9);
+    })
+    .slice(0, 36)
+    .map((asset, index) => ({
+      ...asset,
+      id: `asset_${String(index + 1).padStart(3, "0")}`,
+    }));
+}
+
+function buildSalesKitJsonPrompt({ role, instruction, input, schema }) {
+  return [
+    `You are ${role}.`,
+    instruction,
+    "Return one valid JSON object only. Do not include Markdown fences, commentary, or trailing text.",
+    "Stay grounded in the provided source data. Do not invent unsupported product claims.",
+    "",
+    "INPUT JSON",
+    JSON.stringify(input, null, 2),
+    "",
+    "OUTPUT JSON SCHEMA",
+    schema,
+  ].join("\n");
+}
+
+function parseJsonObjectFromModelText(rawText) {
+  const candidates = collectLikelyJsonCandidates(String(rawText || ""));
+  for (const candidate of candidates) {
+    const parsed = parseStarterDraftCandidate(candidate);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+async function runSalesKitJsonStep({ role, instruction, input, schema, model }) {
+  const response = await runGenerate(buildSalesKitJsonPrompt({ role, instruction, input, schema }), model);
+  const parsed = parseJsonObjectFromModelText(response);
+  if (!parsed) {
+    throw new Error("Model returned invalid JSON for this sales kit step.");
+  }
+  return parsed;
+}
+
+async function collectSalesKitPages(urls) {
+  const pages = [];
+  const warnings = [];
+  for (const url of urls) {
+    try {
+      const result = await runtimeMessage({ type: "landing-page:get-url-context", url });
+      if (!result?.ok || !result.context) {
+        throw new Error(result?.error || "Page context unavailable.");
+      }
+      const context = {
+        ...result.context,
+        imageCandidates: Array.isArray(result.context?.salesKitImageCandidates)
+          ? result.context.salesKitImageCandidates
+          : result.context?.imageCandidates,
+      };
+      pages.push(normalizeSalesKitPageFromContext(context, url));
+    } catch (error) {
+      warnings.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return { pages, collectionWarnings: warnings };
+}
+
+function normalizeSalesKitGeneratedSlides(payload, state) {
+  const slides = Array.isArray(payload?.slides) ? payload.slides : Array.isArray(state?.storyboard) ? state.storyboard : [];
+  const assets = Array.isArray(state?.assets) ? state.assets : [];
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const usedAssetIds = new Set();
+  const getUnusedAsset = (preferredIds = [], slideIndex = 0) => {
+    const preferred = preferredIds
+      .map((id) => assetsById.get(id))
+      .find((asset) => asset?.id && (!usedAssetIds.has(asset.id) || slideIndex === 0));
+    if (preferred) {
+      return preferred;
+    }
+    return assets.find((asset) => asset?.id && !usedAssetIds.has(asset.id)) || null;
+  };
+  const normalizedSlides = slides.map((slide, index) => {
+    const assetIds = Array.isArray(slide?.assetIds) ? slide.assetIds.map((item) => String(item || "").trim()).filter(Boolean) : [];
+    const firstAsset = getUnusedAsset(assetIds, index);
+    if (firstAsset?.id) {
+      usedAssetIds.add(firstAsset.id);
+    }
+    const layout = String(slide?.layout || "").trim();
+    const mappedLayout = layout === "cover" || layout === "section-divider" || index === 0
+      ? "title"
+      : layout === "image-left-text-right"
+        ? "image-left"
+        : layout === "image-right-text-left" || firstAsset
+          ? "image-right"
+          : "content";
+    return {
+      title: String(slide?.title || `Slide ${index + 1}`).trim(),
+      subtitle: String(slide?.subtitle || slide?.eyebrow || "").trim(),
+      body: String(slide?.callout || slide?.speakerIntent || slide?.visualDirection || "").trim(),
+      bullets: (Array.isArray(slide?.bullets) ? slide.bullets : [])
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .slice(0, 5),
+      imageUrl: firstAsset?.sourceUrl || "",
+      imageAlt: firstAsset?.alt || firstAsset?.id || "",
+      notes: String(slide?.speakerNotes || slide?.notes || "").trim(),
+      sourceUrl: firstAsset?.pageUrl || state?.input?.urls?.[0] || "",
+      layout: mappedLayout,
+    };
+  }).filter((slide) => slide.title || slide.bullets.length || slide.imageUrl);
+  return normalizedSlides.slice(0, 20);
+}
+
+function buildSalesKitMarkdownSource(state, generatedSlides) {
+  const lines = [
+    `# ${state?.strategy?.productName || "Sales Kit"}`,
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Inputs",
+    ...(state?.input?.urls || []).map((url) => `- ${url}`),
+    "",
+    "## Strategy",
+    `- Value proposition: ${state?.strategy?.oneLineValueProp || ""}`,
+    `- Tone: ${state?.strategy?.recommendedTone || state?.input?.tone || ""}`,
+    "",
+    "## Slides",
+  ];
+  generatedSlides.forEach((slide, index) => {
+    lines.push("", `### ${index + 1}. ${slide.title}`);
+    if (slide.subtitle) lines.push(`_${slide.subtitle}_`);
+    slide.bullets.forEach((bullet) => lines.push(`- ${bullet}`));
+    if (slide.imageUrl) lines.push(`Visual: ${slide.imageUrl}`);
+    if (slide.notes) lines.push(`Notes: ${slide.notes}`);
+  });
+  return `${lines.join("\n")}\n`;
+}
+
+function buildSalesKitDeckSpec(state, slidesPayload) {
+  const generatedSlides = normalizeSalesKitGeneratedSlides(slidesPayload, state);
+  return {
+    title: state?.strategy?.productName
+      ? `${state.strategy.productName} Sales Kit`
+      : generatedSlides[0]?.title || "Sales Kit",
+    theme: {
+      backgroundColor: "#0B1220",
+      textColor: "#EAF2FF",
+      accentColor: "#67E8F9",
+      templateId: POWERPOINT_TEMPLATE_IDS.executiveGrid,
+    },
+    slides: generatedSlides,
+  };
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function getSalesKitAssetExtension(mimeType = "", sourceUrl = "") {
+  const normalizedMime = String(mimeType || "").toLowerCase();
+  if (normalizedMime.includes("png")) return "png";
+  if (normalizedMime.includes("webp")) return "webp";
+  if (normalizedMime.includes("gif")) return "gif";
+  if (normalizedMime.includes("svg")) return "svg";
+  if (normalizedMime.includes("jpeg") || normalizedMime.includes("jpg")) return "jpg";
+  const match = String(sourceUrl || "").split(/[?#]/)[0].match(/\.([a-z0-9]{2,5})$/i);
+  return match ? match[1].toLowerCase() : "jpg";
+}
+
+async function saveSalesKitOutputsToWorkFolder({ deckSpec, state, markdown, pptxBytes, fileName }) {
+  const folder = `exports/sales-kit-${timestampForFile(new Date()).replace(/-\d{2}$/, "")}`;
+  const warnings = [];
+  try {
+    for (const asset of Array.isArray(state.assets) ? state.assets : []) {
+      if (!asset?.sourceUrl) {
+        continue;
+      }
+      try {
+        const fetched = await runtimeMessage({ type: "browser:fetch-binary-url", url: asset.sourceUrl });
+        if (!fetched?.ok || !fetched.file?.base64) {
+          throw new Error(fetched?.error || "asset_fetch_failed");
+        }
+        const extension = getSalesKitAssetExtension(fetched.file.mimeType, asset.sourceUrl);
+        const assetFileName = `${asset.id}.${extension}`;
+        await runtimeMessage({
+          type: "work-folder:write-binary",
+          path: `${folder}/assets`,
+          fileName: assetFileName,
+          mimeType: fetched.file.mimeType || "application/octet-stream",
+          base64: fetched.file.base64,
+        });
+        asset.localPath = `assets/${assetFileName}`;
+        asset.width = asset.width || Number(fetched.file.width || 0) || 0;
+        asset.height = asset.height || Number(fetched.file.height || 0) || 0;
+      } catch (error) {
+        warnings.push(`Asset ${asset.id} could not be saved locally: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    await runtimeMessage({
+      type: "work-folder:write-text",
+      path: folder,
+      fileName: "deck-source.md",
+      contents: markdown,
+    });
+    await runtimeMessage({
+      type: "work-folder:write-json",
+      path: folder,
+      fileName: "deck-data.json",
+      data: { state, deckSpec },
+    });
+    await runtimeMessage({
+      type: "work-folder:write-json",
+      path: folder,
+      fileName: "asset-manifest.json",
+      data: { assets: state.assets || [], warnings: state.assetWarnings || [] },
+    });
+    await runtimeMessage({
+      type: "work-folder:write-binary",
+      path: folder,
+      fileName,
+      mimeType: POWERPOINT_MIME_TYPE,
+      base64: bytesToBase64(pptxBytes),
+    });
+    return { path: folder, warnings };
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
+    return { path: "", warnings };
+  }
+}
+
+async function runSalesKitFlowFromBuilder() {
+  const draft = ensureSalesKitBuilderDraft();
+  const urls = parseSalesKitUrls(draft.urls);
+  if (!urls.length) {
+    setStatus(tl("salesKitNeedUrls"));
+    return;
+  }
+  const model = resolveUsableModelForTask({ userMessage: tl("salesKitWorkflowTitle") });
+  if (!model) {
+    setStatus(tl("pickModelFirst"));
+    return;
+  }
+
+  const state = {
+    input: {
+      urls,
+      audience: String(draft.audience || "").trim(),
+      language: draft.language,
+      tone: draft.tone,
+      brandStyle: String(draft.brandStyle || "").trim(),
+      slideCount: Number.parseInt(String(draft.slideCount || "10"), 10) || 10,
+    },
+    pages: [],
+    assets: [],
+    strategy: {},
+    storyboard: [],
+  };
+
+  const userMessageId = Date.now();
+  chatMessages.push({
+    id: userMessageId,
+    role: "user",
+    content: `${tl("salesKitWorkflowTitle")}\n\n${urls.join("\n")}`,
+  });
+  salesKitFlowRun = { status: "running", stage: "collect", detail: tl("salesKitStageCollect"), startedAt: new Date().toISOString() };
+  isGenerating = true;
+  renderShell();
+  renderMessages();
+  scheduleConversationSave();
+
+  try {
+    updateSalesKitFlowRun({ status: "running", stage: "collect", detail: tl("salesKitStageCollect") });
+    const collection = await collectSalesKitPages(urls);
+    state.pages = collection.pages.map(({ imageCandidates, ...page }) => page);
+    state.collectionWarnings = collection.collectionWarnings;
+    const pagesWithImages = collection.pages;
+    if (!state.pages.length) {
+      throw new Error(collection.collectionWarnings?.[0] || "No URL content could be collected.");
+    }
+
+    updateSalesKitFlowRun({ status: "running", stage: "assets", detail: tl("salesKitStageAssets") });
+    state.assets = collectSalesKitAssetsFromPages(pagesWithImages);
+    const collectedImageCandidateCount = pagesWithImages.reduce(
+      (count, page) => count + (Array.isArray(page.imageCandidates) ? page.imageCandidates.length : 0),
+      0,
+    );
+    const minimumUsefulAssetCount = Math.min(state.input.slideCount || 10, 8);
+    state.assetDiagnostics = {
+      collectedImageCandidateCount,
+      uniqueAssetCount: state.assets.length,
+      minimumUsefulAssetCount,
+    };
+    state.assetWarnings = state.assets.length
+      ? state.assets.length < minimumUsefulAssetCount
+        ? [`Only ${state.assets.length} unique image asset(s) were collected from ${collectedImageCandidateCount} candidate(s). The deck may need to reuse visuals.`]
+        : []
+      : ["No meaningful webpage image candidates were found. PPTX slides will use text-led layouts and placeholders."];
+
+    updateSalesKitFlowRun({ status: "running", stage: "strategy", detail: tl("salesKitStageStrategy") });
+    const strategyPayload = await runSalesKitJsonStep({
+      model,
+      role: "a senior product marketing strategist",
+      instruction: "Convert webpage facts into a sales kit narrative: product name, audience, pain points, benefits, differentiators, proof points, and one-line value proposition.",
+      input: { pages: state.pages, assets: state.assets, input: state.input },
+      schema: '{"strategy":{"productName":"...","oneLineValueProp":"...","targetAudience":["..."],"coreMessages":["..."],"painPoints":["..."],"benefits":["..."],"differentiators":["..."],"proofPoints":["..."],"recommendedTone":"..."}}',
+    });
+    state.strategy = strategyPayload.strategy || {};
+
+    updateSalesKitFlowRun({ status: "running", stage: "storyboard", detail: tl("salesKitStageStoryboard") });
+    const storyboardPayload = await runSalesKitJsonStep({
+      model,
+      role: "a keynote-level presentation planner",
+      instruction: "Create a slide-by-slide storyboard for a marketing sales kit. Assign suitable image asset IDs. Use varied assets across slides; do not repeat an asset ID unless it is the cover hero used as a deliberate motif.",
+      input: { pages: state.pages, assets: state.assets, strategy: state.strategy, input: state.input },
+      schema: '{"storyboard":[{"slideNo":1,"title":"...","subtitle":"...","layout":"cover","speakerIntent":"...","bullets":["..."],"visualDirection":"...","assetIds":["asset_001"],"notes":"..."}],"storyboardWarnings":["..."]}',
+    });
+    state.storyboard = Array.isArray(storyboardPayload.storyboard) ? storyboardPayload.storyboard : [];
+    state.storyboardWarnings = storyboardPayload.storyboardWarnings || [];
+
+    updateSalesKitFlowRun({ status: "running", stage: "slides", detail: tl("salesKitStageSlides") });
+    const slidesPayload = await runSalesKitJsonStep({
+      model,
+      role: "a senior presentation copywriter and slide designer",
+      instruction: "Convert the storyboard into final PPT-ready slide content. Keep each slide concise, executive-friendly, and grounded in source facts. Preserve varied asset IDs from the storyboard and avoid looping the same image.",
+      input: { storyboard: state.storyboard, strategy: state.strategy, assets: state.assets, input: state.input },
+      schema: '{"slides":[{"slideNo":1,"title":"...","subtitle":"...","layout":"cover","eyebrow":"...","bullets":["..."],"callout":"...","visualDirection":"...","assetIds":["asset_001"],"speakerNotes":"..."}],"designSystem":{"styleName":"...","colors":["#111111","#FFFFFF"],"fontMood":"modern, clean, premium","layoutRules":["..."]}}',
+    });
+    state.generatedSlides = slidesPayload.slides || [];
+    state.designSystem = slidesPayload.designSystem || {};
+
+    updateSalesKitFlowRun({ status: "running", stage: "export", detail: tl("salesKitStageExport") });
+    const deckSpec = buildSalesKitDeckSpec(state, slidesPayload);
+    const enrichedDeckSpec = applyPowerPointTemplateOptions(deckSpec, {
+      powerPointThemePreference: "dark",
+      powerPointTemplateId: POWERPOINT_TEMPLATE_IDS.executiveGrid,
+    });
+    const markdown = buildSalesKitMarkdownSource(state, enrichedDeckSpec.slides);
+    const fileName = buildPowerPointFilename(enrichedDeckSpec.title, "sales-kit");
+    const pptxBytes = await buildPowerPointFileBytes(enrichedDeckSpec);
+    const workFolderResult = await saveSalesKitOutputsToWorkFolder({
+      deckSpec: enrichedDeckSpec,
+      state,
+      markdown,
+      pptxBytes,
+      fileName,
+    });
+    state.pptxBuildResult = {
+      pptxPath: workFolderResult.path ? `${workFolderResult.path}/${fileName}` : "",
+      markdownPath: workFolderResult.path ? `${workFolderResult.path}/deck-source.md` : "",
+      assetManifestPath: workFolderResult.path ? `${workFolderResult.path}/asset-manifest.json` : "",
+      warnings: [
+        ...(state.collectionWarnings || []),
+        ...(state.assetWarnings || []),
+        ...(state.storyboardWarnings || []),
+        ...(workFolderResult.warnings || []),
+      ],
+    };
+
+    const assistantMessageId = Date.now() + 1;
+    chatMessages.push({
+      id: assistantMessageId,
+      role: "assistant",
+      content: [
+        `## ${tl("salesKitWorkflowTitle")}`,
+        "",
+        workFolderResult.path ? tl("salesKitOutputSaved", { path: workFolderResult.path }) : tl("salesKitOutputDownloadOnly"),
+        state.pptxBuildResult.warnings.length ? `\nWarnings:\n${state.pptxBuildResult.warnings.map((item) => `- ${item}`).join("\n")}` : "",
+      ].filter(Boolean).join("\n"),
+      generatedDeckSpec: enrichedDeckSpec,
+      generatedArtifactType: "pptx",
+      generatedFileName: fileName,
+    });
+    updateSalesKitFlowRun({
+      status: "complete",
+      stage: "export",
+      detail: tl("salesKitStageDone"),
+      generatedMessageId: assistantMessageId,
+      generatedFileName: fileName,
+    });
+    setStatus(workFolderResult.path ? tl("salesKitOutputSaved", { path: workFolderResult.path }) : tl("salesKitOutputDownloadOnly"));
+  } catch (error) {
+    updateSalesKitFlowRun({ status: "failed", detail: error instanceof Error ? error.message : tl("salesKitStageFailed") });
+    chatMessages.push({
+      id: Date.now() + 1,
+      role: "assistant",
+      content: `${tl("salesKitStageFailed")}\n\n${error instanceof Error ? error.message : String(error)}`,
+    });
+    setStatus(error instanceof Error ? error.message : tl("salesKitStageFailed"));
+  } finally {
+    isGenerating = false;
+    renderShell();
+    renderMessages();
+    scheduleConversationSave();
+  }
+}
+
 function getAgentFlowPreview(text) {
   return getPerspectivePreview(text);
 }
@@ -16350,6 +17357,18 @@ async function openInvestmentProposalBuilderWindow() {
   const result = await runtimeMessage({ type: "investment-proposal:open-builder" });
   if (!result?.ok) {
     throw new Error(result?.error || tl("investmentProposalBuilderOpenFailed"));
+  }
+  return result;
+}
+
+async function openRedExcelWorkbookFlowWindow() {
+  const result = await runtimeMessage({
+    type: "red-excel:open-generator",
+    specUrl: window.location.href || "",
+    pageTitle: document.title || "",
+  });
+  if (!result?.ok) {
+    throw new Error(result?.error || tl("redExcelWorkbookFlowOpenFailed"));
   }
   return result;
 }
@@ -17681,6 +18700,7 @@ async function handleClick(event) {
       customStarterBuilderOpen = true;
       agentFlowBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      salesKitBuilderOpen = false;
       landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
@@ -17696,6 +18716,7 @@ async function handleClick(event) {
       agentFlowBuilderOpen = true;
       customStarterBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      salesKitBuilderOpen = false;
       landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
@@ -17710,6 +18731,7 @@ async function handleClick(event) {
       batchUrlQaShouldFocusUrls = true;
       customStarterBuilderOpen = false;
       agentFlowBuilderOpen = false;
+      salesKitBuilderOpen = false;
       landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
@@ -17727,6 +18749,7 @@ async function handleClick(event) {
       customStarterBuilderOpen = false;
       agentFlowBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      salesKitBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
       browserTabPickerOpen = false;
@@ -17735,10 +18758,25 @@ async function handleClick(event) {
       return;
     }
 
+    if (starter.id === "builtin:urlToSalesKitPptxFlow") {
+      salesKitBuilderOpen = true;
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
+      landingPageBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      ensureSalesKitBuilderDraft();
+      renderShell();
+      return;
+    }
+
     if (starter.id === "builtin:investmentProposalBuilder") {
       customStarterBuilderOpen = false;
       agentFlowBuilderOpen = false;
       batchUrlQaBuilderOpen = false;
+      salesKitBuilderOpen = false;
       landingPageBuilderOpen = false;
       includePickerOpen = false;
       localDocumentPickerOpen = false;
@@ -17750,6 +18788,26 @@ async function handleClick(event) {
         setStatus(tl("investmentProposalBuilderOpened"));
       } catch (error) {
         setStatus(error instanceof Error ? error.message : String(error || tl("investmentProposalBuilderOpenFailed")));
+      }
+      return;
+    }
+
+    if (starter.id === "builtin:redExcelWorkbookFlow") {
+      customStarterBuilderOpen = false;
+      agentFlowBuilderOpen = false;
+      batchUrlQaBuilderOpen = false;
+      salesKitBuilderOpen = false;
+      landingPageBuilderOpen = false;
+      includePickerOpen = false;
+      localDocumentPickerOpen = false;
+      browserTabPickerOpen = false;
+      renderShell();
+      setStatus(tl("redExcelWorkbookFlowOpening"));
+      try {
+        await openRedExcelWorkbookFlowWindow();
+        setStatus(tl("redExcelWorkbookFlowOpened"));
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error || tl("redExcelWorkbookFlowOpenFailed")));
       }
       return;
     }
@@ -17936,12 +18994,26 @@ async function handleClick(event) {
     return;
   }
 
+  if (action === "close-sales-kit-builder") {
+    salesKitBuilderOpen = false;
+    renderShell();
+    return;
+  }
+
   if (action === "open-batch-url-qa-builder") {
     batchUrlQaBuilderOpen = true;
     batchUrlQaShouldFocusUrls = true;
     loadBatchUrlQaActiveJob().catch(() => {});
     loadBatchUrlQaWorkFolderStatus().catch(() => {});
     renderShell();
+    return;
+  }
+
+  if (action === "start-sales-kit-flow") {
+    if (isGenerating) {
+      return;
+    }
+    await runSalesKitFlowFromBuilder();
     return;
   }
 
@@ -18719,6 +19791,18 @@ async function handleChange(event) {
       });
     }
     renderShell();
+    return;
+  }
+
+  if (target instanceof HTMLSelectElement && target.dataset.role === "sales-kit-language") {
+    ensureSalesKitBuilderDraft().language = target.value;
+    renderShell();
+    return;
+  }
+
+  if (target instanceof HTMLSelectElement && target.dataset.role === "sales-kit-tone") {
+    ensureSalesKitBuilderDraft().tone = target.value;
+    renderShell();
   }
 }
 
@@ -18755,6 +19839,29 @@ function handleInput(event) {
 
   if (target instanceof HTMLTextAreaElement && target.dataset.role === "batch-url-qa-urls") {
     ensureBatchUrlQaBuilderDraft().urls = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "sales-kit-urls") {
+    ensureSalesKitBuilderDraft().urls = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "sales-kit-audience") {
+    ensureSalesKitBuilderDraft().audience = target.value;
+    return;
+  }
+
+  if (target instanceof HTMLInputElement && target.dataset.role === "sales-kit-slide-count") {
+    const parsed = Number.parseInt(target.value, 10);
+    const normalized = Number.isFinite(parsed) ? String(Math.min(20, Math.max(6, parsed))) : "10";
+    target.value = normalized;
+    ensureSalesKitBuilderDraft().slideCount = normalized;
+    return;
+  }
+
+  if (target instanceof HTMLTextAreaElement && target.dataset.role === "sales-kit-brand-style") {
+    ensureSalesKitBuilderDraft().brandStyle = target.value;
     return;
   }
 
@@ -19612,7 +20719,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return false;
     }
 
-    sendResponse({ ok: true, context: getPageContext(true, { expandDetails: message?.expandDetails === true }) });
+    const context = getPageContext(true, {
+      expandDetails: message?.expandDetails === true,
+      imageCandidateLimit: Number.parseInt(String(message?.imageCandidateLimit || MAX_PAGE_IMAGE_CANDIDATES), 10) || MAX_PAGE_IMAGE_CANDIDATES,
+    });
+    if (message?.includeSalesKitImages === true) {
+      context.salesKitImageCandidates = getPageImageSnapshot(SALES_KIT_MAX_IMAGE_CANDIDATES, true);
+    }
+    sendResponse({ ok: true, context });
     return false;
   }
 
@@ -19636,6 +20750,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
     }
     return false;
+  }
+
+  if (message?.type === "edge-ai-chat:run-sales-kit-fixture") {
+    if (!IS_TOP_FRAME) {
+      sendResponse({ ok: false, error: "Sales kit flow is only available from the top frame." });
+      return false;
+    }
+    try {
+      salesKitBuilderDraft = {
+        ...createDefaultSalesKitBuilderDraft(),
+        ...(message.input || {}),
+        urls: Array.isArray(message.input?.urls) ? message.input.urls.join("\n") : String(message.input?.urls || ""),
+        slideCount: String(message.input?.slideCount || 10),
+      };
+      salesKitBuilderOpen = true;
+      renderShell();
+      runSalesKitFlowFromBuilder()
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+    } catch (error) {
+      sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return true;
   }
 
   if (message?.type === "edge-ai-chat:analyze-image-context-menu") {

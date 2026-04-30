@@ -284,6 +284,24 @@ async function openInvestmentProposalBuilderWindow() {
   }
 }
 
+async function openRedExcelGeneratorWindow(options = {}) {
+  const url = new URL(chrome.runtime.getURL("red_excel_generator.html"));
+  const specUrl = String(options.specUrl || "").trim();
+  const pageTitle = String(options.pageTitle || "").trim();
+  if (specUrl) {
+    url.searchParams.set("spec", specUrl);
+  }
+  if (pageTitle) {
+    url.searchParams.set("title", pageTitle);
+  }
+  const tab = await chrome.tabs.create({ url: String(url), active: true });
+  return {
+    ok: true,
+    tabId: tab?.id ?? null,
+    mode: "tab",
+  };
+}
+
 async function getNextExportSequence() {
   const { [EXPORT_SEQUENCE_KEY]: current } = await chrome.storage.local.get(EXPORT_SEQUENCE_KEY);
   const nextValue = Number.isFinite(Number(current)) ? Number(current) + 1 : 1;
@@ -355,6 +373,13 @@ async function writeTextFile(handle, filename, contents) {
   const fileHandle = await handle.getFileHandle(filename, { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(contents);
+  await writable.close();
+}
+
+async function writeBinaryFile(handle, filename, bytes) {
+  const fileHandle = await handle.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(bytes);
   await writable.close();
 }
 
@@ -2401,6 +2426,17 @@ async function writeWorkFolderText(path, fileName, contents) {
   await writeTextFile(directoryHandle, fileName, String(contents || ""));
 }
 
+async function writeWorkFolderBinary(path, fileName, base64) {
+  const rootHandle = await getWritableWorkFolderHandle();
+  const directoryHandle = await ensureDirectoryHandle(rootHandle, path);
+  const binary = atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  await writeBinaryFile(directoryHandle, fileName, bytes);
+}
+
 async function readWorkFolderJson(path, fileName) {
   const rootHandle = await getWritableWorkFolderHandle();
   const directoryHandle = await resolveDirectoryHandle(rootHandle, path);
@@ -2417,6 +2453,33 @@ async function writeNamedWorkFolderJson(options = {}) {
   return {
     path,
     fileName,
+  };
+}
+
+async function writeNamedWorkFolderText(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  await writeWorkFolderText(path, fileName, options.contents || "");
+  return {
+    path,
+    fileName,
+  };
+}
+
+async function writeNamedWorkFolderBinary(options = {}) {
+  const path = String(options.path || "").trim();
+  const fileName = String(options.fileName || "").trim();
+  if (!fileName) {
+    throw new Error("Local work folder file name is required.");
+  }
+  await writeWorkFolderBinary(path, fileName, options.base64 || "");
+  return {
+    path,
+    fileName,
+    mimeType: String(options.mimeType || "application/octet-stream"),
   };
 }
 
@@ -3261,16 +3324,174 @@ async function waitForTabCompletion(tabId, timeoutMs = 30000) {
   throw new Error("Timed out while waiting for the page to load.");
 }
 
+function normalizeExtractedImageUrl(value = "", baseUrl = "") {
+  const raw = String(value || "")
+    .trim()
+    .replace(/\\\//g, "/")
+    .replace(/&amp;/g, "&");
+  if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) {
+    return "";
+  }
+
+  try {
+    return new URL(raw, baseUrl).href;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function extractHtmlAttribute(tag = "", name = "") {
+  const pattern = new RegExp(`${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "i");
+  const match = pattern.exec(String(tag || ""));
+  if (!match) {
+    return "";
+  }
+  return String(match[1] || "").replace(/^['"]|['"]$/g, "").trim();
+}
+
+function extractLargestSrcsetEntries(srcset = "") {
+  const entries = String(srcset || "")
+    .replace(/\\\//g, "/")
+    .split(",")
+    .map((item) => {
+      const parts = item.trim().split(/\s+/).filter(Boolean);
+      const src = parts[0] || "";
+      const descriptor = parts[1] || "";
+      const widthMatch = descriptor.match(/^(\d+)w$/i);
+      const densityMatch = descriptor.match(/^(\d+(?:\.\d+)?)x$/i);
+      return {
+        src,
+        score: widthMatch ? Number(widthMatch[1]) : densityMatch ? Number(densityMatch[1]) * 1000 : 0,
+      };
+    })
+    .filter((item) => item.src);
+  entries.sort((a, b) => b.score - a.score);
+  return entries.slice(0, 3).map((item) => item.src);
+}
+
+function appendRawHtmlImageCandidate(candidates, seen, url, baseUrl, alt = "") {
+  const normalizedUrl = normalizeExtractedImageUrl(url, baseUrl);
+  if (!normalizedUrl) {
+    return;
+  }
+  const key = normalizedUrl.toLowerCase();
+  if (!/\.(?:png|jpe?g|webp|gif|avif|svg)(?:[?#]|$)/i.test(key)) {
+    return;
+  }
+  if (/(sprite|tracking|pixel|spacer|blank|favicon|social|facebook|instagram|youtube|twitter|pinterest|linkedin)/i.test(key)) {
+    return;
+  }
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  candidates.push({
+    src: normalizedUrl,
+    alt: normalizeTaskText(alt, 180),
+    source: "raw-html",
+  });
+}
+
+function extractImageCandidatesFromRawHtml(html = "", baseUrl = "", maxItems = 96) {
+  const candidates = [];
+  const seen = new Set();
+  const source = String(html || "");
+  const tagPattern = /<(?:img|source|meta|link)\b[^>]*>/gi;
+  let tagMatch;
+  while ((tagMatch = tagPattern.exec(source)) && candidates.length < maxItems) {
+    const tag = tagMatch[0] || "";
+    const alt = extractHtmlAttribute(tag, "alt")
+      || extractHtmlAttribute(tag, "aria-label")
+      || extractHtmlAttribute(tag, "title")
+      || extractHtmlAttribute(tag, "content");
+    [
+      extractHtmlAttribute(tag, "src"),
+      extractHtmlAttribute(tag, "href"),
+      extractHtmlAttribute(tag, "content"),
+      extractHtmlAttribute(tag, "poster"),
+      extractHtmlAttribute(tag, "data-src"),
+      extractHtmlAttribute(tag, "data-original"),
+      extractHtmlAttribute(tag, "data-lazy-src"),
+      extractHtmlAttribute(tag, "data-bg"),
+      ...extractLargestSrcsetEntries(extractHtmlAttribute(tag, "srcset")),
+      ...extractLargestSrcsetEntries(extractHtmlAttribute(tag, "data-srcset")),
+    ].filter(Boolean).forEach((candidateUrl) => appendRawHtmlImageCandidate(candidates, seen, candidateUrl, baseUrl, alt));
+  }
+
+  const quotedAssetPattern = /["']((?:https?:)?\\?\/\\?\/[^"']+?\.(?:png|jpe?g|webp|gif|avif|svg)(?:\?[^"']*)?|\/[^"']+?\.(?:png|jpe?g|webp|gif|avif|svg)(?:\?[^"']*)?)["']/gi;
+  let quotedAssetMatch;
+  while ((quotedAssetMatch = quotedAssetPattern.exec(source)) && candidates.length < maxItems) {
+    appendRawHtmlImageCandidate(candidates, seen, quotedAssetMatch[1], baseUrl, "");
+  }
+
+  const backgroundPattern = /url\((['"]?)(.*?)\1\)/gi;
+  let backgroundMatch;
+  while ((backgroundMatch = backgroundPattern.exec(source)) && candidates.length < maxItems) {
+    appendRawHtmlImageCandidate(candidates, seen, backgroundMatch[2], baseUrl, "");
+  }
+
+  return candidates.slice(0, maxItems);
+}
+
+function mergePageImageCandidates(primary = [], secondary = []) {
+  const merged = [];
+  const seen = new Set();
+  [...(Array.isArray(primary) ? primary : []), ...(Array.isArray(secondary) ? secondary : [])].forEach((candidate) => {
+    const key = String(candidate?.src || candidate?.sourceUrl || "").trim().toLowerCase();
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    merged.push(candidate);
+  });
+  return merged;
+}
+
 async function getPageContextFromUrl(url) {
+  const rawHtmlImageCandidatesPromise = fetchText(String(url || ""), { credentials: "include" })
+    .then((html) => extractImageCandidatesFromRawHtml(html, url))
+    .catch(() => []);
   const tab = await chrome.tabs.create({ url, active: false });
   try {
     await waitForTabCompletion(Number(tab.id));
+    await chrome.scripting.executeScript({
+      target: { tabId: Number(tab.id) },
+      func: async () => {
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const maxY = Math.max(
+          document.documentElement?.scrollHeight || 0,
+          document.body?.scrollHeight || 0,
+          window.innerHeight || 0,
+        );
+        const step = Math.max(420, Math.floor((window.innerHeight || 900) * 0.75));
+        for (let y = 0; y <= maxY; y += step) {
+          window.scrollTo(0, y);
+          await sleep(180);
+        }
+        window.scrollTo(0, 0);
+        await sleep(350);
+      },
+    }).catch(() => {});
     let injectedFallback = false;
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
-        const response = await chrome.tabs.sendMessage(Number(tab.id), { type: "edge-ai-chat:get-page-context", expandDetails: true });
+        const response = await chrome.tabs.sendMessage(Number(tab.id), {
+          type: "edge-ai-chat:get-page-context",
+          expandDetails: true,
+          includeSalesKitImages: true,
+          imageCandidateLimit: 48,
+        });
         if (response?.ok && response.context) {
-          return response.context;
+          const rawHtmlImageCandidates = await rawHtmlImageCandidatesPromise;
+          const salesKitImageCandidates = mergePageImageCandidates(
+            response.context.salesKitImageCandidates || response.context.imageCandidates,
+            rawHtmlImageCandidates,
+          );
+          return {
+            ...response.context,
+            rawHtmlImageCandidates,
+            salesKitImageCandidates,
+          };
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -4522,6 +4743,36 @@ async function getBrowserTabContexts({ tabIds = [], excludedTabId } = {}) {
   return results;
 }
 
+function escapeOllamaPromptText(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\\n")
+    .replace(/\r/g, "\\n")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
+}
+
+function normalizeOllamaMessagesForBackend(messages = []) {
+  return (Array.isArray(messages) ? messages : []).map((message) => ({
+    ...message,
+    content: escapeOllamaPromptText(message?.content),
+  }));
+}
+
+function buildOllamaJsonBody(payload) {
+  // Hailo's Ollama-compatible runner parses prompt fields again internally, so
+  // keep control characters escaped inside prompt/message content as well.
+  const normalizedPayload = {
+    ...payload,
+  };
+  if (Object.prototype.hasOwnProperty.call(normalizedPayload, "prompt")) {
+    normalizedPayload.prompt = escapeOllamaPromptText(normalizedPayload.prompt);
+  }
+  if (Object.prototype.hasOwnProperty.call(normalizedPayload, "messages")) {
+    normalizedPayload.messages = normalizeOllamaMessagesForBackend(normalizedPayload.messages);
+  }
+  return JSON.stringify(normalizedPayload);
+}
+
 async function generateWithOllama(prompt, model) {
   const config = await getConfig();
   const baseUrl = normalizeBaseUrl(config.ollamaUrl);
@@ -4540,7 +4791,7 @@ async function generateWithOllama(prompt, model) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+    body: buildOllamaJsonBody({
       model: selectedModel,
       prompt,
       stream: false,
@@ -4572,7 +4823,7 @@ async function streamGenerateWithOllama(port, prompt, model) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+    body: buildOllamaJsonBody({
       model: selectedModel,
       prompt,
       stream: true,
@@ -4692,7 +4943,7 @@ async function streamChatWithOllamaGenerateFallback(port, baseUrl, selectedModel
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+    body: buildOllamaJsonBody({
       model: selectedModel,
       prompt,
       images,
@@ -4788,7 +5039,7 @@ async function streamChatWithOllama(port, messages, model) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
+    body: buildOllamaJsonBody({
       model: selectedModel,
       messages,
       stream: true,
@@ -5900,6 +6151,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(await openInvestmentProposalBuilderWindow());
         return;
       }
+      case "red-excel:open-generator": {
+        sendResponse(await openRedExcelGeneratorWindow(message || {}));
+        return;
+      }
       case "ollama:set-work-folder": {
         await setWorkFolderHandle(message.handle);
         sendResponse({ ok: true, status: await getWorkFolderStatus() });
@@ -5936,6 +6191,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "work-folder:write-json": {
         sendResponse({ ok: true, file: await writeNamedWorkFolderJson(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:write-text": {
+        sendResponse({ ok: true, file: await writeNamedWorkFolderText(message || {}), status: await getWorkFolderStatus() });
+        return;
+      }
+      case "work-folder:write-binary": {
+        sendResponse({ ok: true, file: await writeNamedWorkFolderBinary(message || {}), status: await getWorkFolderStatus() });
         return;
       }
       case "work-folder:read-json": {

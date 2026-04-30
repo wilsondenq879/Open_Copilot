@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RED Excel Agent Flow</title>
+    <link rel="stylesheet" href="src/ui.css" />
+  </head>
+  <body class="settings-page" data-theme="light">
+    <div class="settings-backdrop"></div>
+    <main class="panel settings-panel red-excel-tool">
+      <div class="panel-header settings-header">
+        <div>
+          <div class="eyebrow">Open Copilot</div>
+          <h1>RED Excel Agent Flow</h1>
+          <p>填入 Cover 文件欄位與 Interface-01 Wi-Fi Radio 選項，產出兩份更新後的 .xlsx。</p>
+        </div>
+      </div>
+
+      <section class="settings-layout">
+        <article class="setting-card starter-library-panel">
+          <div class="starter-library-hero">
+            <div class="starter-library-copy">
+              <span class="section-kicker">Templates</span>
+              <h2 class="starter-studio-title">Built-in Excel Templates</h2>
+              <p class="field-hint">已內建 EN 18031-1 與 EN 18031-2 的 .xlsx 模板，不需要上傳檔案。</p>
+            </div>
+          </div>
+
+          <div class="split-fields settings-compact-fields">
+            <label class="field">
+              <span>Model name</span>
+              <input id="modelNameValue" type="text" placeholder="RT-BE59" />
+            </label>
+            <label class="field">
+              <span>UM</span>
+              <input id="umValue" type="text" placeholder="E27527_RT-BE59_UM_EAA" />
+              <span class="field-hint">貼上 user manual 檔案名稱</span>
+            </label>
+          </div>
+
+          <div class="split-fields settings-compact-fields">
+            <label class="field">
+              <span>QSG</span>
+              <input id="qsgValue" type="text" placeholder="U26937_RT-BE59_folded_EU_QSG_312x450mm_PRINT" />
+              <span class="field-hint">貼上 Quick start guide 檔案名稱</span>
+            </label>
+            <label class="field">
+              <span>Spec</span>
+              <input id="specValue" type="text" placeholder="https://www.asus.com/..." />
+              <span class="field-hint">貼上官網 spec 頁面網址</span>
+            </label>
+          </div>
+
+          <div class="actions settings-inline-actions">
+            <button id="analyzeSpecButton" class="secondary-button" type="button">Analyze Spec URL</button>
+            <span id="ioSpecSummary" class="field-hint">I/O spec 尚未分析。</span>
+          </div>
+
+          <label class="field">
+            <span>Interface-01 Wi-Fi Radio</span>
+            <select id="wifiValue">
+              <option value="Wi-Fi Radio (2.4 & 5GHz)">Wi-Fi Radio (2.4 & 5GHz)</option>
+              <option value="Wi-Fi Radio (2.4 & 5 & 6GHz)">Wi-Fi Radio (2.4 & 5 & 6GHz)</option>
+            </select>
+          </label>
+
+          <div class="actions settings-inline-actions">
+            <button id="generateButton" class="primary-button" type="button">Generate Two Excel Files</button>
+            <button id="fillExampleButton" class="secondary-button" type="button">Fill Example</button>
+          </div>
+          <p id="statusMessage" class="field-hint">Ready.</p>
+        </article>
+      </section>
+    </main>
+    <script src="red_excel_generator.js"></script>
+  </body>
+</html>

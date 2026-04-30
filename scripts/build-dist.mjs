@@ -6,7 +6,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, "..");
 const distDir = resolve(rootDir, "dist");
 
-const entriesToCopy = ["manifest.json", "src", "assets"];
+const entriesToCopy = [
+  "manifest.json",
+  "src",
+  "assets",
+  "jsonl_ex.html",
+  "jsonl_ex.js",
+  "knowledge_base_tester.html",
+  "knowledge_base_tester.js",
+  "red_excel_generator.html",
+  "red_excel_generator.js",
+];
 
 rmSync(distDir, { recursive: true, force: true });
 mkdirSync(distDir, { recursive: true });

@@ -2621,7 +2621,7 @@ async function clearPersistedWorkFolderHandle() {
   await idbDelete(WORK_FOLDER_HANDLE_KEY);
   await chrome.storage.local.remove(LOCAL_META_KEY);
 }
-const STARTER_SCOPE_ORDER = ["all", "generic", "article", "code", "email", "github", "collaboration", "document", "market", "entertainment"];
+const STARTER_SCOPE_ORDER = ["all", "generic", "article", "marketing", "code", "email", "github", "collaboration", "document", "market", "entertainment"];
 const BUILTIN_STARTER_KEYS = [
   "pageSummary",
   "translatePage",
@@ -2630,6 +2630,14 @@ const BUILTIN_STARTER_KEYS = [
   "imageAnalysis",
   "imageAnalysisMarkdown",
   "landingHtml",
+  "landingPowerPoint",
+  "urlToSalesKitPptxFlow",
+  "urlSaleskitCollector",
+  "urlSaleskitAssetExtractor",
+  "urlSaleskitMarketingStrategist",
+  "urlSaleskitStoryboardPlanner",
+  "urlSaleskitPptxContentGenerator",
+  "urlSaleskitPptxBuilder",
   "articleTimeline",
   "articleBiasCheck",
   "codeRiskReview",
@@ -2688,6 +2696,14 @@ const BUILTIN_STARTER_SCOPE_MAP = {
   imageAnalysis: ["all"],
   imageAnalysisMarkdown: ["all"],
   landingHtml: ["article", "document", "generic"],
+  landingPowerPoint: ["article", "document", "generic"],
+  urlToSalesKitPptxFlow: ["generic", "article", "marketing"],
+  urlSaleskitCollector: ["generic", "article", "marketing"],
+  urlSaleskitAssetExtractor: ["generic", "article", "marketing"],
+  urlSaleskitMarketingStrategist: ["generic", "article", "marketing"],
+  urlSaleskitStoryboardPlanner: ["generic", "article", "marketing"],
+  urlSaleskitPptxContentGenerator: ["generic", "article", "marketing"],
+  urlSaleskitPptxBuilder: ["generic", "article", "marketing"],
   articleTimeline: ["article"],
   articleBiasCheck: ["article"],
   codeRiskReview: ["code", "github"],
@@ -2747,6 +2763,14 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
     imageAnalysis: "描述圖片內容、重點元素與可能的含意。",
     imageAnalysisMarkdown: "分析圖片後整理成 Markdown 或 Mermaid 結構化輸出。",
     landingHtml: "把目前內容改寫成可直接開啟的單頁 HTML。",
+    landingPowerPoint: "把目前內容整理成可下載、可編輯的 PowerPoint。",
+    urlToSalesKitPptxFlow: "輸入一個或多個 URL，產出行銷導向 sales kit PowerPoint。",
+    urlSaleskitCollector: "收集 URL 頁面的標題、段落、CTA 與重點文案。",
+    urlSaleskitAssetExtractor: "抽取並分類網頁中適合簡報使用的圖片素材。",
+    urlSaleskitMarketingStrategist: "把網頁事實轉成產品行銷訊息與銷售敘事。",
+    urlSaleskitStoryboardPlanner: "規劃 sales kit 的逐頁故事線與圖片配置。",
+    urlSaleskitPptxContentGenerator: "把故事板整理成可直接封裝的投影片文案。",
+    urlSaleskitPptxBuilder: "封裝 PPTX、來源 Markdown、JSON 與素材清單。",
     articleTimeline: "把文章或頁面中的事件依時間順序整理出來。",
     articleBiasCheck: "分析主張依據、隱含假設，以及可能忽略的反面觀點。",
     codeRiskReview: "用 code review 角度盤點潛在 bug、風險與可改進處。",
@@ -2805,6 +2829,14 @@ const BUILTIN_STARTER_DESCRIPTION_MAP = {
     imageAnalysis: "Describe the image, key elements, and likely meaning.",
     imageAnalysisMarkdown: "Analyze the image and output the result in Markdown or Mermaid form.",
     landingHtml: "Turn the current material into a single downloadable HTML page.",
+    landingPowerPoint: "Turn the current material into a downloadable, editable PowerPoint deck.",
+    urlToSalesKitPptxFlow: "Enter one or more URLs and generate a marketing-oriented sales kit PowerPoint.",
+    urlSaleskitCollector: "Collect page titles, sections, CTAs, and key source copy from URLs.",
+    urlSaleskitAssetExtractor: "Extract and classify webpage images that are useful for a presentation.",
+    urlSaleskitMarketingStrategist: "Turn grounded webpage facts into product marketing and sales messaging.",
+    urlSaleskitStoryboardPlanner: "Plan the sales kit slide-by-slide with visual assignments.",
+    urlSaleskitPptxContentGenerator: "Convert the storyboard into PPT-ready slide copy.",
+    urlSaleskitPptxBuilder: "Package the PPTX, source Markdown, JSON, and asset manifest.",
     articleTimeline: "Reconstruct the events on the page in time order.",
     articleBiasCheck: "Analyze the main claims, assumptions, and possible blind spots.",
     codeRiskReview: "Scan the visible code for bugs, risky areas, and improvement opportunities.",
@@ -2865,6 +2897,14 @@ const BUILTIN_STARTER_LABEL_MAP = {
     imageAnalysis: "看圖整理重點",
     imageAnalysisMarkdown: "圖片分析後 md/mermaid 輸出",
     landingHtml: "將網頁內容整理成html簡報",
+    landingPowerPoint: "將網頁內容整理成PowerPoint",
+    urlToSalesKitPptxFlow: "URL 生成 Sales Kit PPTX",
+    urlSaleskitCollector: "Sales Kit · 收集內容",
+    urlSaleskitAssetExtractor: "Sales Kit · 抽取圖片",
+    urlSaleskitMarketingStrategist: "Sales Kit · 行銷策略",
+    urlSaleskitStoryboardPlanner: "Sales Kit · 故事板",
+    urlSaleskitPptxContentGenerator: "Sales Kit · PPT 文案",
+    urlSaleskitPptxBuilder: "Sales Kit · PPTX 輸出",
     articleTimeline: "整理事件時間軸",
     articleBiasCheck: "分析觀點與盲點",
     codeRiskReview: "找出程式風險",
@@ -2952,6 +2992,12 @@ Object.assign(OPTION_I18N["zh-TW"], {
     jsonlToolDescription: "編輯 `canonical_question`、`question_aliases`、`answers`，可用 Azure OpenAI 或 Ollama 協助整理，並支援暫存與寫回 JSONL。",
     jsonlToolOpen: "在新分頁開啟工具",
     jsonlToolHint: "這會以 extension 頁面開啟，可避開常見的 `file://` fetch 限制，並沿用 Open Copilot 已儲存的 provider 設定。",
+    redExcelToolKicker: "Excel",
+    redExcelToolTitle: "RED Excel Agent Flow",
+    redExcelToolTag: "Agent Flow",
+    redExcelToolDescription: "填入 UM、QSG、Spec，選擇 Interface-01 Wi-Fi Radio，並產出 EN 18031-1 與 EN 18031-2 Excel。",
+    redExcelToolOpen: "開啟 RED Excel Flow",
+    redExcelToolHint: "兩份模板都使用 .xlsx。產生後會直接由瀏覽器下載兩份檔案。",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "這裡會列出所有內建與自訂 skill。內建 skill 也會顯示，但不能刪除。",
   flowsPageTitle: "Agent Flows",
@@ -3040,6 +3086,12 @@ Object.assign(OPTION_I18N.en, {
     jsonlToolDescription: "Edit `canonical_question`, `question_aliases`, and `answers`, use Azure OpenAI or Ollama for help, auto-save drafts, then write back to JSONL.",
     jsonlToolOpen: "Open Tool In New Tab",
     jsonlToolHint: "This opens as an extension page, which avoids the usual `file://` fetch restrictions and reuses your saved Open Copilot provider settings.",
+    redExcelToolKicker: "Excel",
+    redExcelToolTitle: "RED Excel Agent Flow",
+    redExcelToolTag: "Agent Flow",
+    redExcelToolDescription: "Fill UM, QSG, Spec, select Interface-01 Wi-Fi Radio, then generate the EN 18031-1 and EN 18031-2 Excel outputs.",
+    redExcelToolOpen: "Open RED Excel Flow",
+    redExcelToolHint: "Use .xlsx templates for both workbooks. The generated files are downloaded directly from your browser.",
   skillsPageTitle: "Skills Library",
   skillsPageDescription: "Browse every built-in and custom skill here. Built-in skills are visible too, but cannot be deleted.",
   flowsPageTitle: "Agent Flows",
@@ -3460,6 +3512,18 @@ function applyTranslations() {
   if (openJsonlToolButton) openJsonlToolButton.textContent = t("jsonlToolOpen");
   const jsonlToolHint = document.getElementById("jsonlToolHint");
   if (jsonlToolHint) jsonlToolHint.textContent = t("jsonlToolHint");
+  const redExcelToolKicker = document.getElementById("redExcelToolKicker");
+  if (redExcelToolKicker) redExcelToolKicker.textContent = t("redExcelToolKicker");
+  const redExcelToolTitle = document.getElementById("redExcelToolTitle");
+  if (redExcelToolTitle) redExcelToolTitle.textContent = t("redExcelToolTitle");
+  const redExcelToolTag = document.getElementById("redExcelToolTag");
+  if (redExcelToolTag) redExcelToolTag.textContent = t("redExcelToolTag");
+  const redExcelToolDescription = document.getElementById("redExcelToolDescription");
+  if (redExcelToolDescription) redExcelToolDescription.textContent = t("redExcelToolDescription");
+  const openRedExcelToolButton = document.getElementById("openRedExcelToolButton");
+  if (openRedExcelToolButton) openRedExcelToolButton.textContent = t("redExcelToolOpen");
+  const redExcelToolHint = document.getElementById("redExcelToolHint");
+  if (redExcelToolHint) redExcelToolHint.textContent = t("redExcelToolHint");
   document.getElementById("agentFlowLibraryKicker").textContent = t("agentFlowLibraryKicker");
   const agentFlowLibraryTitle = document.getElementById("agentFlowLibraryTitle");
   if (agentFlowLibraryTitle) agentFlowLibraryTitle.textContent = t("agentFlowLibraryTitle");
@@ -4353,6 +4417,25 @@ function getAgentFlowStarters() {
 function getBuiltinFlowEntries() {
   return [
     {
+      id: "builtin-flow:red-excel",
+      starterKey: "redExcelWorkbookFlow",
+      label: t("redExcelToolTitle"),
+      description: t("redExcelToolDescription"),
+      scopes: ["document"],
+      showInPopup: false,
+      mode: "flow",
+      flowSteps: [
+        { starterId: "tool:red-excel-template-18031-1", label: "Upload EN 18031-1 .xlsx template" },
+        { starterId: "tool:red-excel-template-18031-2", label: "Upload EN 18031-2 .xlsx template" },
+        { starterId: "tool:red-excel-cover-fields", label: "Fill Cover UM, QSG, and Spec" },
+        { starterId: "tool:red-excel-interface-choice", label: "Select Interface-01 Wi-Fi Radio" },
+        { starterId: "tool:red-excel-generate-workbooks", label: "Generate two .xlsx files" },
+      ],
+      outputStepIds: ["tool:red-excel-generate-workbooks"],
+      isBuiltin: true,
+      toolUrl: "red_excel_generator.html",
+    },
+    {
       id: "builtin-flow:batch-url-qa",
       starterKey: "batchUrlQaWorkflow",
       label: t("batchUrlQaTemplateTitle"),
@@ -4635,6 +4718,10 @@ function getKnowledgeBaseTesterUrl() {
   return chrome.runtime.getURL("knowledge_base_tester.html");
 }
 
+function getRedExcelToolUrl() {
+  return chrome.runtime.getURL("red_excel_generator.html");
+}
+
 function setBatchUrlQaStatus(message, isError = false) {
   const node = document.getElementById("batchUrlQaStatus");
   if (!(node instanceof HTMLElement)) {
@@ -4913,7 +5000,9 @@ function renderFlowDetailModal() {
       </div>
     </article>
   `).join("");
-  actionsNode.innerHTML = starter.isBuiltin
+  actionsNode.innerHTML = starter.starterKey === "redExcelWorkbookFlow"
+    ? `<button class="primary-button" type="button" data-action="open-red-excel-tool">${escapeHtml(t("redExcelToolOpen"))}</button>`
+    : starter.isBuiltin
     ? `<button class="secondary-button" type="button" data-action="duplicate-builtin-flow" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("duplicateBuiltinFlow"))}</button>`
     : `
       <button class="secondary-button" type="button" data-action="edit-flow-starter" data-starter-id="${escapeHtml(starter.id)}">${escapeHtml(t("editFlow"))}</button>
@@ -5800,6 +5889,11 @@ async function handleStarterPreviewAction(event) {
     return;
   }
 
+  if (actionNode.dataset.action === "open-red-excel-tool") {
+    window.open(getRedExcelToolUrl(), "_blank", "noopener,noreferrer");
+    return;
+  }
+
   if (actionNode.dataset.action === "duplicate-builtin-skill") {
     const starter = getSkillEntryById(starterId);
     if (!starter || !starter.isBuiltin) {
@@ -5952,6 +6046,13 @@ const openKnowledgeBaseTesterButton = document.getElementById("openKnowledgeBase
 if (openKnowledgeBaseTesterButton) {
   openKnowledgeBaseTesterButton.addEventListener("click", () => {
     window.open(getKnowledgeBaseTesterUrl(), "_blank", "noopener,noreferrer");
+  });
+}
+
+const openRedExcelToolButton = document.getElementById("openRedExcelToolButton");
+if (openRedExcelToolButton) {
+  openRedExcelToolButton.addEventListener("click", () => {
+    window.open(getRedExcelToolUrl(), "_blank", "noopener,noreferrer");
   });
 }
 
