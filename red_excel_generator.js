@@ -645,6 +645,39 @@ function extractIoPortsTextFromHtml(html) {
   return "";
 }
 
+function extractButtonsTextFromHtml(html) {
+  const rowValue = extractAsusRowTableValueFromHtml(html, /^Buttons$/i);
+  if (rowValue) {
+    return rowValue;
+  }
+
+  const documentNode = new DOMParser().parseFromString(String(html || ""), "text/html");
+  const headings = [...documentNode.querySelectorAll("h1,h2,h3,h4,dt,strong")];
+  const buttonsHeading = headings.find((node) => /^Buttons$/i.test(String(node.textContent || "").trim()));
+  if (buttonsHeading) {
+    const parts = [];
+    let node = buttonsHeading.nextElementSibling;
+    while (node) {
+      const tag = String(node.tagName || "").toLowerCase();
+      if (/^h[1-4]$/.test(tag) || /LED Indicator|Power Supply|Package Content/i.test(node.textContent || "")) {
+        break;
+      }
+      const text = String(node.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) {
+        parts.push(text);
+      }
+      node = node.nextElementSibling;
+    }
+    if (parts.length) {
+      return parts.join(" ");
+    }
+  }
+
+  const pageText = visibleTextFromHtml(html);
+  const fallback = /Buttons\s+(.+?)(?:\s+LED Indicator\s+|\s+Power Supply\s+|\s+Package Content\s+)/i.exec(pageText);
+  return fallback ? fallback[1].trim() : "";
+}
+
 async function analyzeSpecUrl() {
   const url = document.getElementById("specValue").value.trim();
   if (!url) {
@@ -669,12 +702,17 @@ async function analyzeSpecUrl() {
     document.getElementById("wifiValue").value = inferredWifi;
     parsed.wifi = inferredWifi;
   }
+  const buttonsText = extractButtonsTextFromHtml(html);
+  if (buttonsText) {
+    parsed.buttonsOverview = buttonsText;
+  }
   analyzedIoSpec = parsed;
   setIoSpecSummary([
     parsed.wifi ? `Wi-Fi: ${parsed.wifi}` : "",
     parsed.lanOverview ? `LAN: ${parsed.lanOverview}` : "",
     parsed.wanOverview ? `WAN: ${parsed.wanOverview}` : "",
     parsed.usbOverview ? `USB: ${parsed.usbOverview}` : "",
+    parsed.buttonsOverview ? `Buttons: ${parsed.buttonsOverview}` : "",
   ].filter(Boolean).join(" | "));
   return parsed;
 }
@@ -715,6 +753,10 @@ function patchWorkbook(entries, values) {
   }
   if (values.ioSpec?.wanOverview) {
     interfacesXml = upsertInlineStringCell(interfacesXml, "F5", values.ioSpec.wanOverview);
+  }
+  if (values.ioSpec?.buttonsOverview) {
+    interfacesXml = upsertInlineStringCell(interfacesXml, "B7", "Physical Buttons");
+    interfacesXml = upsertInlineStringCell(interfacesXml, "F7", values.ioSpec.buttonsOverview);
   }
   if (values.ioSpec?.hasUsb && values.ioSpec.usbOverview) {
     interfacesXml = upsertInlineStringCell(interfacesXml, "A8", "Interface-06");
