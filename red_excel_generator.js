@@ -320,6 +320,7 @@ function normalizePortSpeed(value) {
   return String(value || "")
     .replace(/\b(\d+(?:\.\d+)?)\s*G\s*BaseT\b/gi, "$1G")
     .replace(/\bGigabits?\s+BaseT\b/gi, "1G")
+    .replace(/\b(\d+(?:\.\d+)?)\s*GbE\b/gi, "$1G")
     .replace(/\b(\d+(?:\.\d+)?)\s*Gbps\b/gi, "$1G")
     .replace(/\b10Gbps\b/gi, "10G")
     .replace(/\b2\.5Gbps\b/gi, "2.5G")
@@ -332,6 +333,9 @@ function normalizePortSpeed(value) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+const PORT_SPEED_PATTERN = String.raw`(?:10\/100\/1000\s*Mbps|\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)\b|Gigabits?(?:\s+BaseT)?|Gigabit\s+Ethernet)`;
+const PORT_ROLE_PATTERN = String.raw`(?:WAN\s*\/\s*LAN|WAN|LAN)`;
 
 function normalizePortRole(value) {
   const role = String(value || "").trim().toUpperCase();
@@ -356,16 +360,63 @@ function formatPortOverview(items) {
   return items.map(formatPortItem).join(", ");
 }
 
-function splitIoPortItems(rawText) {
-  const normalized = String(rawText || "")
+function normalizeIoPortText(rawText) {
+  return String(rawText || "")
     .replace(/\u00a0/g, " ")
     .replace(/([A-Za-z])x(\d+)/g, "$1 x $2")
-    .replace(/([0-9])x(\d+)/g, "$1 x $2")
+    .replace(/([0-9])x(\d+)/g, "$1 x $2");
+}
+
+function addNetworkPort(ports, count, spec, role) {
+  const normalizedCount = Number(count);
+  const normalizedSpec = normalizePortSpeed(spec);
+  const normalizedRole = normalizePortRole(role);
+  if (!Number.isFinite(normalizedCount) || normalizedCount <= 0 || !normalizedSpec || !normalizedRole) {
+    return false;
+  }
+  const key = `${normalizedCount}|${normalizedSpec}|${normalizedRole}`;
+  if (ports.some((item) => `${item.count}|${normalizePortSpeed(item.spec)}|${normalizePortRole(item.role)}` === key)) {
+    return false;
+  }
+  ports.push({ count: normalizedCount, spec: normalizedSpec, role: normalizedRole });
+  return true;
+}
+
+function scanNetworkPortMentions(rawText, networkPorts) {
+  const text = normalizeIoPortText(rawText).replace(/\s+/g, " ").trim();
+  const scans = [
+    {
+      regex: new RegExp(`RJ45\\s+for\\s+(${PORT_SPEED_PATTERN})\\s+for\\s+(${PORT_ROLE_PATTERN})\\s*x\\s*(\\d+)`, "gi"),
+      apply: (match) => addNetworkPort(networkPorts, match[3], match[1], match[2]),
+    },
+    {
+      regex: new RegExp(`(${PORT_SPEED_PATTERN})\\s+(${PORT_ROLE_PATTERN})\\s*(?:port|ports)?\\s*x\\s*(\\d+)`, "gi"),
+      apply: (match) => addNetworkPort(networkPorts, match[3], match[1], match[2]),
+    },
+    {
+      regex: new RegExp(`(\\d+)\\s*x\\s*(?:RJ45\\s+)?(${PORT_SPEED_PATTERN})\\s+(?:for\\s+)?(${PORT_ROLE_PATTERN})`, "gi"),
+      apply: (match) => addNetworkPort(networkPorts, match[1], match[2], match[3]),
+    },
+    {
+      regex: new RegExp(`(${PORT_SPEED_PATTERN})\\s*x\\s*(\\d+)\\s*\\(([^)]*?(?:WAN|LAN)[^)]*)\\)`, "gi"),
+      apply: (match) => addNetworkPort(networkPorts, match[2], match[1], inferPortRoleFromText(match[3])),
+    },
+  ];
+  scans.forEach(({ regex, apply }) => {
+    let match;
+    while ((match = regex.exec(text))) {
+      apply(match);
+    }
+  });
+}
+
+function splitIoPortItems(rawText) {
+  const normalized = normalizeIoPortText(rawText)
     .replace(/,/g, "\n")
     .replace(/(?=\bRJ45\s+for\s+.+?\s+for\s+(?:WAN\/LAN|WAN|LAN)\s*x\s*\d+\b)/gi, "\n")
     .replace(/(?=\bUSB(?:[-\s][A-Za-z0-9.]+)?(?:\s+.+?)?\s*x\s*\d+\b)/gi, "\n")
-    .replace(/(?=(?<![\d.])\b\d+\s*x\s+(?:RJ45\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|G)|10\/100\/1000Mbps|USB)\b)/gi, "\n")
-    .replace(/(?=\b(?:USB\s+[A-Za-z0-9./+\- ]+?|(?<![\d.])\b(?:\d+(?:\.\d+)?\s*(?:Gbps|G)|10\/100\/1000Mbps)\s+(?:WAN\/LAN|WAN|LAN))\s*x\s*\d+\b)/gi, "\n");
+    .replace(/(?=(?<![\d.])\b\d+\s*x\s+(?:RJ45\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)|10\/100\/1000Mbps|USB)\b)/gi, "\n")
+    .replace(/(?=\b(?:USB\s+[A-Za-z0-9./+\- ]+?|(?<![\d.])\b(?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)|10\/100\/1000Mbps)\s+(?:WAN\/LAN|WAN|LAN))\s*x\s*\d+\b)/gi, "\n");
   return normalized
     .split(/\n+/)
     .map((item) => item.replace(/\s+/g, " ").trim())
@@ -373,7 +424,7 @@ function splitIoPortItems(rawText) {
 }
 
 function parseIoPortsText(rawText) {
-  const text = String(rawText || "").replace(/\s+/g, " ").trim();
+  const text = normalizeIoPortText(rawText).replace(/\s+/g, " ").trim();
   if (!text) {
     return null;
   }
@@ -383,48 +434,48 @@ function parseIoPortsText(rawText) {
   splitIoPortItems(text).forEach((item) => {
     let match = /^(\d+)\s*x\s*(.+?)\s+for\s+(WAN\/LAN|WAN|LAN)$/i.exec(item);
     if (match) {
-      networkPorts.push({ count: Number(match[1]), spec: normalizePortSpeed(match[2]), role: normalizePortRole(match[3]) });
+      addNetworkPort(networkPorts, match[1], match[2], match[3]);
       return;
     }
 
     match = /^RJ45\s+for\s+(.+?)\s+for\s+(WAN\/LAN|WAN|LAN)\s*x\s*(\d+)$/i.exec(item);
     if (match) {
-      networkPorts.push({ count: Number(match[3]), spec: normalizePortSpeed(match[1]), role: normalizePortRole(match[2]) });
+      addNetworkPort(networkPorts, match[3], match[1], match[2]);
       return;
     }
 
-    match = /^(\d+)\s*x\s*((?:RJ45\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|G)|10\/100\/1000Mbps))\s+(WAN\/LAN|WAN|LAN)$/i.exec(item);
+    match = /^(\d+)\s*x\s*((?:RJ45\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)|10\/100\/1000Mbps))\s+(WAN\/LAN|WAN|LAN)$/i.exec(item);
     if (match) {
-      networkPorts.push({ count: Number(match[1]), spec: normalizePortSpeed(match[2]), role: normalizePortRole(match[3]) });
+      addNetworkPort(networkPorts, match[1], match[2], match[3]);
       return;
     }
 
     match = /^(\d+)\s*x\s*(\d+(?:\.\d+)?\s*Gbps)\s*SFP\+\s*Port$/i.exec(item);
     if (match) {
-      networkPorts.push({ count: Number(match[1]), spec: `${normalizePortSpeed(match[2])} SFP+`, role: "LAN" });
+      addNetworkPort(networkPorts, match[1], `${normalizePortSpeed(match[2])} SFP+`, "LAN");
       return;
     }
 
-    match = /^((?:\d+(?:\.\d+)?\s*(?:Gbps|G)|10\/100\/1000Mbps))\s+(WAN\/LAN|WAN|LAN)\s*x\s*(\d+)$/i.exec(item);
+    match = /^((?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)|10\/100\/1000Mbps))\s+(WAN\/LAN|WAN|LAN)\s*x\s*(\d+)$/i.exec(item);
     if (match) {
-      networkPorts.push({ count: Number(match[3]), spec: normalizePortSpeed(match[1]), role: normalizePortRole(match[2]) });
+      addNetworkPort(networkPorts, match[3], match[1], match[2]);
       return;
     }
 
-    match = /^((?:\d+(?:\.\d+)?\s*(?:Gbps|G)|10\/100\/1000Mbps))\s*x\s*(\d+)\s*(?:\((.+?)\)|(.+?))?$/i.exec(item);
+    match = /^((?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)|10\/100\/1000Mbps))\s*x\s*(\d+)\s*(?:\((.+?)\)|(.+?))?$/i.exec(item);
     if (match) {
       const role = inferPortRoleFromText(`${match[3] || ""} ${match[4] || ""}`);
       if (role) {
-        networkPorts.push({ count: Number(match[2]), spec: normalizePortSpeed(match[1]), role });
+        addNetworkPort(networkPorts, match[2], match[1], role);
         return;
       }
     }
 
-    match = /((?:RJ45\s+for\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|G)(?:\s*BaseT)?|Gigabits?\s+BaseT|10\/100\/1000Mbps))\s*x\s*(\d+)/i.exec(item);
+    match = /((?:RJ45\s+for\s+)?(?:\d+(?:\.\d+)?\s*(?:Gbps|GbE|G)(?:\s*BaseT)?|Gigabits?\s+BaseT|10\/100\/1000Mbps))\s*x\s*(\d+)/i.exec(item);
     if (match) {
       const role = inferPortRoleFromText(item);
       if (role) {
-        networkPorts.push({ count: Number(match[2]), spec: normalizePortSpeed(match[1]), role });
+        addNetworkPort(networkPorts, match[2], match[1], role);
         return;
       }
     }
@@ -446,6 +497,7 @@ function parseIoPortsText(rawText) {
       usbPorts.push({ count: Number(match[2]), spec: String(match[1] || "").replace(/\s+/g, " ").trim() });
     }
   });
+  scanNetworkPortMentions(text, networkPorts);
 
   const lanPorts = networkPorts.filter((item) => item.role === "LAN" || item.role === "WAN/LAN");
   const wanPorts = networkPorts.filter((item) => item.role === "WAN" || item.role === "WAN/LAN");
