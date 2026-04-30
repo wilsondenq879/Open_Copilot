@@ -510,6 +510,9 @@ function patchXlsbWorkbook(entries, values) {
   const coverUpdates = [
     { row: 6, col: 2, value: values.modelName },
     { row: 7, col: 2, value: values.modelName },
+    { row: 88, col: 1, value: values.um },
+    { row: 88, col: 2, value: values.qsg },
+    { row: 90, col: 1, value: values.spec },
   ];
   const interfaceUpdates = [
     { row: 3, col: 2, value: values.wifi },
